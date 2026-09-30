@@ -1,0 +1,125 @@
+# Tự động build file APK Android trên máy chủ GitHub (miễn phí).
+# Chạy khi: bấm "Run workflow" trong tab Actions, hoặc mỗi lần đẩy code mới lên nhánh main.
+# Kết quả: file APK nằm trong mục "Artifacts" của lần chạy (tải về dạng .zip, giải nén ra .apk).
+name: Build APK
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lấy code
+        uses: actions/checkout@v4
+
+      - name: Cài Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Cài Java 17 (Capacitor 6 yêu cầu)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # KHÔNG dùng android-actions/setup-android: bước đó lỗi trên máy chủ GitHub (sdkmanager exit
+      # code 1). Máy chủ ubuntu-latest đã cài sẵn Android SDK (ANDROID_HOME), Gradle tự dùng.
+
+      - name: Cài thư viện Capacitor
+        run: npm install
+
+      # GIỐNG bước cùng tên trong web-preview.yml (xem giải thích ở đó). Nhờ file này APK biết mình đang là bản
+      # nào và hỏi cập nhật ở đâu (www/live-update.js).
+      - name: Ghi mã phiên bản + địa chỉ cập nhật vào www/
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          REPO="${{ github.event.repository.name }}"
+          if [ "$(echo "$REPO" | tr '[:upper:]' '[:lower:]')" = "$OWNER.github.io" ]; then BASE="https://$OWNER.github.io/"; else BASE="https://$OWNER.github.io/$REPO/"; fi
+          VER=$(echo "${{ github.sha }}" | cut -c1-7)
+          NATIVE=$(tr -dc '0-9' < native-level.txt 2>/dev/null); NATIVE=${NATIVE:-1}
+          MSG=$(git log -1 --pretty=%s | head -c 200)
+          DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          jq -n --arg v "$VER" --argjson n "$NATIVE" --arg d "$DATE" --arg m "$MSG" '{version:$v,nativeLevel:$n,date:$d,message:$m}' > www/bundle-version.json
+          jq -n --arg b "$BASE" '{base:$b}' > www/live-update-config.json
+          cat www/bundle-version.json www/live-update-config.json
+
+      - name: Tạo project Android và chép giao diện www/ vào
+        run: |
+          npx cap add android
+          npx cap sync android
+
+      # Tên phiên bản APK (Cài đặt Android › Ứng dụng) = "version" trong package.json (VD 1.1.0 → 1.1);
+      # mã phiên bản = số lần chạy build (luôn tăng → APK mới cài đè được APK cũ).
+      - name: Đặt số phiên bản APK
+        run: |
+          VN=$(jq -r '.version' package.json | sed 's/\.0$//')
+          G=android/app/build.gradle
+          sed -i "s/versionName \"[^\"]*\"/versionName \"$VN\"/; s/versionCode [0-9]*/versionCode ${GITHUB_RUN_NUMBER}/" $G
+          grep -n "versionName\|versionCode" $G
+
+      # Lưu file phiếu vào thư mục Documents: Android 10 trở xuống cần quyền ghi bộ nhớ.
+      - name: Thêm quyền lưu file (Android cũ)
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />#' $M
+          sed -i 's#<application#<application android:requestLegacyExternalStorage="true"#' $M
+          grep -n "STORAGE\|requestLegacy" $M
+
+      # Icon ứng dụng: chép các file trong icons/res/ đè lên icon mặc định của Capacitor.
+      - name: Đặt icon ứng dụng
+        run: |
+          # Báo lỗi NGAY nếu quên tải thư mục icons/ lên GitHub (thay vì build ra app không có logo)
+          test -f icons/res/mipmap-xxxhdpi/kl_icon_foreground.png || { echo "::error::THIẾU thư mục icons/res/ trong repo — hãy tải cả thư mục icons/ lên GitHub"; exit 1; }
+          cp -r icons/res/. android/app/src/main/res/
+          ls android/app/src/main/res/mipmap-xxxhdpi
+          cat android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+          grep -n "android:icon\|android:roundIcon" android/app/src/main/AndroidManifest.xml
+
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      # Kiểm tra logo đã nằm trong APK; không có thì báo đỏ để khỏi cài nhầm bản không icon.
+      - name: Kiểm tra icon trong APK
+        run: |
+          unzip -l android/app/build/outputs/apk/debug/app-debug.apk | grep -i "kl_icon_foreground" | head -3
+          test "$(unzip -l android/app/build/outputs/apk/debug/app-debug.apk | grep -ci kl_icon_foreground)" -ge 1 || { echo "::error::APK KHÔNG chứa logo"; exit 1; }
+
+      # KÝ APK BẰNG KHOÁ CỐ ĐỊNH (Secrets ANDROID_KEYSTORE_BASE64 + ANDROID_KEYSTORE_PASSWORD): mỗi lần build trên máy
+      # chủ GitHub, khoá debug lại được tạo MỚI → APK mới KHÔNG cài đè được bản cũ ("Ứng dụng chưa được cài đặt").
+      # Có khoá cố định thì mọi bản APK cùng chữ ký → cài đè bình thường, giữ nguyên dữ liệu trên máy.
+      # Chưa nhập Secrets → vẫn dùng khoá debug như cũ (có cảnh báo vàng).
+      - name: Ký APK bằng khoá cố định
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          APK=android/app/build/outputs/apk/debug/app-debug.apk
+          if [ -z "$KS_B64" ] || [ -z "$KS_PASS" ]; then
+            echo "::warning::Chưa có Secrets ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD — APK ký bằng khoá debug tạm (không cài đè được bản cũ)."
+            exit 0
+          fi
+          echo "$KS_B64" | base64 -d > release.p12
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/zipalign" -f -p 4 "$APK" aligned.apk
+          "$BT/apksigner" sign --ks release.p12 --ks-type PKCS12 --ks-pass env:KS_PASS --key-pass env:KS_PASS --out signed.apk aligned.apk
+          "$BT/apksigner" verify --print-certs signed.apk | head -5
+          mv signed.apk "$APK"
+          rm -f release.p12 aligned.apk
+
+      - name: Đổi tên file APK
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/debug/app-debug.apk "dist/KhoLanhAnAn-${GITHUB_RUN_NUMBER}.apk"
+
+      - name: Lưu file APK để tải về
+        uses: actions/upload-artifact@v4
+        with:
+          name: KhoLanhAnAn-APK
+          path: dist/*.apk
+          retention-days: 30

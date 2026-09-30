@@ -69,7 +69,9 @@ jobs:
                   data = open(full, 'rb').read()
                   files.append({'p': rel, 's': hashlib.sha256(data).hexdigest(), 'n': len(data)})
           files.sort(key=lambda f: f['p'])
-          out = {'version': os.environ['VER'], 'nativeLevel': int(os.environ['NATIVE']), 'message': os.environ.get('MSG', ''),
+          import re
+          m = re.search(r"APP_VERSION = '([^']+)'", open('www/app.js', encoding='utf-8').read())
+          out = {'version': os.environ['VER'], 'appVersion': m.group(1) if m else '', 'nativeLevel': int(os.environ['NATIVE']), 'message': os.environ.get('MSG', ''),
                  'date': os.environ.get('DATE', ''), 'files': files}
           json.dump(out, open('_site/update.json', 'w', encoding='utf-8'), ensure_ascii=False)
           print(len(files), 'file,', sum(f['n'] for f in files), 'byte')

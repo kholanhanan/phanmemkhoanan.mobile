@@ -1,6 +1,6 @@
 # Đăng thư mục www/ lên GitHub Pages — dùng cho 2 việc:
 #   1. Bản web chạy thử trên trình duyệt (như trước).
-#   2. NGUỒN TỰ CẬP NHẬT cho app APK (www/live-update.js): update.json + bundle-<mã>.zip.
+#   2. NGUỒN TỰ CẬP NHẬT cho app APK (www/live-update.js): update.json (danh sách file + sha256) + các file www.
 # Cần bật 1 lần: Settings → Pages → Source: "GitHub Actions". Repo để Public (tài khoản GitHub miễn phí).
 # Trong www/ và Code.gs KHÔNG chứa mã truy cập nào nên để public vẫn an toàn —
 # mã APP_TOKEN/PC_TOKEN chỉ nằm trong Thuộc tính tập lệnh của Apps Script.
@@ -47,16 +47,34 @@ jobs:
           echo "VER=$VER" >> $GITHUB_ENV; echo "NATIVE=$NATIVE" >> $GITHUB_ENV; echo "MSG=$MSG" >> $GITHUB_ENV; echo "DATE=$DATE" >> $GITHUB_ENV
           cat www/bundle-version.json www/live-update-config.json
 
-      - name: Đóng gói bản cập nhật (zip thư mục www, index.html ở gốc)
+      # Kiểm tra cú pháp mọi file .js của www (trừ thư viện nén sẵn) — lỗi thì DỪNG, không đăng bản hỏng
+      # (điện thoại tải bản lỗi về sẽ không khởi động được giao diện).
+      - name: Kiểm tra lỗi cú pháp JavaScript
+        run: |
+          for f in $(find www -name "*.js" -not -path "www/lib/*"); do node --check "$f" || { echo "::error file=$f::Lỗi cú pháp — không đăng bản cập nhật"; exit 1; }; done
+          echo "OK"
+
+      # update.json = mã bản + danh sách MỌI file của www kèm sha256 (live-update.js tải từng file, kiểm từng file).
+      - name: Tạo danh sách file cập nhật (update.json)
         run: |
           mkdir -p _site
           cp -r www/. _site/
-          (cd www && zip -qr "../_site/bundle-$VER.zip" .)
-          SUM=$(sha256sum "_site/bundle-$VER.zip" | cut -d' ' -f1)
-          jq -n --arg v "$VER" --argjson n "$NATIVE" --arg f "bundle-$VER.zip" --arg s "$SUM" --arg m "$MSG" --arg d "$DATE" \
-            '{version:$v,nativeLevel:$n,file:$f,sha256:$s,message:$m,date:$d}' > _site/update.json
-          cat _site/update.json
-          ls -la _site | head -30
+          python3 - <<'PY'
+          import hashlib, json, os
+          files = []
+          for root, _, names in os.walk('www'):
+              for n in sorted(names):
+                  full = os.path.join(root, n)
+                  rel = os.path.relpath(full, 'www').replace(os.sep, '/')
+                  data = open(full, 'rb').read()
+                  files.append({'p': rel, 's': hashlib.sha256(data).hexdigest(), 'n': len(data)})
+          files.sort(key=lambda f: f['p'])
+          out = {'version': os.environ['VER'], 'nativeLevel': int(os.environ['NATIVE']), 'message': os.environ.get('MSG', ''),
+                 'date': os.environ.get('DATE', ''), 'files': files}
+          json.dump(out, open('_site/update.json', 'w', encoding='utf-8'), ensure_ascii=False)
+          print(len(files), 'file,', sum(f['n'] for f in files), 'byte')
+          PY
+          head -c 400 _site/update.json; echo
 
       - uses: actions/upload-pages-artifact@v3
         with:

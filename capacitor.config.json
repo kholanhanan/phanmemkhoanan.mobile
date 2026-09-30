@@ -1,0 +1,18 @@
+{
+  "appId": "vn.anan.kholanh",
+  "appName": "Kho Lạnh An An",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "CapacitorUpdater": {
+      "autoUpdate": false,
+      "statsUrl": "",
+      "resetWhenUpdate": true,
+      "autoDeletePrevious": true,
+      "autoDeleteFailed": true,
+      "appReadyTimeout": 15000
+    }
+  }
+}

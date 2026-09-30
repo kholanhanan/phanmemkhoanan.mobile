@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1766C0">
+  <!-- Chế độ giao diện đặt TRƯỚC khi vẽ trang (mặc định Sáng) — xem applyTheme() trong app.js -->
+  <script>/* đặt giao diện TRƯỚC khi vẽ trang — giống applyTheme() trong app.js */try{var c=localStorage.getItem('klanan.theme');var d=c==='dark'||(c==='auto'&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.setAttribute('data-theme',d?'dark':'light');document.querySelector('meta[name="theme-color"]').setAttribute('content',d?'#0A1118':'#1766C0');}catch(e){document.documentElement.setAttribute('data-theme','light');}</script>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <title>Kho Lạnh An An</title>
+<link rel="stylesheet" href="fonts.css?v=1.1-20260930"><!-- font trong máy (offline) -->
+  <link rel="stylesheet" href="app.css?v=1.1-20260930">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-row">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-name">Kho Lạnh An An</span>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-btn" id="refreshBtn" type="button" aria-label="Tải lại số liệu">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
+        </button>
+        <button class="icon-btn" id="settingsBtn" type="button" aria-label="Cài đặt">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="freshness" id="freshness" role="status"></div>
+  </header>
+
+  <main id="main">
+    <!-- TRANG CHỦ: tìm mã trong mọi kho, việc cần làm, các kho (kho ẩn/hiện theo phân quyền — xem HIDDEN_SOURCES, applyPerms trong app.js) -->
+    <section class="view" id="view-home" data-view="home" hidden>
+      <div class="search-row">
+        <label class="home-search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input type="search" id="homeSearch" placeholder="Tìm mã hàng trong tất cả kho" autocomplete="off" aria-label="Tìm mã hàng trong tất cả kho">
+        </label>
+      </div>
+      <div id="homeResults"></div>
+      <div id="homeMain">
+        <h3 class="sec-title" id="homeTodoTitle">Việc cần làm</h3>
+        <div class="todo-grid" id="homeTodo"></div>
+        <h3 class="sec-title">Kho <small>chạm để xem &amp; xuất</small></h3>
+        <div class="kho-grid" id="homeKho"></div>
+      </div>
+    </section>
+
+    <!-- KHO: xem tồn + xuất trong CÙNG 1 màn (thay cho 2 tab Xuất kho / Tồn kho cũ) -->
+    <section class="view" id="view-xuat" data-view="xuat" hidden>
+      <button type="button" class="kho-picker" id="khoPicker" aria-label="Đổi kho">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/></svg>
+        <span class="kp-text"><b id="khoPickerName">Tồn kho gửi</b><small id="khoPickerSub">Module 02 · đổi kho</small></span>
+        <svg class="kp-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="search-row">
+        <div class="search-flex">
+          <input type="search" class="search" id="xuatSearch" placeholder="Tìm giá trị 1" autocomplete="off" aria-label="Tìm kiếm — giá trị 1">
+          <input type="search" class="search" id="xuatSearch2" placeholder="Và giá trị 2 (vd BTP 50)" autocomplete="off" aria-label="Tìm kiếm — giá trị 2 (hiện dòng khớp CẢ ô 1 VÀ ô 2)">
+          <button type="button" class="filter-btn" id="xuatFilterBtn" aria-label="Lọc theo nhiều cột">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16l-6 7v6l-4 2v-8z"/></svg>
+            <span class="filter-badge" id="xuatFilterBadge" hidden>0</span>
+          </button>
+        </div>
+        <div class="filter-chips" id="xuatFilterChips"></div>
+      </div>
+      <div class="opt-row">
+        <label class="toggle">
+          <input type="checkbox" id="onlyAvail" checked>
+          <span>Chỉ lô còn hàng</span>
+        </label>
+        <!-- Sắp xếp danh sách (cùng trạng thái với bấm tiêu đề cột). "Đặc tính" gom các dòng cùng đặc tính
+             lại với nhau, trong mỗi nhóm xếp theo vị trí/lô. -->
+        <label class="sort-pick" title="Sắp xếp danh sách">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4"/></svg>
+          <select id="xuatSort" aria-label="Sắp xếp danh sách">
+            <option value="">Sắp xếp: mặc định</option>
+            <option value="dt:1">Đặc tính A → Z</option>
+            <option value="dt:-1">Đặc tính Z → A</option>
+            <option value="ma:1">Mã hàng A → Z</option>
+            <option value="place:1">Vị trí / Lô A → Z</option>
+            <option value="qty:-1">SL nhiều → ít</option>
+            <option value="qty:1">SL ít → nhiều</option>
+            <option value="hsd:1">Hạn dùng: gần hết hạn trước</option>
+          </select>
+        </label>
+      </div>
+      <!-- Lọc nhanh theo hạn dùng — CHỈ hiện ở kho Vị trí Bột (app.js › renderHsdQuick) -->
+      <div class="hsd-quick" id="hsdQuick" role="group" aria-label="Lọc theo hạn dùng" hidden>
+        <button type="button" data-hsdq="">Tất cả</button>
+        <button type="button" data-hsdq="sap">Sắp hết hạn <b id="hsdQSap"></b></button>
+        <button type="button" data-hsdq="het">Đã hết hạn <b id="hsdQHet"></b></button>
+      </div>
+      <div class="meta-row">
+        <div class="list-meta" id="xuatMeta"></div>
+        <button type="button" class="multi-btn" id="xuatMulti" aria-pressed="false">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m8 12 3 3 5-6"/></svg>
+          <span>Chọn nhiều</span>
+        </button>
+      </div>
+      <div class="list-head" id="xuatHead" hidden><span data-sort="ma" role="button" tabindex="0">Mã hàng</span><span data-sort="place" role="button" tabindex="0"><span id="xuatHeadPlace">Vị trí</span></span><span data-sort="qty" role="button" tabindex="0"><span id="xuatHeadUnit">SL</span></span></div>
+      <ul class="list" id="xuatList"></ul>
+      <button class="more-btn" id="xuatMore" type="button" hidden>Xem thêm</button>
+    </section>
+
+    <!-- BÁO CÁO: file Excel PC dựng sẵn (Báo Cáo Tổng Tồn, Bảng Tổng Hợp HLSO, Bảng Tổng Hợp M02) — renderBaoCao()
+         trong app.js. Tab chỉ hiện khi tài khoản có quyền BC01 / BC02 (Cài đặt người dùng → Kho được dùng). -->
+    <section class="view" id="view-baocao" data-view="baocao" hidden>
+      <div class="ks-top">
+        <h2 class="ks-title">Báo cáo Excel</h2>
+        <p class="bc-lead">File giống hệt nút "Xuất Excel" trên PC. Khi Lưu / Gửi sẽ hỏi ngày báo cáo.</p>
+      </div>
+      <div id="bcBody"></div>
+    </section>
+
+    <!-- Tra cứu kháng sinh (dữ liệu Module 08 trên PC) — giao diện riêng cho điện thoại, chỉ xem.
+         Mã hóa SP / Dữ liệu tổng hợp / Báo cáo rã đông chỉ dùng trên PC nên đã bỏ khỏi điện thoại. -->
+    <section class="view" id="view-m8" data-view="m8" hidden>
+      <div class="ks-top">
+        <h2 class="ks-title">Tra cứu kháng sinh</h2>
+        <div class="segmented three" id="m8KsSeg" role="tablist">
+          <button type="button" class="seg is-on" data-ks="lookup">Kiểm tra</button>
+          <button type="button" class="seg" data-ks="rules">Quy định</button>
+          <button type="button" class="seg" data-ks="history">Lô đã kiểm</button>
+        </div>
+      </div>
+      <div id="m8Body"></div>
+    </section>
+
+    <!-- PHIẾU: mọi phiếu ở 1 chỗ — Đang soạn / Chờ PC / Đã nhận / Đã hủy -->
+    <section class="view" id="view-phieu" data-view="phieu" hidden>
+      <div class="pseg" id="phieuSeg" role="tablist" aria-label="Nhóm phiếu">
+        <button type="button" role="tab" data-pseg="soan">Đang soạn <b id="pc-soan"></b></button>
+        <button type="button" role="tab" data-pseg="cho">Chờ PC <b id="pc-cho"></b></button>
+        <button type="button" role="tab" data-pseg="nhan">Đã nhận <b id="pc-nhan"></b></button>
+        <button type="button" role="tab" data-pseg="huy">Đã hủy <b id="pc-huy"></b></button>
+      </div>
+      <div id="phieuDraft"></div>
+      <label class="toggle">
+        <input type="checkbox" id="onlyMine" checked>
+        <span>Chỉ phiếu của tôi</span>
+      </label>
+      <div class="list-meta" id="phieuMeta"></div>
+      <ul class="list" id="phieuList"></ul>
+    </section>
+  </main>
+
+  <!-- Thanh phiếu đang soạn -->
+  <button class="cartbar" id="cartBar" type="button" hidden>
+    <span class="cartbar-text" id="cartBarText"></span>
+    <span class="cartbar-cta">Xem phiếu</span>
+  </button>
+
+  <!-- Dòng tổng số lượng (Xuất kho / Tồn kho), luôn nằm sát thanh tab dưới -->
+  <!-- Thanh thao tác khi đang "Chọn nhiều" (thay chỗ thanh phiếu) -->
+  <div class="multibar" id="multiBar" hidden>
+    <div class="multibar-text" id="multiBarText"></div>
+    <div class="multibar-actions">
+      <button type="button" class="mb-ghost" id="multiAll">Chọn hết</button>
+      <button type="button" class="mb-main" id="multiAdd">Thêm vào phiếu</button>
+    </div>
+  </div>
+  <div class="totalbar" id="totalBar" role="status" aria-live="polite" hidden>
+    <span class="totalbar-label" id="totalBarLabel"></span>
+    <span class="totalbar-value" id="totalBarValue"></span>
+  </div>
+
+  <nav class="tabbar" role="tablist">
+    <button type="button" class="tab" data-tab="home">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>
+      <span>Trang chủ</span>
+    </button>
+    <button type="button" class="tab" data-tab="xuat">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/></svg>
+      <span>Kho</span>
+    </button>
+    <button type="button" class="tab" data-tab="phieu">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h7"/></svg>
+      <span>Phiếu</span>
+      <b class="tab-badge" id="navBadge" hidden></b>
+    </button>
+    <button type="button" class="tab" data-tab="baocao" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 17v-3M12 17v-6M15 17v-4"/></svg>
+      <span>Báo cáo</span>
+    </button>
+    <button type="button" class="tab" data-tab="m8">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      <span>Tra cứu</span>
+    </button>
+  </nav>
+
+  <!-- Bảng trượt từ dưới lên (dùng chung: nhập số lượng / phiếu đang soạn / cài đặt) -->
+  <div class="scrim" id="scrim" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" hidden>
+    <div class="sheet-grip" aria-hidden="true"></div>
+    <div class="sheet-body" id="sheetBody"></div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="live-update.js?v=1.1-20260930"></script><!-- tự cập nhật giao diện APK (đặt ĐẦU TIÊN: báo app đã chạy tốt) -->
+  <script src="export.js?v=1.1-20260930"></script>
+  <script src="size-label.js?v=1.1-20260930"></script>
+  <script src="ks-rules.js?v=1.1-20260930"></script>
+  <script src="app.js?v=1.1-20260930"></script>
+</body>
+</html>

@@ -1,0 +1,2457 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tra cứu &amp; theo dõi kháng sinh theo thị trường</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root{
+    --ink:#ffffff;
+    --paper:#000000;
+    --line:#333333;
+    --line-soft:#1f1f1f;
+    --accent:#ffffff;
+    --accent-blue:#ffffff;
+    --accent-dark:#cccccc;
+    --accent-text:#ffffff;
+    --warn:#e2685a;
+    --panel:#0d0d0d;
+    --muted:#b3b3b3;
+    --faint:#777777;
+    --amber:#e0b256;
+    --amber-bg:#3a2f18;
+    --field-bg:#0d0d0d;
+    --focus-bg:#1f1f1f;
+    --hover-bg:#1f1f1f;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:"Segoe UI","Inter",system-ui,-apple-system,sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    line-height:1.5;
+  }
+  .wrap{
+    max-width:none;
+    width:100%;
+    margin:0 auto;
+    padding:24px 28px 60px;
+  }
+
+  /* Nav được điều khiển bởi menu con bên ngoài (trong trang chính); ẩn nav nội bộ
+     để tránh 2 lớp menu trùng nhau. Vẫn giữ nguyên trong DOM/JS để goToTab() hoạt động. */
+  body.embedded-hide-tabs nav.tabs{
+    display:none;
+  }
+
+  nav.tabs{
+    display:flex;
+    gap:6px;
+    margin-bottom:24px;
+    padding:6px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    flex-wrap:wrap;
+  }
+  nav.tabs button{
+    font-family:inherit;
+    font-size:13px;
+    background:transparent;
+    border:none;
+    padding:9px 16px;
+    border-radius:7px;
+    cursor:pointer;
+    color:var(--muted);
+    font-weight:500;
+  }
+  nav.tabs button.active{
+    background:linear-gradient(135deg, var(--accent), var(--accent-blue));
+    color:#000000;
+    font-weight:600;
+  }
+  nav.tabs button:hover{ color:var(--ink); }
+  nav.tabs button.active:hover{ color:#000000; }
+
+  .tabpanel{ display:none; }
+  .tabpanel.active{ display:block; }
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:28px;
+    margin-bottom:24px;
+  }
+  .panel h2{
+    font-size:16px;
+    margin:0 0 18px;
+    font-weight:700;
+    color:var(--ink);
+  }
+  .panel h2 small{
+    display:block;
+    font-size:11.5px;
+    color:var(--muted);
+    font-weight:normal;
+    margin-top:4px;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+    gap:16px;
+    margin-bottom:22px;
+  }
+  .grid.meta{
+    grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+    margin-bottom:16px;
+  }
+  .grid.mapping{
+    grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+    margin-bottom:18px;
+  }
+  .field label{
+    display:block;
+    font-size:12px;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+  .field input, .field select{
+    width:100%;
+    padding:10px 10px;
+    font-family:inherit;
+    font-size:14px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:var(--field-bg);
+    color:var(--ink);
+  }
+  .field input:focus, .field select:focus{
+    outline:none;
+    border-color:var(--accent);
+    background:var(--focus-bg);
+  }
+  .field.required label:after{
+    content:" *";
+    color:var(--warn);
+  }
+  .hint{
+    font-size:12px;
+    color:var(--muted);
+    margin:-12px 0 22px;
+  }
+  .actions{
+    display:flex;
+    gap:12px;
+    align-items:center;
+    flex-wrap:wrap;
+  }
+  button.primary, button.act{
+    font-family:inherit;
+    font-size:13.5px;
+    font-weight:600;
+    padding:11px 26px;
+    border:none;
+    border-radius:8px;
+    background:linear-gradient(135deg, var(--accent), var(--accent-blue));
+    color:#000000;
+    cursor:pointer;
+  }
+  button.primary:hover, button.act:hover{ opacity:0.88; }
+  button.secondary{
+    font-family:inherit;
+    font-size:13.5px;
+    font-weight:600;
+    padding:11px 26px;
+    background:var(--field-bg);
+    color:var(--ink);
+    border:1px solid var(--line);
+    border-radius:8px;
+    cursor:pointer;
+  }
+  button.secondary:hover{ border-color:#555555; }
+  button.danger{
+    font-family:inherit;
+    font-size:12.5px;
+    font-weight:600;
+    padding:6px 14px;
+    background:transparent;
+    color:var(--warn);
+    border:1px solid var(--warn);
+    border-radius:7px;
+    cursor:pointer;
+  }
+  button.danger:hover{ background:var(--warn); color:#fff; }
+  button.small{
+    font-size:12px;
+    font-weight:600;
+    padding:5px 10px;
+    background:var(--field-bg);
+    color:var(--muted);
+    border:1px solid var(--line);
+    border-radius:7px;
+    cursor:pointer;
+  }
+  button.small:hover{ border-color:#555555; color:var(--ink); }
+  button[disabled]{ opacity:0.5; cursor:default; }
+
+  .result-box{ display:none; margin-top:8px; }
+  .result-box.show{ display:block; }
+  .result-pass{ border-left:4px solid var(--accent); }
+  .result-fail{ border-left:4px solid var(--warn); }
+  .result-none{ border-left:4px solid var(--muted); }
+  .result-headline{
+    font-size:20px;
+    font-weight:700;
+    margin:0 0 4px;
+  }
+  .result-pass .result-headline{ color:var(--accent-text); }
+  .result-fail .result-headline{ color:var(--warn); }
+  .result-sub{
+    font-size:13px;
+    color:var(--muted);
+    margin:0 0 16px;
+  }
+  .result-row{
+    display:flex;
+    gap:10px;
+    padding:6px 0;
+    border-top:1px dashed var(--line);
+    font-size:14px;
+  }
+  .result-row:first-of-type{ border-top:none; }
+  .result-row .k{
+    min-width:150px;
+    color:var(--muted);
+    font-size:12px;
+    padding-top:2px;
+  }
+  .savemsg{
+    font-size:12px;
+    color:var(--accent-text);
+    margin-top:10px;
+    white-space:pre-line;
+  }
+  .savemsg.err{ color:var(--warn); }
+
+  table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:13px;
+    border:1px solid var(--line);
+  }
+  th,td{
+    padding:8px 8px;
+    border:1px solid var(--line);
+    text-align:left;
+    vertical-align:top;
+  }
+  th{
+    font-size:11.5px;
+    color:var(--muted);
+    font-weight:600;
+    border:1px solid var(--line);
+    background:var(--field-bg);
+  }
+  tr:hover td{ background:var(--hover-bg); }
+  /* Mọi bảng dữ liệu trong công cụ: giữ mỗi ô trên 1 dòng cho dễ đọc,
+     cho phép cuộn ngang (trong .table-scroll) thay vì tự xuống dòng. */
+  #sheetListTable, #previewTable, #historyTable, #rulesTable{ width:auto; min-width:100%; }
+  #sheetListTable th, #sheetListTable td,
+  #previewTable th, #previewTable td,
+  #historyTable th, #historyTable td,
+  #rulesTable th, #rulesTable td{ white-space:nowrap; }
+  /* Ngoại lệ: cột Lô hàng/Ghi chú trong dữ liệu đã lưu và Chỉ tiêu đã nhập có thể dài,
+     cho phép xuống dòng riêng 2 cột này để không kéo bảng quá rộng. */
+  #historyTable td:nth-child(2), #historyTable td:nth-child(5){ white-space:normal; }
+  .table-scroll{
+    max-height:460px;
+    overflow:auto;
+    border:1px solid var(--line);
+    border-radius:9px;
+  }
+  /* Cố định tiêu đề bảng "Dữ liệu kết quả đã lưu" + dòng tìm kiếm nhanh
+     ngay bên dưới khi cuộn trong .table-scroll. top của dòng tìm kiếm được
+     JS đặt lại chính xác theo chiều cao thực tế của dòng tiêu đề (xem
+     alignHistorySearchRowSticky). */
+  #historyTable thead tr.history-header-row th{
+    position:sticky;
+    top:0;
+    z-index:3;
+  }
+  #historyTable thead tr.history-search-row th{
+    position:sticky;
+    top:34px;
+    z-index:2;
+    padding:6px 8px;
+  }
+  .history-search-row input{
+    width:100%;
+    padding:7px 10px;
+    font-family:inherit;
+    font-size:13px;
+    font-weight:400;
+    border:1px solid var(--line);
+    border-radius:7px;
+    background:var(--field-bg);
+    color:var(--ink);
+  }
+  .history-search-row input:focus{
+    outline:none;
+    border-color:var(--accent);
+    background:var(--focus-bg);
+  }
+  .history-search-row input::placeholder{ color:var(--faint); }
+  .history-search-row input.history-filter-input{
+    max-width:220px;
+    font-size:12.5px;
+  }
+  .history-search-row input.history-filter-input.active-filter{
+    border-color:var(--accent);
+    color:var(--accent-text);
+  }
+  .date-pager{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+    margin:12px 0 4px;
+    font-size:13px;
+    color:var(--muted);
+  }
+  .date-pager select{
+    padding:6px 8px;
+    font-family:inherit;
+    font-size:13px;
+    border:1px solid var(--line);
+    border-radius:7px;
+    background:var(--field-bg);
+    color:var(--ink);
+    max-width:280px;
+  }
+  .date-pager button:disabled{ opacity:0.4; cursor:default; }
+  details summary{
+    cursor:pointer;
+    font-size:13px;
+    color:var(--accent-text);
+    padding:6px 0;
+  }
+  .tag{
+    display:inline-block;
+    font-size:11px;
+    font-weight:600;
+    padding:2px 7px;
+    border-radius:6px;
+    border:1px solid var(--line);
+  }
+  .tag.pass{ color:var(--accent-text); border-color:var(--accent); }
+  .tag.fail{ color:var(--warn); border-color:var(--warn); }
+  /* Màu cột "Kết quả" (tab Dữ liệu): xanh = mọi chỉ tiêu ND · đỏ = có AOZ · hổ phách = còn lại */
+  .tag.ks-green{ color:#4ade80; border-color:#22c55e; background:rgba(34,197,94,.12); }
+  .tag.ks-red{ color:#f87171; border-color:#ef4444; background:rgba(239,68,68,.14); }
+  .tag.ks-amber{ color:#fbbf24; border-color:#f59e0b; background:rgba(245,158,11,.13); }
+  .empty-state{
+    color:var(--muted);
+    font-size:13px;
+    padding:18px 0;
+  }
+  .filebox{
+    border:1px dashed var(--line);
+    border-radius:9px;
+    padding:24px;
+    text-align:center;
+    margin-bottom:20px;
+    background:var(--field-bg);
+  }
+  .filebox input[type=file]{
+    font-family:inherit;
+    font-size:13px;
+    color:var(--ink);
+  }
+  .step-label{
+    font-size:12px;
+    font-weight:600;
+    color:var(--muted);
+    margin:0 0 10px;
+    letter-spacing:0.03em;
+  }
+  footer{
+    margin-top:36px;
+    font-size:12px;
+    color:var(--faint);
+    text-align:center;
+  }
+  @media (max-width:600px){
+    .grid{ grid-template-columns:repeat(2,1fr); }
+    .panel{ padding:20px; }
+  }
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <nav class="tabs">
+    <button data-tab="lookup" class="active">Tra cứu nhanh</button>
+    <button data-tab="batch">Nhập theo ngày / lô hàng</button>
+    <button data-tab="import">Nhập từ Excel / PDF</button>
+    <button data-tab="history">Dữ Liệu</button>
+    <button data-tab="rules">Quy định kháng sinh</button>
+  </nav>
+
+  <!-- TAB 1: QUICK LOOKUP -->
+  <section class="tabpanel active" id="tab-lookup">
+    <div class="panel">
+      <h2>Nhập chỉ tiêu kháng sinh</h2>
+      <div class="grid" id="inputGrid"></div>
+      <p class="hint">Để trống hoặc gõ <b>ND</b> nếu chỉ tiêu không phát hiện. Có phát hiện thì nhập số (vd: 8, 0.5, 12.3). Một chỉ tiêu ND vẫn được tính là đạt bất kỳ ngưỡng "&lt;X" nào của quy định.</p>
+      <div class="actions">
+        <button class="primary" id="btnCheck">Tra cứu kết quả</button>
+        <button class="secondary" id="btnReset" type="button">Nhập lại</button>
+      </div>
+    </div>
+    <div class="panel result-box" id="result">
+      <h2>Kết quả</h2>
+      <div id="resultBody"></div>
+    </div>
+  </section>
+
+  <!-- TAB 2: BATCH ENTRY -->
+  <section class="tabpanel" id="tab-batch">
+    <div class="panel">
+      <h2>Nhập kết quả theo ngày &amp; lô hàng</h2>
+      <div class="grid meta">
+        <div class="field">
+          <label for="batch_date">Ngày</label>
+          <input type="date" id="batch_date">
+        </div>
+        <div class="field">
+          <label for="batch_code">Mã / số lô hàng</label>
+          <input type="text" id="batch_code" placeholder="VD: LO-0912-A">
+        </div>
+        <div class="field">
+          <label for="batch_note">Ghi chú (tuỳ chọn)</label>
+          <input type="text" id="batch_note" placeholder="Ao, khách hàng, ...">
+        </div>
+      </div>
+      <div class="grid" id="batchInputGrid"></div>
+      <p class="hint">Để trống hoặc gõ <b>ND</b> nếu chỉ tiêu không phát hiện. Bấm "Tính &amp; xem trước" để xem kết quả tạm thời — kết quả chỉ được ghi vào "Dữ Liệu" sau khi bạn bấm "Lưu vào Dữ Liệu" và xác nhận.</p>
+      <div class="actions">
+        <button class="primary" id="btnBatchSave">Tính &amp; xem trước kết quả</button>
+        <button class="secondary" id="btnBatchReset" type="button">Nhập lại</button>
+      </div>
+      <div class="savemsg" id="batchSaveMsg"></div>
+    </div>
+    <div class="panel result-box" id="batchResult">
+      <h2>Kết quả lô hàng</h2>
+      <div id="batchResultBody"></div>
+    </div>
+    <div class="panel result-box" id="batchPreview">
+      <h2>Bảng xem trước (chưa lưu vào Dữ Liệu)
+        <small>Kiểm tra lại thông tin bên dưới. Dữ liệu này chỉ tồn tại tạm thời và sẽ mất nếu bạn rời trang mà chưa lưu.</small>
+      </h2>
+      <div class="table-scroll" style="margin-bottom:14px;">
+        <table id="batchPreviewTable"><thead></thead><tbody></tbody></table>
+      </div>
+      <div class="actions">
+        <button class="primary" id="btnBatchConfirmSave">Lưu vào Dữ Liệu</button>
+        <button class="secondary" id="btnBatchCancelPreview" type="button">Hủy xem trước</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB 3: EXCEL IMPORT -->
+  <section class="tabpanel" id="tab-import">
+    <div class="panel">
+      <h2>Nhập dữ liệu các lô đã có kết quả từ file Excel hoặc PDF</h2>
+      <p class="hint" style="margin-top:-6px;">Dùng khi bạn đã có sẵn danh sách lô hàng (và có thể đã có kết quả) trong một file Excel/CSV hoặc PDF (dạng bảng), muốn đưa toàn bộ vào dữ liệu đã lưu của công cụ này.</p>
+
+      <p class="step-label">BƯỚC 1 — CHỌN FILE</p>
+      <div class="filebox">
+        <input type="file" id="importFile" accept=".xlsx,.xls,.csv,.pdf" multiple>
+        <p class="hint" style="margin:10px 0 0;">File Excel/CSV: chọn 1 file (có thể có nhiều sheet — <strong>mỗi sheet sẽ được coi là dữ liệu của 1 ngày</strong>, xem BƯỚC 2 bên dưới). Công cụ tự bỏ qua các dòng thông tin công ty/địa chỉ/tiêu đề phía trên bảng số liệu để tìm đúng dòng tiêu đề cột. File PDF: cần có bảng với tiêu đề rõ ràng (công cụ tự dò cột theo vị trí chữ, kể cả tiêu đề chia nhiều dòng) — <strong>có thể chọn nhiều file PDF cùng lúc</strong>, công cụ sẽ đọc và gộp tất cả lại thành một bảng chung theo tên cột trước khi cho bạn khớp cột. PDF có ô bị gộp phức tạp (rowspan nhiều tầng) có thể dò sai — nếu vậy, hãy nhờ Claude chuyển PDF đó sang Excel trước, rồi nhập file Excel vào đây.</p>
+      </div>
+
+      <div class="field" id="sheetListWrap" style="display:none;margin-bottom:18px;">
+        <p class="step-label">BƯỚC 2 — DANH SÁCH SHEET (MỖI SHEET = 1 NGÀY)</p>
+        <p class="hint" style="margin-top:-6px;">Công cụ đã tự dò dòng tiêu đề bảng cho từng sheet (bỏ qua thông tin công ty/địa chỉ phía trên) và thử đoán Ngày từ tên sheet. Kiểm tra lại "Dòng tiêu đề" (số dòng, tính từ 1) và gán/sửa <strong>Ngày</strong> cho từng sheet — sheet nào không có Ngày sẽ bị bỏ qua khi nhập. Bấm "Xem trước" để xem toàn bộ dữ liệu của sheet đó ở BƯỚC 4.</p>
+        <div class="table-scroll" style="max-height:280px;">
+          <table id="sheetListTable">
+            <thead><tr><th>Sheet</th><th style="width:110px;">Dòng tiêu đề</th><th style="width:100px;">Số dòng dữ liệu</th><th style="width:160px;">Ngày</th><th style="width:90px;"></th></tr></thead>
+            <tbody id="sheetListBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="mappingSection" style="display:none;">
+        <p class="step-label" id="mappingStepLabel">BƯỚC 3 — KHỚP CỘT DỮ LIỆU</p>
+        <p class="hint" style="margin-top:-6px;" id="mappingStepHint">Công cụ đã tự đoán cột phù hợp — kiểm tra lại và chỉnh nếu cần. Mã lô hàng là bắt buộc (dùng chung cách khớp cột này cho tất cả sheet, nên các sheet cần có cùng bố cục cột).</p>
+        <div class="grid mapping" id="mappingGrid"></div>
+
+        <p class="step-label" id="previewStepLabel">BƯỚC 4 — XEM TRƯỚC TOÀN BỘ DỮ LIỆU (SHEET ĐANG CHỌN)</p>
+        <div class="table-scroll" style="max-height:360px;margin-bottom:18px;">
+          <table id="previewTable"><thead></thead><tbody></tbody></table>
+        </div>
+
+        <p class="step-label" id="importStepLabel">BƯỚC 5 — NHẬP DỮ LIỆU</p>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin-bottom:14px;">
+          <input type="checkbox" id="importSkipDup" checked style="width:auto;">
+          Bỏ qua dòng nếu đã có bản ghi trùng Ngày + Mã lô trong dữ liệu đã lưu
+        </label>
+        <div class="actions">
+          <button class="primary" id="btnImportRun">Nhập toàn bộ vào dữ liệu đã lưu</button>
+          <button class="secondary" id="btnImportReset" type="button">Chọn file khác</button>
+        </div>
+        <div class="savemsg" id="importStatus"></div>
+        <div class="hint" id="importSkipDetails" style="display:none;margin-top:8px;"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB 4: HISTORY -->
+  <section class="tabpanel" id="tab-history">
+    <div class="panel">
+      <h2>Dữ liệu kết quả đã lưu
+        <small>Dữ liệu được chia sẻ giữa mọi người dùng mở trang này</small>
+      </h2>
+      <p class="hint" style="margin:-6px 0 12px;">Gõ để tìm hoặc bấm vào ô để xem gợi ý theo từng cột — chọn/gõ ở một cột sẽ tự thu hẹp gợi ý của các cột phía sau (lọc phân tầng). Xoá trắng ô để bỏ lọc cột đó.</p>
+      <div style="margin:0 0 10px;">
+        <input type="search" id="histQuick" autocomplete="off" placeholder="Tìm nhanh — VD: L1 3/5/2026 · 3/5/2026 L1 · L1 3.5 (không ghi năm = mọi năm) · 46.EU"
+          style="width:100%;max-width:560px;padding:10px 14px;font-size:14px;border-radius:10px;border:1px solid var(--border,#ccc);background:transparent;color:inherit;">
+      </div>
+      <div class="actions">
+        <button class="small" id="btnFilterClear" type="button">Xoá bộ lọc</button>
+        <button class="small" id="btnHistoryReload" type="button">Tải lại</button>
+        <button class="small" id="btnHistoryFixBad" type="button" title="Xóa các bản ghi nhập lỗi (Ngày không phải ngày hợp lệ, VD do khớp cột sai khi nhập PDF)">Xoá dòng lỗi ngày</button>
+        <button class="danger" id="btnHistoryClearAll" type="button" style="margin-left:auto;">Xoá toàn bộ dữ liệu</button>
+      </div>
+      <div id="historyStatus" class="empty-state"></div>
+      <div class="date-pager" id="historyDatePager">
+        <button class="small" id="historyDatePrevBtn" type="button">‹ Ngày trước</button>
+        <select id="historyDatePagerSelect"></select>
+        <button class="small" id="historyDateNextBtn" type="button">Ngày sau ›</button>
+        <span id="historyDatePagerLabel"></span>
+      </div>
+      <div class="table-scroll" style="margin-top:10px;">
+        <table id="historyTable">
+          <thead>
+            <tr class="history-header-row">
+              <th>Ngày</th><th>Lô hàng</th><th>Kết quả</th><th>Ký hiệu</th><th>Chỉ tiêu</th><th>Lưu lúc</th><th></th>
+            </tr>
+            <tr class="history-search-row">
+              <th>
+                <input type="text" class="history-filter-input" id="histFilter_date" data-col="date" list="histFilterList_date" placeholder="Gõ hoặc chọn..." autocomplete="off">
+                <datalist id="histFilterList_date"></datalist>
+              </th>
+              <th>
+                <input type="text" class="history-filter-input" id="histFilter_batch" data-col="batch" list="histFilterList_batch" placeholder="Gõ hoặc chọn..." autocomplete="off">
+                <datalist id="histFilterList_batch"></datalist>
+              </th>
+              <th>
+                <input type="text" class="history-filter-input" id="histFilter_dat" data-col="dat" list="histFilterList_dat" placeholder="Gõ hoặc chọn..." autocomplete="off">
+                <datalist id="histFilterList_dat"></datalist>
+              </th>
+              <th>
+                <input type="text" class="history-filter-input" id="histFilter_kyhieu" data-col="kyhieu" list="histFilterList_kyhieu" placeholder="Gõ hoặc chọn..." autocomplete="off">
+                <datalist id="histFilterList_kyhieu"></datalist>
+              </th>
+              <th>
+                <input type="text" class="history-filter-input" id="histFilter_inputsSummary" data-col="inputsSummary" list="histFilterList_inputsSummary" placeholder="Gõ hoặc chọn..." autocomplete="off">
+                <datalist id="histFilterList_inputsSummary"></datalist>
+              </th>
+              <th>
+                <input type="text" class="history-filter-input" id="histFilter_savedAtDisplay" data-col="savedAtDisplay" list="histFilterList_savedAtDisplay" placeholder="Gõ hoặc chọn..." autocomplete="off">
+                <datalist id="histFilterList_savedAtDisplay"></datalist>
+              </th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB 5: QUY ĐỊNH KHÁNG SINH (CRUD toàn bộ bảng quy định) -->
+  <section class="tabpanel" id="tab-rules">
+    <div class="panel">
+      <h2>Quy định kháng sinh
+        <small>Toàn bộ các trường hợp dùng để tra cứu / đối chiếu — có thể thêm, sửa, xóa. Thay đổi ở đây sẽ được lưu lại và áp dụng ngay cho mục "Tra cứu nhanh" / "Nhập theo ngày, lô hàng".</small>
+      </h2>
+      <div class="actions" style="margin-bottom:16px;">
+        <button class="primary" id="btnAddRule">+ Thêm quy định mới</button>
+      </div>
+      <div class="table-scroll" id="rulesTableWrap" style="max-height:560px;">
+        <table id="rulesTable">
+          <thead>
+            <tr>
+              <th style="width:50px;">STT</th><th>Enro</th><th>Cipro</th><th>Oxy</th><th>Doxy</th><th>Sulfo</th><th>AOZ</th><th>CAP</th>
+              <th>Đạt theo thị trường</th><th>Ký hiệu</th><th style="width:120px;"></th>
+            </tr>
+          </thead>
+          <tbody id="rulesTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== MODAL DÙNG CHUNG: FORM THÊM/SỬA QUY ĐỊNH + HỘP THOẠI XÁC NHẬN ===== -->
+  <div id="modalOverlay" style="display:none;position:fixed;inset:0;background:rgba(2,5,12,0.6);z-index:80;align-items:center;justify-content:center;padding:20px;">
+    <div class="panel" id="modalBox" style="max-width:640px;width:100%;margin:0;max-height:88vh;overflow:auto;"></div>
+  </div>
+
+  <footer>Công cụ nội bộ — dựa trên bảng "ksinhTT (26.05.25)". Vui lòng đối chiếu lại bản gốc khi có nghi vấn.</footer>
+</div>
+
+<script>
+let DATA = [{"stt": 1, "enro": "<10", "cipro": "<10", "oxy": "ND", "doxy": "ND", "sulfo": "ND", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC-A,B, HQ", "kyhieu": "01.N-AS2-H", "mota": "NHẬT, ASC-A,B, EU, HQ: En<10, Cip<10"}, {"stt": 2, "enro": "<10", "cipro": "<10", "oxy": "ND", "doxy": "ND", "sulfo": "ND", "aoz": "<1", "cap": "ND", "dat": "ĐẠT NHẬT, HQ", "kyhieu": "02.N-H", "mota": "NHẬT, HQ: En<10, Cip<10, A<1"}, {"stt": 3, "enro": "<10", "cipro": "<10", "oxy": "ND", "doxy": "ND", "sulfo": "ND", "aoz": "<0.5", "cap": "ND", "dat": "ĐẠT NHẬT, EU, HQ", "kyhieu": "03.N-EU-H", "mota": "NHẬT, EU, HQ: En<10, Cip<10, A<0.5"}, {"stt": 4, "enro": "ND", "cipro": "ND", "oxy": "ND", "doxy": "ND", "sulfo": "<20", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, EU, HQ", "kyhieu": "04.N-EU-H", "mota": "NHẬT, EU, HQ: Sul <20"}, {"stt": 5, "enro": "ND", "cipro": "ND", "oxy": "ND", "doxy": "ND", "sulfo": "<20", "aoz": "<1", "cap": "ND", "dat": "ĐẠT NHẬT, HQ", "kyhieu": "05.N-H", "mota": "NHẬT, HQ: Sul <20, A<1"}, {"stt": 6, "enro": "ND", "cipro": "ND", "oxy": "ND", "doxy": "ND", "sulfo": "<20", "aoz": "<0.5", "cap": "ND", "dat": "ĐẠT NHẬT, EU, HQ", "kyhieu": "06.N-EU-H", "mota": "NHẬT, EU, HQ: Sul <20, A<0.5"}, {"stt": 7, "enro": "ND", "cipro": "ND", "oxy": "ND", "doxy": "ND", "sulfo": "<10", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC-B, HQ", "kyhieu": "07.N-AS1-H", "mota": "NHẬT, ASC-B, EU, HQ: Sul <10"}, {"stt": 8, "enro": "<10", "cipro": "<10", "oxy": "ND", "doxy": "ND", "sulfo": "<20", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, EU, HQ", "kyhieu": "08.N-EU-H", "mota": "NHẬT, EU, HQ: En<10, Cip<10, Sul<20"}, {"stt": 9, "enro": "<10", "cipro": "<10", "oxy": "ND", "doxy": "ND", "sulfo": "<10", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC-B, HQ", "kyhieu": "09.N-AS1-H", "mota": "NHẬT, ASC-B, EU, HQ: En<10, Cip<10, Sul<10"}, {"stt": 10, "enro": "ND", "cipro": "ND", "oxy": "<8", "doxy": "<8", "sulfo": "ND", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC-A,B, MỸ, HQ", "kyhieu": "10.N-AS2-M-H", "mota": "NHẬT, ASC-A,B, EU, MỸ, HQ: Oxy<8, Doxy<8"}, {"stt": 11, "enro": "ND", "cipro": "ND", "oxy": "<8", "doxy": "<8", "sulfo": "ND", "aoz": "<1", "cap": "ND", "dat": "ĐẠT NHẬT, HQ", "kyhieu": "11.N-H", "mota": "NHẬT, HQ: Oxy<8, Doxy<8, A<1"}, {"stt": 12, "enro": "ND", "cipro": "ND", "oxy": "<8", "doxy": "<8", "sulfo": "ND", "aoz": "<0.5", "cap": "ND", "dat": "ĐẠT NHẬT, EU, HQ", "kyhieu": "12.N-EU-H", "mota": "NHẬT, EU, HQ: Oxy<8, Doxy<8, A<0.5"}, {"stt": 13, "enro": "<10", "cipro": "<10", "oxy": "<8", "doxy": "<8", "sulfo": "ND", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC-A,B, HQ", "kyhieu": "13.N-AS2-H", "mota": "NHẬT, ASC-A,B, EU, HQ: En<10,Cip<10, Oxy<8, Doxy<8"}, {"stt": 14, "enro": "<10", "cipro": "<10", "oxy": "<8", "doxy": "<8", "sulfo": "ND", "aoz": "<1", "cap": "ND", "dat": "ĐẠT NHẬT, HQ", "kyhieu": "14.N-H", "mota": "NHẬT, HQ: En<10,Cip<10, Oxy<8, Doxy<8, A<1"}, {"stt": 15, "enro": "<10", "cipro": "<10", "oxy": "<8", "doxy": "<8", "sulfo": "ND", "aoz": "<0.5", "cap": "ND", "dat": "ĐẠT NHẬT, EU,HQ", "kyhieu": "15.N-EU-H", "mota": "NHẬT, EU,HQ: En<10, Cip<10, Oxy<8, Doxy<8, A<0.5"}, {"stt": 16, "enro": "ND", "cipro": "ND", "oxy": "<8", "doxy": "<8", "sulfo": "<20", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, EU, HQ", "kyhieu": "16.N-EU-H", "mota": "NHẬT, EU, HQ: Oxy<8, Doxy<8, Sul<20"}, {"stt": 17, "enro": "ND", "cipro": "ND", "oxy": "<8", "doxy": "<8", "sulfo": "<10", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC-B, HQ", "kyhieu": "17.N-AS1-H", "mota": "NHẬT, ASC-B, EU, HQ: Oxy<8, Doxy<8, Sul<10"}, {"stt": 18, "enro": "ND", "cipro": "ND", "oxy": "<8", "doxy": "<8", "sulfo": "<5", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC-B, MỸ, HQ", "kyhieu": "18.N-AS1-M-H", "mota": "NHẬT, ASC-B, EU, MỸ, HQ: Oxy<8, Doxy<8, Sul<5"}, {"stt": 19, "enro": "<10", "cipro": "<10", "oxy": "<8", "doxy": "<8", "sulfo": "<20", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, EU, HQ", "kyhieu": "19.N-EU-H", "mota": "NHẬT, EU, HQ: En<10, Cip<10, Oxy<8, Doxy<8, Sul<20"}, {"stt": 20, "enro": "<10", "cipro": "<10", "oxy": "<8", "doxy": "<8", "sulfo": "<20", "aoz": "<1", "cap": "ND", "dat": "ĐẠT NHẬT, HQ", "kyhieu": "20.N-H", "mota": "NHẬT, HQ: En<10, Cip<10, Oxy<8, Doxy<8, Sul<20, A<1"}, {"stt": 21, "enro": "<10", "cipro": "<10", "oxy": "<8", "doxy": "<8", "sulfo": "<20", "aoz": "<0.5", "cap": "ND", "dat": "ĐẠT NHẬT, EU, HQ", "kyhieu": "21.N-EU-H", "mota": "NHẬT, EU, HQ: En<10, Cip<10, Oxy<8, Doxy<8, Sul<20, A<0.5"}, {"stt": 22, "enro": "<10", "cipro": "<10", "oxy": "<8", "doxy": "<8", "sulfo": "<10", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC-B, HQ", "kyhieu": "22.N-AS1-H", "mota": "NHẬT, ASC-B, EU, HQ: En<10, Cip<10, Oxy<8, Doxy<8,Sul<10"}, {"stt": 23, "enro": "ND", "cipro": "ND", "oxy": "ND", "doxy": "ND", "sulfo": "ND", "aoz": "ND", "cap": "ND", "dat": "ĐẠT MKS", "kyhieu": "23.MKS", "mota": "MKS : Các chỉ tiêu ND"}, {"stt": 24, "enro": "<50", "cipro": "<50", "oxy": "<90", "doxy": "<90", "sulfo": "<100", "aoz": "ND", "cap": "ND", "dat": "ĐẠT EU", "kyhieu": "24.EU", "mota": "EU: En<50, Cip<50, Oxy<90, Do<90, Sul<100"}, {"stt": 25, "enro": "<50", "cipro": "<50", "oxy": "<90", "doxy": "<90", "sulfo": "<100", "aoz": "<0.5", "cap": "ND", "dat": "ĐẠT EU", "kyhieu": "25.EU", "mota": "EU: En<50, Cip<50, Oxy<90, Do<90, Sul<100, A<0.5"}, {"stt": 26, "enro": "<50", "cipro": "<50", "oxy": "<90", "doxy": "<90", "sulfo": "ND", "aoz": "ND", "cap": "ND", "dat": "ĐẠT EU", "kyhieu": "26.EU", "mota": "EU: En<50, Cip<50, Oxy<90, Do<90"}, {"stt": 27, "enro": "<50", "cipro": "<50", "oxy": "<90", "doxy": "<90", "sulfo": "ND", "aoz": "<0.5", "cap": "ND", "dat": "ĐẠT EU", "kyhieu": "27.EU", "mota": "EU: En<50, Cip<50, Oxy<90, Do<90, A<0.5"}, {"stt": 28, "enro": "ND", "cipro": "ND", "oxy": "<90", "doxy": "<90", "sulfo": "ND", "aoz": "ND", "cap": "ND", "dat": "ĐẠT EU", "kyhieu": "28.EU", "mota": "EU: Oxy<90, Doxy<90"}, {"stt": 29, "enro": "ND", "cipro": "ND", "oxy": "<90", "doxy": "<90", "sulfo": "ND", "aoz": "<0.5", "cap": "ND", "dat": "ĐẠT EU", "kyhieu": "29.EU", "mota": "EU: Oxy<90, Doxy<90, A<0.5"}, {"stt": 30, "enro": "ND", "cipro": "ND", "oxy": "ND", "doxy": "ND", "sulfo": "<100", "aoz": "ND", "cap": "ND", "dat": "ĐẠT EU", "kyhieu": "30.EU", "mota": "EU: Sul<100"}, {"stt": 31, "enro": "ND", "cipro": "ND", "oxy": "ND", "doxy": "ND", "sulfo": "<100", "aoz": "<0.5", "cap": "ND", "dat": "ĐẠT EU", "kyhieu": "31.EU", "mota": "EU: Sul<100, A<0.5"}, {"stt": 32, "enro": "<50", "cipro": "<50", "oxy": "ND", "doxy": "ND", "sulfo": "ND", "aoz": "ND", "cap": "ND", "dat": "ĐẠT EU, HQ", "kyhieu": "32.EU-H", "mota": "EU, HQ: En<50, Cip<50"}, {"stt": 33, "enro": "<50", "cipro": "<50", "oxy": "ND", "doxy": "ND", "sulfo": "ND", "aoz": "<0.5", "cap": "ND", "dat": "ĐẠT EU, HQ", "kyhieu": "33.EU-H", "mota": "EU, HQ: En<50, Cip<50, A<0.5"}, {"stt": 34, "enro": "ND", "cipro": "ND", "oxy": "<90", "doxy": "<90", "sulfo": "<100", "aoz": "ND", "cap": "ND", "dat": "ĐẠT EU", "kyhieu": "34.EU", "mota": "EU: Oxy<90, Doxy<90, Sul<100"}, {"stt": 35, "enro": "ND", "cipro": "ND", "oxy": "<90", "doxy": "<90", "sulfo": "<100", "aoz": "<0.5", "cap": "ND", "dat": "ĐẠT EU", "kyhieu": "35.EU", "mota": "EU: Oxy<90, Doxy<90, Sul<100, A<0.5"}, {"stt": 36, "enro": "ND", "cipro": "ND", "oxy": "<90", "doxy": "<50", "sulfo": "<50", "aoz": "<0.5", "cap": "ND", "dat": "ĐẠT EU, HQ", "kyhieu": "36.EU-H", "mota": "EU, HQ: Oxy<90, Doxy<50, Sul<50,A<0.5"}, {"stt": 37, "enro": "<10", "cipro": "<10", "oxy": "<10", "doxy": "<10", "sulfo": "ND", "aoz": "ND", "cap": "ND", "dat": "ĐẠT ASC-A,B, HQ", "kyhieu": "37.AS2-H", "mota": "ASC-A,B,EU, HQ: En<10, Cip<10, Oxy<10, Doxy<10"}, {"stt": 38, "enro": "ND", "cipro": "ND", "oxy": "<10", "doxy": "<10", "sulfo": "ND", "aoz": "ND", "cap": "ND", "dat": "ĐẠT ASC-A, B, HQ, MỸ", "kyhieu": "38.AS2-H-M", "mota": "ASC-A, B,EU,HQ, MỸ: Oxy<10, Doxy<10"}, {"stt": 39, "enro": "ND", "cipro": "ND", "oxy": "<10", "doxy": "<10", "sulfo": "<5", "aoz": "ND", "cap": "ND", "dat": "ĐẠT ASC-B, HQ, MỸ", "kyhieu": "39.AS1-H-M", "mota": "ASC-B, EU, HQ, M: Oxy<10, Doxy<10, Sul<5"}, {"stt": 40, "enro": "<10", "cipro": "<10", "oxy": "<30", "doxy": "<30", "sulfo": "<10", "aoz": "ND", "cap": "ND", "dat": "ĐẠT ASC-B, HQ", "kyhieu": "40.AS1-H", "mota": "ASC-B, EU, HQ: En<10, Cip<10, Oxy<30, Doxy<30, Sul<10"}, {"stt": 41, "enro": "<10", "cipro": "<10", "oxy": "<30", "doxy": "<30", "sulfo": "ND", "aoz": "ND", "cap": "ND", "dat": "ĐẠT ASC-B, HQ", "kyhieu": "41.AS1-H", "mota": "ASC-B, EU, HQ: En<10, Cip<10, Oxy<30, Doxy<30"}, {"stt": 42, "enro": "ND", "cipro": "ND", "oxy": "<30", "doxy": "<30", "sulfo": "<10", "aoz": "ND", "cap": "ND", "dat": "ĐẠT ASC-B, HQ", "kyhieu": "42.AS1-H", "mota": "ASC-B, EU, HQ: Oxy<30, Doxy<30, Sul<10"}, {"stt": 43, "enro": "ND", "cipro": "ND", "oxy": "<25", "doxy": "<25", "sulfo": "<5", "aoz": "ND", "cap": "ND", "dat": "ĐẠT ASC-B, HQ, MỸ", "kyhieu": "43.AS1-H-M", "mota": "ASC-B, EU, HQ, MỸ: Oxy<25,Doxy<25,Sul<5"}, {"stt": 44, "enro": "ND", "cipro": "ND", "oxy": "ND", "doxy": "ND", "sulfo": "<5", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC-B, HQ, MỸ", "kyhieu": "44.N-AS1-H-M", "mota": "NHẬT, ASC-B, EU, HQ, MỸ: Sul<5"}, {"stt": 45, "enro": "ND", "cipro": "ND", "oxy": "<25", "doxy": "<25", "sulfo": "ND", "aoz": "ND", "cap": "ND", "dat": "ĐẠT ASC-B, HQ, MỸ", "kyhieu": "45.AS1-H-M", "mota": "ASC-B, EU, HQ, MỸ: Oxy<25, Doxy<25"}, {"stt": 46, "enro": "<50", "cipro": "<50", "oxy": "<90", "doxy": "<50", "sulfo": "<50", "aoz": "ND", "cap": "ND", "dat": "ĐẠT EU, HQ", "kyhieu": "46.EU-H", "mota": "EU, HQ: En<50, Cip<50, Oxy<90, Doxy<50, Sul<50"}, {"stt": 47, "enro": "<50", "cipro": "<50", "oxy": "<90", "doxy": "<50", "sulfo": "<50", "aoz": "<1", "cap": "ND", "dat": "ĐẠT HQ", "kyhieu": "47.H", "mota": "HQ: En<50, Cip<50, Oxy<90, Doxy<50, Sul<50,A<1"}, {"stt": 48, "enro": "<50", "cipro": "<50", "oxy": "<90", "doxy": "<50", "sulfo": "<50", "aoz": "<0.5", "cap": "ND", "dat": "ĐẠT EU, HQ", "kyhieu": "48.EU-H", "mota": "EU, HQ: En<50,Cip<50, Oxy<90, Doxy<50, Sul<50, A<0.5"}, {"stt": 49, "enro": "ND", "cipro": "ND", "oxy": "ND", "doxy": "ND", "sulfo": "ND", "aoz": ">1", "cap": ">0,5", "dat": "KHÔNG ĐẠT", "kyhieu": "49.KĐ", "mota": "NHIỄM: A>1 ,CA>0,5"}, {"stt": 50, "enro": ">50", "cipro": ">50", "oxy": ">90", "doxy": ">90", "sulfo": ">100", "aoz": "ND", "cap": "ND", "dat": "KHÔNG ĐẠT", "kyhieu": "50.KĐ", "mota": "NHIỄM:En>50,Cip>50, Oxy>90,Doxy>90,Sul>100"}, {"stt": 51, "enro": ">50", "cipro": ">50", "oxy": "ND", "doxy": "ND", "sulfo": "ND", "aoz": "ND", "cap": "ND", "dat": "KHÔNG ĐẠT", "kyhieu": "51.KĐ", "mota": "NHIỄM: En>50,Cip>50,"}, {"stt": 52, "enro": "ND", "cipro": "ND", "oxy": ">90", "doxy": ">90", "sulfo": "ND", "aoz": "ND", "cap": "ND", "dat": "KHÔNG ĐẠT", "kyhieu": "52.KĐ", "mota": "NHIỄM: Oxy>90,Doxy>90"}, {"stt": 53, "enro": "ND", "cipro": "ND", "oxy": "ND", "doxy": "ND", "sulfo": ">100", "aoz": "ND", "cap": "ND", "dat": "KHÔNG ĐẠT", "kyhieu": "53.KĐ", "mota": "NHIỄM: Sul>100"}, {"stt": 54, "enro": "ND", "cipro": "ND", "oxy": "ND", "doxy": "ND", "sulfo": "ND", "aoz": "<1", "cap": "<0,3", "dat": "ĐẠT NHẬT, HQ", "kyhieu": "54.N-H", "mota": "NHẬT, HQ: A<0,3,CA<1"}, {"stt": 55, "enro": "ND", "cipro": "ND", "oxy": "ND", "doxy": "ND", "sulfo": "ND", "aoz": "<0.15", "cap": "<0,15", "dat": "ĐẠT NHẬT, EU, HQ", "kyhieu": "55.N-EU-H", "mota": "NHẬT, EU, HQ:A<0,15,CA<0,5"}, {"stt": 56, "enro": "<2.5", "cipro": "<2.5", "oxy": "ND", "doxy": "ND", "sulfo": "ND", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC-A,B, HQ, MỸ", "kyhieu": "56.N-AS2-H-M", "mota": "NHẬT, ASC-A,B, EU, HQ, MỸ: En<2.5, Cip<2.5"}, {"stt": 57, "enro": "<2.5", "cipro": "<2.5", "oxy": "<8", "doxy": "<8", "sulfo": "ND", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC-A,B, HQ, MỸ", "kyhieu": "57.N-AS2-H-M", "mota": "NHẬT, ASC-A,B, EU, HQ, MỸ: En<2.5, Cip<2.5,Oxy<8, Doxy<8"}, {"stt": 58, "enro": "<2.5", "cipro": "<2.5", "oxy": "<8", "doxy": "<8", "sulfo": "<5", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC-B, HQ, MỸ", "kyhieu": "58.N-AS1-H-M", "mota": "NHẬT, ASC-B, EU, HQ, MỸ: En<2.5, Cip<2.5,Oxy<8, Doxy<8,Sul<5"}, {"stt": 59, "enro": "<2.5", "cipro": "<2.5", "oxy": "<8", "doxy": "<8", "sulfo": "<10", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC-B, HQ", "kyhieu": "59.N-AS1-H", "mota": "NHẬT, ASC-B, EU, HQ: En<2.5, Cip<2.5,Oxy<8, Doxy<8,Sul<10"}, {"stt": 60, "enro": "<2.5", "cipro": "<2.5", "oxy": "<10", "doxy": "<10", "sulfo": "ND", "aoz": "ND", "cap": "ND", "dat": "ĐẠT ASC-A,B, HQ, MỸ", "kyhieu": "60.AS2-H-M", "mota": "ASC-A,B, EU, HQ, MỸ: En<2.5, Cip<2.5,Oxy<10, Doxy<10"}, {"stt": 61, "enro": "<2.5", "cipro": "<2.5", "oxy": "<10", "doxy": "<10", "sulfo": "<5", "aoz": "ND", "cap": "ND", "dat": "ĐẠT ASC-B, HQ, MỸ", "kyhieu": "61.AS1-H-M", "mota": "ASC-B, EU, HQ, MỸ: En<2.5, Cip<2.5,Oxy<10, Doxy<10,Sul<5"}, {"stt": 62, "enro": "<2.5", "cipro": "<2.5", "oxy": "<10", "doxy": "<10", "sulfo": "<10", "aoz": "ND", "cap": "ND", "dat": "ĐẠT ASC-B, HQ", "kyhieu": "62.AS1-H", "mota": "ASC-B, EU, HQ: En<2.5, Cip<2.5,Oxy<10, Doxy<10,Sul<10"}, {"stt": 63, "enro": "<10", "cipro": "<10", "oxy": "ND", "doxy": "ND", "sulfo": "ND", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC, HQ", "kyhieu": "63.N-AS-H", "mota": "NHẬT, ASC, EU, HQ: En<10, Cip<10"}, {"stt": 64, "enro": "ND", "cipro": "ND", "oxy": "ND", "doxy": "ND", "sulfo": "<10", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC, HQ", "kyhieu": "64.N-AS-H", "mota": "NHẬT, ASC, EU, HQ: Sul <10"}, {"stt": 65, "enro": "<10", "cipro": "<10", "oxy": "ND", "doxy": "ND", "sulfo": "<10", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC, HQ", "kyhieu": "65.N-AS-H", "mota": "NHẬT, ASC, EU, HQ: En<10, Cip<10, Sul<10"}, {"stt": 66, "enro": "ND", "cipro": "ND", "oxy": "<8", "doxy": "<8", "sulfo": "ND", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC, MỸ, HQ", "kyhieu": "66.N-AS-M-H", "mota": "NHẬT, ASC, EU, MỸ, HQ: Oxy<8, Doxy<8"}, {"stt": 67, "enro": "<10", "cipro": "<10", "oxy": "<8", "doxy": "<8", "sulfo": "ND", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC, HQ", "kyhieu": "67.N-AS-H", "mota": "NHẬT, ASC, EU, HQ: En<10,Cip<10, Oxy<8, Doxy<8"}, {"stt": 68, "enro": "ND", "cipro": "ND", "oxy": "<8", "doxy": "<8", "sulfo": "<10", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC, HQ", "kyhieu": "68.N-AS-H", "mota": "NHẬT, ASC, EU, HQ: Oxy<8, Doxy<8, Sul<10"}, {"stt": 69, "enro": "ND", "cipro": "ND", "oxy": "<8", "doxy": "<8", "sulfo": "<5", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC, MỸ, HQ", "kyhieu": "69.N-AS-M-H", "mota": "NHẬT, ASC, EU, MỸ, HQ: Oxy<8, Doxy<8, Sul<5"}, {"stt": 70, "enro": "<10", "cipro": "<10", "oxy": "<8", "doxy": "<8", "sulfo": "<10", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC, HQ", "kyhieu": "70.N-AS-H", "mota": "NHẬT, ASC, EU, HQ: En<10, Cip<10, Oxy<8, Doxy<8,Sul<10"}, {"stt": 71, "enro": "<10", "cipro": "<10", "oxy": "<10", "doxy": "<10", "sulfo": "ND", "aoz": "ND", "cap": "ND", "dat": "ĐẠT ASC, HQ", "kyhieu": "71.AS-H", "mota": "ASC, EU, HQ: En<10, Cip<10, Oxy<10, Doxy<10"}, {"stt": 72, "enro": "ND", "cipro": "ND", "oxy": "<10", "doxy": "<10", "sulfo": "ND", "aoz": "ND", "cap": "ND", "dat": "ĐẠT ASC, HQ, MỸ", "kyhieu": "72.AS-H-M", "mota": "ASC, EU,HQ, MỸ: Oxy<10, Doxy<10"}, {"stt": 73, "enro": "ND", "cipro": "ND", "oxy": "<10", "doxy": "<10", "sulfo": "<5", "aoz": "ND", "cap": "ND", "dat": "ĐẠT ASC, HQ, MỸ", "kyhieu": "73.AS-H-M", "mota": "ASC, EU, HQ, M: Oxy<10, Doxy<10, Sul<5"}, {"stt": 74, "enro": "ND", "cipro": "ND", "oxy": "ND", "doxy": "ND", "sulfo": "<5", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC, HQ, MỸ", "kyhieu": "74.N-AS-H-M", "mota": "NHẬT, ASC, EU, HQ, MỸ: Sul<5"}, {"stt": 75, "enro": "<10", "cipro": "<10", "oxy": "<10", "doxy": "<10", "sulfo": "<10", "aoz": "ND", "cap": "ND", "dat": "ĐẠT ASC, HQ", "kyhieu": "75.AS-H", "mota": "ASC, EU, HQ: En<10, Cip<10, Oxy<10, Doxy<10, Sul<10"}, {"stt": 76, "enro": "<2.5", "cipro": "<2.5", "oxy": "ND", "doxy": "ND", "sulfo": "ND", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC, HQ, MỸ", "kyhieu": "76.N-AS-H-M", "mota": "NHẬT, ASC, EU, HQ, MỸ: En<2.5, Cip<2.5"}, {"stt": 77, "enro": "<2.5", "cipro": "<2.5", "oxy": "<8", "doxy": "<8", "sulfo": "ND", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC, HQ, MỸ", "kyhieu": "77.N-AS-H-M", "mota": "NHẬT, ASC, EU, HQ, MỸ: En<2.5, Cip<2.5,Oxy<8, Doxy<8"}, {"stt": 78, "enro": "<2.5", "cipro": "<2.5", "oxy": "<8", "doxy": "<8", "sulfo": "<5", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC, HQ, MỸ", "kyhieu": "78.N-AS-H-M", "mota": "NHẬT, ASC, EU, HQ, MỸ: En<2.5, Cip<2.5,Oxy<8, Doxy<8,Sul<5"}, {"stt": 79, "enro": "<2.5", "cipro": "<2.5", "oxy": "<8", "doxy": "<8", "sulfo": "<10", "aoz": "ND", "cap": "ND", "dat": "ĐẠT NHẬT, ASC, HQ", "kyhieu": "79.N-AS-H", "mota": "NHẬT, ASC, EU, HQ: En<2.5, Cip<2.5,Oxy<8, Doxy<8,Sul<10"}, {"stt": 80, "enro": "<2.5", "cipro": "<2.5", "oxy": "<10", "doxy": "<10", "sulfo": "ND", "aoz": "ND", "cap": "ND", "dat": "ĐẠT ASC, HQ, MỸ", "kyhieu": "80.AS-H-M", "mota": "ASC, EU, HQ, MỸ: En<2.5, Cip<2.5,Oxy<10, Doxy<10"}, {"stt": 81, "enro": "<2.5", "cipro": "<2.5", "oxy": "<10", "doxy": "<10", "sulfo": "<5", "aoz": "ND", "cap": "ND", "dat": "ĐẠT ASC, HQ, MỸ", "kyhieu": "81.AS-H-M", "mota": "ASC, EU, HQ, MỸ: En<2.5, Cip<2.5,Oxy<10, Doxy<10,Sul<5"}, {"stt": 82, "enro": "<2.5", "cipro": "<2.5", "oxy": "<10", "doxy": "<10", "sulfo": "<10", "aoz": "ND", "cap": "ND", "dat": "ĐẠT ASC, HQ", "kyhieu": "82.AS-H", "mota": "ASC, EU, HQ: En<2.5, Cip<2.5,Oxy<10, Doxy<10,Sul<10"}, {"stt": 83, "enro": "<2.5", "cipro": "<2.5", "oxy": "<25", "doxy": "<25", "sulfo": "<5", "aoz": "ND", "cap": "ND", "dat": "ĐẠT EU, HQ, MỸ", "kyhieu": "83.EU-H-M", "mota": "EU, HQ, MỸ: En<2.5, Cip<2.5,Oxy<25,Doxy<25,Sul<5"}];
+
+const FIELDS = [
+  {key:'enro', label:'Enro'},
+  {key:'cipro', label:'Cipro'},
+  {key:'oxy', label:'Oxy'},
+  {key:'doxy', label:'Doxy'},
+  {key:'sulfo', label:'Sulfo'},
+  {key:'aoz', label:'AOZ'},
+  {key:'cap', label:'CAP'},
+];
+
+/* ---------- storage: cầu nối postMessage tới trang cha (tong-hop.js) để lưu BỀN vào database
+   Excel chung của app (module8_tonghop.xlsx, sheet "KhangSinh") — trang này chạy trong iframe
+   dạng data: URI (khác gốc với trang cha) nên KHÔNG truy cập trực tiếp được window.dbAPI/
+   window.storage của trang cha; phải bắc cầu qua postMessage. Giữ NGUYÊN chữ ký get/set/delete/
+   list (đều async, đều có tham số "shared") để toàn bộ code phía dưới dùng "storage.xxx" không
+   cần sửa gì thêm. */
+let __bridgeReqSeq = 0;
+const __bridgePending = {};
+window.addEventListener('message', (e) => {
+  const data = e && e.data;
+  if(!data || data.type !== 'khoLanhStorageResponse') return;
+  const pending = __bridgePending[data.requestId];
+  if(!pending) return;
+  delete __bridgePending[data.requestId];
+  if(data.error) pending.reject(new Error(data.error));
+  else pending.resolve(data.result);
+});
+function bridgeCall(method, args){
+  return new Promise((resolve, reject) => {
+    const requestId = 'ks_' + (++__bridgeReqSeq) + '_' + Date.now();
+    __bridgePending[requestId] = { resolve, reject };
+    window.parent.postMessage({ type:'khoLanhStorageRequest', requestId, method, args }, '*');
+    // Phòng khi trang cha không phản hồi (VD mở file .html này ngoài app, không có ai lắng
+    // nghe postMessage) — báo lỗi rõ ràng thay vì treo Promise mãi mãi.
+    setTimeout(() => {
+      if(__bridgePending[requestId]){
+        delete __bridgePending[requestId];
+        reject(new Error('storage_bridge_timeout'));
+      }
+    }, 8000);
+  });
+}
+const storage = {
+  get: (key, shared) => bridgeCall('get', [key, shared]),
+  set: (key, value, shared) => bridgeCall('set', [key, value, shared]),
+  delete: (key, shared) => bridgeCall('delete', [key, shared]),
+  list: (prefix, shared) => bridgeCall('list', [prefix, shared]),
+};
+
+/* ---------- tabs ---------- */
+// Khi trang này được nhúng trong <iframe> của trang chính, menu tab nội bộ (nav.tabs)
+// được ẩn đi vì đã có "menu con" tương ứng ở trang chính (ngay dưới menu chính).
+// Nếu mở file này độc lập (không nằm trong iframe) thì vẫn hiển thị nav.tabs như cũ.
+try{
+  if(window.self !== window.top){
+    document.body.classList.add('embedded-hide-tabs');
+  }
+}catch(e){
+  // Truy cập window.top bị chặn (cross-origin) => chắc chắn đang bị nhúng trong iframe khác gốc.
+  document.body.classList.add('embedded-hide-tabs');
+}
+
+function notifyParentActiveTab(name){
+  try{
+    window.parent.postMessage({ type:'ksinhttActiveTab', name }, '*');
+  }catch(e){ /* bỏ qua nếu không gửi được */ }
+}
+
+document.querySelectorAll('nav.tabs button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tabpanel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+    if(btn.dataset.tab === 'history'){ loadHistory(); }
+    notifyParentActiveTab(btn.dataset.tab);
+  });
+});
+function goToTab(name){
+  const btn = document.querySelector(`nav.tabs button[data-tab="${name}"]`);
+  if(btn) btn.click();
+}
+
+// Nhận lệnh chuyển tab từ trang chính (khi bấm vào "menu con" bên ngoài).
+window.addEventListener('message', (e) => {
+  const data = e && e.data;
+  if(data && data.type === 'ksinhttGoToTab' && data.name){
+    goToTab(data.name);
+  }
+});
+
+// Báo cho trang chính biết tab hiện đang active khi tải xong (để đồng bộ trạng thái ban đầu).
+notifyParentActiveTab('lookup');
+
+/* ---------- build the 7 antibiotic inputs into any container ---------- */
+function buildFieldInputs(containerEl, prefix){
+  FIELDS.forEach(f=>{
+    const div = document.createElement('div');
+    div.className = 'field';
+    div.innerHTML = `<label for="${prefix}_${f.key}">${f.label}</label><input type="text" id="${prefix}_${f.key}" placeholder="ND">`;
+    containerEl.appendChild(div);
+  });
+}
+buildFieldInputs(document.getElementById('inputGrid'), 'in');
+buildFieldInputs(document.getElementById('batchInputGrid'), 'batch');
+
+function readFieldInputs(prefix){
+  const inputs = {};
+  FIELDS.forEach(f=>{ inputs[f.key] = document.getElementById(`${prefix}_${f.key}`).value; });
+  return inputs;
+}
+
+/* ---------- matching logic ---------- */
+function parseCond(cond){
+  if(typeof cond === 'number'){
+    return {type:'<', val: cond};
+  }
+  const c = String(cond).trim();
+  if(c.toUpperCase() === 'ND') return {type:'ND'};
+  const m = c.match(/^([<>])\s*([\d.,]+)/);
+  if(m){
+    return {type:m[1], val: parseFloat(m[2].replace(',', '.'))};
+  }
+  return {type:'ND'};
+}
+
+function isBlankOrND(raw){
+  if(raw === null || raw === undefined) return true;
+  const t = String(raw).trim();
+  return t === '' || t.toUpperCase() === 'ND';
+}
+
+function matchFieldDetail(raw, cond){
+  // Trả về {ok, implicit}. implicit=true nghĩa là khớp được CHỈ NHỜ để trống/ND
+  // mặc nhiên đạt ngưỡng "<X" — không phải khớp đúng tuyệt đối theo "ND".
+  const c = parseCond(cond);
+  if(c.type === 'ND'){
+    return { ok: isBlankOrND(raw), implicit:false };
+  }
+  if(isBlankOrND(raw)){
+    // ND luôn thấp hơn mọi ngưỡng dương, nên mặc nhiên đạt yêu cầu "<X".
+    // Với ngưỡng ">X" (điều kiện KHÔNG ĐẠT) thì phải có giá trị đo thực mới khớp.
+    return { ok: c.type === '<', implicit: c.type === '<' };
+  }
+  const v = parseFloat(String(raw).trim().replace(',', '.'));
+  if(isNaN(v)) return { ok:false, implicit:false };
+  if(c.type === '<') return { ok: v < c.val, implicit:false };
+  if(c.type === '>') return { ok: v > c.val, implicit:false };
+  return { ok:false, implicit:false };
+}
+
+function matchesField(raw, cond){
+  return matchFieldDetail(raw, cond).ok;
+}
+
+function findMatch(inputs){
+  // Có thể nhiều quy định cùng thoả input (vd: để trống/ND cho tất cả chỉ tiêu
+  // thì mọi quy định chỉ có ngưỡng "<X" cũng mặc nhiên "khớp"). Trong số các
+  // quy định cùng thoả, ưu tiên quy định khớp ĐÚNG nhất — tức càng ít dựa vào
+  // việc để trống/ND mặc nhiên đạt ngưỡng "<X" càng tốt. Nhờ vậy khi tất cả
+  // chỉ tiêu đều ND, quy định "Các chỉ tiêu ND" (khớp tuyệt đối, điểm 0) sẽ
+  // được chọn thay vì một quy định "<X" nào đó chỉ tình cờ được thoả.
+  let best = null;
+  let bestScore = Infinity;
+  for(const row of DATA){
+    let ok = true;
+    let score = 0;
+    for(const f of FIELDS){
+      const detail = matchFieldDetail(inputs[f.key], row[f.key]);
+      if(!detail.ok){ ok = false; break; }
+      if(detail.implicit) score++;
+    }
+    if(ok && score < bestScore){
+      best = row;
+      bestScore = score;
+      if(bestScore === 0) break; // không thể tốt hơn khớp tuyệt đối 100%
+    }
+  }
+  return best;
+}
+
+function buildAutoPassNotes(row, inputs){
+  const notes = [];
+  FIELDS.forEach(f=>{
+    const cond = row[f.key];
+    const raw = inputs[f.key];
+    const c = parseCond(cond);
+    if(c.type === '<' && isBlankOrND(raw)){
+      notes.push(`${f.label}: chưa phát hiện (ND) — mặc nhiên đạt ngưỡng ${typeof cond === 'number' ? '<'+cond : cond}`);
+    }
+  });
+  return notes;
+}
+
+function enteredSummary(inputs){
+  return FIELDS.map(f=>{
+    const v = (inputs||{})[f.key];
+    return `${f.label}: ${isBlankOrND(v) ? 'ND' : v}`;
+  }).join('  ·  ');
+}
+
+/* ---------- tab 1: quick lookup ---------- */
+function renderResult(row, inputs, boxId, bodyId){
+  const box = document.getElementById(boxId);
+  const body = document.getElementById(bodyId);
+  box.classList.add('show');
+  box.classList.remove('result-pass','result-fail','result-none');
+
+  if(!row){
+    box.classList.add('result-none');
+    body.innerHTML = `
+      <p class="result-headline">Không tìm thấy trường hợp phù hợp</p>
+      <p class="result-sub">Tổ hợp giá trị vừa nhập không khớp với bất kỳ dòng nào trong 83 quy định.</p>
+      <div class="result-row"><div class="k">Kiểm tra lại</div><div>Giá trị đã nhập cho từng chỉ tiêu, hoặc đối chiếu trực tiếp với bảng gốc bên dưới.</div></div>
+    `;
+    return null;
+  }
+
+  const isFail = row.dat.indexOf('KHÔNG ĐẠT') !== -1;
+  box.classList.add(isFail ? 'result-fail' : 'result-pass');
+
+  const notes = buildAutoPassNotes(row, inputs);
+  const notesHtml = notes.length
+    ? `<div class="result-row"><div class="k">Ghi chú</div><div>${notes.join('<br>')}</div></div>`
+    : '';
+
+  body.innerHTML = `
+    <p class="result-headline">${row.dat}</p>
+    <p class="result-sub">Trường hợp số ${row.stt} — Ký hiệu ${row.kyhieu}</p>
+    <div class="result-row"><div class="k">Chỉ tiêu đã nhập</div><div>${enteredSummary(inputs)}</div></div>
+    <div class="result-row"><div class="k">Mô tả quy định</div><div>${row.mota}</div></div>
+    ${notesHtml}
+  `;
+  return row;
+}
+
+document.getElementById('btnCheck').addEventListener('click', ()=>{
+  const inputs = readFieldInputs('in');
+  const row = findMatch(inputs);
+  renderResult(row, inputs, 'result', 'resultBody');
+  document.getElementById('result').scrollIntoView({behavior:'smooth', block:'nearest'});
+});
+
+document.getElementById('btnReset').addEventListener('click', ()=>{
+  FIELDS.forEach(f=>{ document.getElementById('in_'+f.key).value=''; });
+  document.getElementById('result').classList.remove('show');
+});
+
+/* ---------- tab 2: batch entry + save ---------- */
+(function setDefaultDate(){
+  const d = new Date();
+  const iso = d.toISOString().slice(0,10);
+  document.getElementById('batch_date').value = iso;
+})();
+
+async function saveBatchRecord(record){
+  const id = Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);
+  const key = `batch:${record.date}:${record.batch}:${id}`;
+  await storage.set(key, JSON.stringify(record), true);
+  return key;
+}
+
+/* Danh sách các bản ghi đang chờ lưu (đã tính nhưng CHƯA ghi vào "Dữ Liệu").
+   Mỗi lần bấm "Tính & xem trước" sẽ THÊM 1 dòng vào đây (không mất dòng cũ).
+   Chỉ được lưu thật vào "Dữ Liệu" sau khi bấm "Lưu vào Dữ Liệu" và xác nhận popup. */
+let pendingBatchRecords = [];
+
+function renderBatchPreviewTable(){
+  const table = document.getElementById('batchPreviewTable');
+  const thead = table.querySelector('thead');
+  const tbody = table.querySelector('tbody');
+  thead.innerHTML = `
+    <tr>
+      <th>Ngày</th><th>Mã / số lô hàng</th><th>Ghi chú</th>
+      <th>Chỉ tiêu đã nhập</th><th>Kết quả</th><th>Ký hiệu</th><th></th>
+    </tr>
+  `;
+  if(!pendingBatchRecords.length){
+    tbody.innerHTML = `<tr><td colspan="7" style="color:var(--muted);">Chưa có dòng nào trong bảng tạm.</td></tr>`;
+    document.getElementById('batchPreview').classList.remove('show');
+    return;
+  }
+  tbody.innerHTML = pendingBatchRecords.map((record, idx) => {
+    const isFail = (record.dat || '').indexOf('KHÔNG ĐẠT') !== -1;
+    return `
+      <tr>
+        <td>${formatDateDMY(record.date)}</td>
+        <td>${record.batch}</td>
+        <td>${record.note || ''}</td>
+        <td style="white-space:normal;">${enteredSummary(record.inputs)}</td>
+        <td><span class="tag ${isFail ? 'fail' : 'pass'}">${record.dat || '—'}</span></td>
+        <td>${record.kyhieu || ''}</td>
+        <td><button class="danger" type="button" data-action="remove-preview" data-idx="${idx}">Xóa</button></td>
+      </tr>
+    `;
+  }).join('');
+  document.getElementById('batchPreview').classList.add('show');
+}
+
+document.getElementById('batchPreviewTable').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-action="remove-preview"]');
+  if(!btn) return;
+  const idx = Number(btn.dataset.idx);
+  pendingBatchRecords.splice(idx, 1);
+  renderBatchPreviewTable();
+});
+
+function clearBatchPreview(){
+  pendingBatchRecords = [];
+  renderBatchPreviewTable();
+}
+
+function normBatchCode(s){
+  return String(s || '').trim().toLowerCase();
+}
+
+document.getElementById('btnBatchSave').addEventListener('click', async ()=>{
+  const msg = document.getElementById('batchSaveMsg');
+  msg.textContent = '';
+  msg.classList.remove('err');
+
+  const date = document.getElementById('batch_date').value;
+  const batch = document.getElementById('batch_code').value.trim();
+  const note = document.getElementById('batch_note').value.trim();
+
+  if(!date){ msg.textContent = 'Vui lòng chọn ngày.'; msg.classList.add('err'); return; }
+  if(!batch){ msg.textContent = 'Vui lòng nhập mã / số lô hàng.'; msg.classList.add('err'); return; }
+
+  const inputs = readFieldInputs('batch');
+  const row = findMatch(inputs);
+  renderResult(row, inputs, 'batchResult', 'batchResultBody');
+
+  const newRecord = {
+    date, batch, note,
+    inputs,
+    stt: row ? row.stt : null,
+    dat: row ? row.dat : 'Không xác định',
+    kyhieu: row ? row.kyhieu : '',
+    mota: row ? row.mota : '',
+    savedAt: new Date().toISOString()
+  };
+
+  // Kiểm tra trùng: cùng Ngày + cùng Mã/số lô hàng (không phân biệt hoa/thường,
+  // khoảng trắng thừa) — kiểm tra cả trong bảng xem trước lẫn trong "Dữ Liệu" đã lưu.
+  const dupInPreview = pendingBatchRecords.some(r => r.date === date && normBatchCode(r.batch) === normBatchCode(batch));
+  let dupInData = false;
+  try{
+    const listRes = await storage.list(`batch:${date}:${batch}:`, true);
+    dupInData = !!(listRes && listRes.keys && listRes.keys.length);
+  }catch(e){ /* không kiểm tra được thì bỏ qua bước cảnh báo, vẫn cho thêm dòng bình thường */ }
+
+  const addRow = () => {
+    pendingBatchRecords.push(newRecord);
+    renderBatchPreviewTable();
+    document.getElementById('batchPreview').scrollIntoView({behavior:'smooth', block:'nearest'});
+  };
+
+  if(dupInPreview || dupInData){
+    const whereText = dupInPreview && dupInData
+      ? 'trong bảng xem trước VÀ đã có trong "Dữ Liệu"'
+      : (dupInPreview ? 'trong bảng xem trước' : 'đã có trong "Dữ Liệu"');
+    openConfirmModal(
+      `Đã có kết quả cho lô "${batch}" ngày ${formatDateDMY(date)} (${whereText}). Bạn có chắc muốn thêm 1 dòng trùng vào bảng xem trước không?`,
+      addRow
+    );
+  }else{
+    addRow();
+  }
+});
+
+document.getElementById('btnBatchConfirmSave').addEventListener('click', ()=>{
+  if(!pendingBatchRecords.length){
+    const msg = document.getElementById('batchSaveMsg');
+    msg.textContent = 'Bảng xem trước đang trống — chưa có gì để lưu.';
+    msg.classList.add('err');
+    return;
+  }
+  const count = pendingBatchRecords.length;
+  openConfirmModal(
+    `Lưu ${count} dòng đang có trong bảng xem trước vào "Dữ Liệu"? Hành động này sẽ ghi các bản ghi này vào lịch sử dữ liệu chung.`,
+    async () => {
+      const msg = document.getElementById('batchSaveMsg');
+      const confirmBtn = document.getElementById('btnBatchConfirmSave');
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = 'Đang lưu...';
+      let okCount = 0;
+      const failed = [];
+      for(const record of pendingBatchRecords){
+        try{
+          await saveBatchRecord(record);
+          okCount++;
+        }catch(e){
+          failed.push(record);
+        }
+      }
+      if(failed.length){
+        pendingBatchRecords = failed;
+        msg.textContent = `Đã lưu ${okCount}/${count} dòng. Còn ${failed.length} dòng lưu thất bại, vẫn giữ trong bảng xem trước — vui lòng thử lại.`;
+        msg.classList.add('err');
+        renderBatchPreviewTable();
+      }else{
+        msg.textContent = `Đã lưu ${okCount} dòng vào Dữ Liệu.`;
+        msg.classList.remove('err');
+        clearBatchPreview();
+      }
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = 'Lưu vào Dữ Liệu';
+    }
+  );
+});
+
+document.getElementById('btnBatchCancelPreview').addEventListener('click', ()=>{
+  if(!pendingBatchRecords.length) return;
+  openConfirmModal(
+    `Hủy toàn bộ ${pendingBatchRecords.length} dòng đang xem trước? Các dòng này sẽ KHÔNG được lưu vào Dữ Liệu.`,
+    () => {
+      clearBatchPreview();
+      document.getElementById('batchSaveMsg').textContent = 'Đã hủy bảng xem trước — chưa có gì được lưu vào Dữ Liệu.';
+      document.getElementById('batchSaveMsg').classList.remove('err');
+    }
+  );
+});
+
+document.getElementById('btnBatchReset').addEventListener('click', ()=>{
+  FIELDS.forEach(f=>{ document.getElementById('batch_'+f.key).value=''; });
+  document.getElementById('batch_code').value = '';
+  document.getElementById('batch_note').value = '';
+  document.getElementById('batchResult').classList.remove('show');
+  document.getElementById('batchSaveMsg').textContent = '';
+});
+
+/* ---------- tab 3: excel import ---------- */
+const IMPORT_TARGETS = [
+  {key:'date', label:'Ngày', required:true, aliases:['ngay','ngày','date','ngay lay mau','ngày lấy mẫu','ngay xet nghiem','ngày xét nghiệm','ngay tra ket qua']},
+  {key:'batch', label:'Mã / số lô hàng', required:true, aliases:['lo hang','lô hàng','ma lo','mã lô','so lo','số lô','batch','ma lo hang','mã lô hàng']},
+  {key:'code', label:'Code / Mã NL (ghi kèm vào Ghi chú)', required:false, aliases:['code/ma','code ma','code','ma nl','mã nl','nha cung cap','nhà cung cấp']},
+  {key:'note', label:'Ghi chú', required:false, aliases:['ghi chu','ghi chú','note','ao','khach hang','khách hàng']},
+  {key:'enro', label:'Enro', required:false, aliases:['enro']},
+  {key:'cipro', label:'Cipro', required:false, aliases:['cipro']},
+  {key:'oxy', label:'Oxy', required:false, aliases:['oxy','oxytetracyclin']},
+  {key:'doxy', label:'Doxy', required:false, aliases:['doxy','doxycyclin']},
+  {key:'sulfo', label:'Sulfo', required:false, aliases:['sulfo','sulfa']},
+  {key:'aoz', label:'AOZ', required:false, aliases:['aoz']},
+  {key:'cap', label:'CAP', required:false, aliases:['cap','chloramphenicol']},
+  {key:'dat', label:'Kết quả đạt (nếu file đã có)', required:false, aliases:['dat theo thi truong','đạt theo thị trường','ket qua','kết quả','dat','đạt']},
+  {key:'kyhieu', label:'Ký hiệu (nếu file đã có)', required:false, aliases:['ky hieu','ký hiệu','symbol','dac tinh','đặc tính','dat tinh','đặt tính']},
+];
+
+function normText(s){
+  return String(s==null?'':s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').trim();
+}
+
+// importState.mode: 'excel' (multi-sheet, 1 sheet = 1 ngày) hoặc 'pdf' (bảng gộp từ 1+ file PDF, có cột Ngày riêng)
+let importState = { mode: null, headers: [], rows: [], workbook: null, sheets: [], activeSheetIdx: 0 };
+
+document.getElementById('importFile').addEventListener('change', async (e)=>{
+  const files = Array.from(e.target.files || []);
+  if(!files.length) return;
+  const status = document.getElementById('importStatus');
+  status.textContent = '';
+  status.classList.remove('err');
+
+  if(files.length === 1 && !(files[0].name||'').toLowerCase().endsWith('.pdf')){
+    await handleExcelFile(files[0], status);
+    return;
+  }
+
+  if(files.length === 1){
+    await handleSingleImportFile(files[0], status);
+    return;
+  }
+
+  // multiple files selected: only supported when ALL of them are PDFs
+  const allPdf = files.every(f => (f.name||'').toLowerCase().endsWith('.pdf'));
+  if(!allPdf){
+    status.textContent = 'Khi chọn nhiều file cùng lúc, công cụ chỉ hỗ trợ nhiều file PDF. Với Excel/CSV, vui lòng chọn từng file một.';
+    status.classList.add('err');
+    e.target.value = '';
+    return;
+  }
+
+  document.getElementById('sheetListWrap').style.display = 'none';
+  const tables = [];
+  const failedFiles = [];
+  for(let i=0; i<files.length; i++){
+    const f = files[i];
+    status.textContent = `Đang đọc file PDF ${i+1}/${files.length}: ${f.name}...`;
+    try{
+      const {headers, rows} = await extractPdfTable(f);
+      if(headers.length && rows.length){
+        tables.push({headers, rows});
+      }else{
+        failedFiles.push(f.name);
+      }
+    }catch(err){
+      failedFiles.push(f.name);
+    }
+  }
+
+  if(!tables.length){
+    status.textContent = 'Không tìm thấy dữ liệu dạng bảng trong bất kỳ file PDF nào đã chọn. Hãy thử xuất lại dưới dạng Excel/CSV, hoặc kiểm tra các PDF có bảng rõ ràng không.';
+    status.classList.add('err');
+    return;
+  }
+
+  const merged = mergeExtractedPdfTables(tables);
+  importState.mode = 'pdf';
+  importState.workbook = null;
+  importState.headers = merged.headers;
+  importState.rows = merged.rows;
+  setMappingStepLabels(false);
+  buildMappingUI(merged.headers);
+  renderPreview(merged.headers, merged.rows);
+  document.getElementById('mappingSection').style.display = 'block';
+
+  let summary = `Đã đọc tổng cộng ${merged.rows.length} dòng dữ liệu từ ${tables.length}/${files.length} file PDF (đã gộp theo tên cột). Vui lòng kiểm tra kỹ phần khớp cột và xem trước bên dưới, vì dò cột từ PDF có thể không chính xác 100%.`;
+  if(failedFiles.length) summary += ` Không đọc được: ${failedFiles.join(', ')}.`;
+  status.textContent = summary;
+  status.classList.remove('err');
+});
+
+async function handleSingleImportFile(file, status){
+  // Chỉ còn xử lý PDF đơn lẻ ở đây — Excel/CSV đơn lẻ đi qua handleExcelFile() (xem bên dưới).
+  document.getElementById('sheetListWrap').style.display = 'none';
+  status.textContent = 'Đang đọc file PDF...';
+  try{
+    const {headers, rows} = await extractPdfTable(file);
+    if(!headers.length || !rows.length){
+      status.textContent = 'Không tìm thấy dữ liệu dạng bảng trong file PDF. Hãy thử xuất lại file dưới dạng Excel/CSV, hoặc kiểm tra PDF có bảng rõ ràng không.';
+      status.classList.add('err');
+      return;
+    }
+    importState.mode = 'pdf';
+    importState.workbook = null;
+    importState.headers = headers;
+    importState.rows = rows;
+    setMappingStepLabels(false);
+    buildMappingUI(headers);
+    renderPreview(headers, rows);
+    document.getElementById('mappingSection').style.display = 'block';
+    status.textContent = `Đã đọc ${rows.length} dòng dữ liệu từ file PDF. Vui lòng kiểm tra kỹ phần khớp cột và xem trước bên dưới, vì dò cột từ PDF có thể không chính xác 100%.`;
+    status.classList.remove('err');
+  }catch(err){
+    status.textContent = 'Không đọc được file PDF. Hãy chắc chắn đây là PDF hợp lệ có chứa văn bản dạng bảng (không phải ảnh scan).';
+    status.classList.add('err');
+  }
+}
+
+/* ---------- Excel/CSV: nhiều sheet, mỗi sheet = 1 ngày ---------- */
+
+// Đoán dòng tiêu đề bảng thật sự trong 1 sheet, bỏ qua các dòng phía trên
+// (tên công ty, địa chỉ, tiêu đề báo cáo, ...) không phải là dòng tiêu đề cột.
+function detectHeaderRowIndex(aoaRows){
+  const aliasPool = [];
+  IMPORT_TARGETS.forEach(t => t.aliases.forEach(a => aliasPool.push(normText(a))));
+  ['stt', 'so thu tu'].forEach(w => aliasPool.push(normText(w)));
+
+  const maxScan = Math.min(aoaRows.length, 25);
+  let bestIdx = -1, bestScore = -1;
+  for(let i = 0; i < maxScan; i++){
+    const row = aoaRows[i] || [];
+    const nonEmpty = row.filter(c => String(c).trim() !== '');
+    if(nonEmpty.length < 2) continue; // dòng quá thưa (VD: 1 ô "Công ty ABC") khó là dòng tiêu đề
+    let matchCount = 0;
+    row.forEach(c => {
+      const nc = normText(c);
+      if(!nc) return;
+      if(aliasPool.some(a => a && (nc === a || nc.includes(a) || a.includes(nc)))) matchCount++;
+    });
+    if(matchCount < 2) continue;
+    const score = matchCount * 10 + nonEmpty.length;
+    if(score > bestScore){ bestScore = score; bestIdx = i; }
+  }
+  if(bestIdx !== -1) return bestIdx;
+
+  // Không khớp được alias nào: chọn dòng đầu tiên có từ 3 ô trở lên (khả năng cao là tiêu đề bảng)
+  for(let i = 0; i < maxScan; i++){
+    const nonEmpty = (aoaRows[i] || []).filter(c => String(c).trim() !== '').length;
+    if(nonEmpty >= 3) return i;
+  }
+  // Fallback cuối: dòng không rỗng đầu tiên
+  for(let i = 0; i < aoaRows.length; i++){
+    if((aoaRows[i] || []).some(c => String(c).trim() !== '')) return i;
+  }
+  return 0;
+}
+
+// Thử đoán Ngày từ tên sheet (yyyy-mm-dd, dd/mm/yyyy, dd-mm-yyyy, dd.mm.yyyy, hoặc dd/mm không năm -> dùng năm hiện tại)
+function guessDateFromSheetName(name){
+  const s = String(name || '').trim();
+  let m = s.match(/(\d{4})[-\/\.](\d{1,2})[-\/\.](\d{1,2})/);
+  if(m) return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+  m = s.match(/(\d{1,2})[-\/\.](\d{1,2})[-\/\.](\d{4})/);
+  if(m) return `${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
+  m = s.match(/(?:^|\D)(\d{1,2})[-\/\.](\d{1,2})(?:\D|$)/);
+  if(m) return `${new Date().getFullYear()}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
+  return '';
+}
+
+function sliceSheetFromHeaderRow(aoaRows, headerIdx){
+  const headers = (aoaRows[headerIdx] || []).map(h => String(h).trim());
+  const rows = aoaRows.slice(headerIdx + 1).filter(r => r.some(c => String(c).trim() !== ''));
+  return { headers, rows };
+}
+
+function setMappingStepLabels(isExcel){
+  document.getElementById('mappingStepLabel').textContent = isExcel ? 'BƯỚC 3 — KHỚP CỘT DỮ LIỆU' : 'BƯỚC 2 — KHỚP CỘT DỮ LIỆU';
+  document.getElementById('mappingStepHint').textContent = isExcel
+    ? 'Công cụ đã tự đoán cột phù hợp (theo sheet đầu tiên) — kiểm tra lại và chỉnh nếu cần. Mã lô hàng là bắt buộc. Ngày KHÔNG cần khớp cột vì đã gán riêng cho từng sheet ở BƯỚC 2. Việc khớp cột dùng chung cho tất cả sheet, nên các sheet cần có cùng bố cục cột.'
+    : 'Công cụ đã tự đoán cột phù hợp — kiểm tra lại và chỉnh nếu cần. Ngày và Mã lô hàng là bắt buộc.';
+  document.getElementById('previewStepLabel').textContent = isExcel ? 'BƯỚC 4 — XEM TRƯỚC TOÀN BỘ DỮ LIỆU (SHEET ĐANG CHỌN)' : 'BƯỚC 3 — XEM TRƯỚC TOÀN BỘ DỮ LIỆU';
+  document.getElementById('importStepLabel').textContent = isExcel ? 'BƯỚC 5 — NHẬP DỮ LIỆU' : 'BƯỚC 4 — NHẬP DỮ LIỆU';
+}
+
+async function handleExcelFile(file, status){
+  document.getElementById('mappingSection').style.display = 'none';
+  document.getElementById('sheetListWrap').style.display = 'none';
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, {type:'array', cellDates:true});
+    importState.mode = 'excel';
+    importState.workbook = wb;
+    importState.sheets = wb.SheetNames.map(name => {
+      const sheet = wb.Sheets[name];
+      const aoa = XLSX.utils.sheet_to_json(sheet, {header:1, defval:''});
+      const headerIdx = detectHeaderRowIndex(aoa);
+      const {headers, rows} = sliceSheetFromHeaderRow(aoa, headerIdx);
+      return { name, headerRow: headerIdx + 1, headers, rows, date: guessDateFromSheetName(name) };
+    });
+    importState.activeSheetIdx = 0;
+
+    renderSheetList();
+    setMappingStepLabels(true);
+    const refSheet = importState.sheets[0] || {headers:[], rows:[]};
+    buildMappingUI(refSheet.headers, {excludeDate:true});
+    renderPreview(refSheet.headers, refSheet.rows);
+
+    document.getElementById('sheetListWrap').style.display = 'block';
+    document.getElementById('mappingSection').style.display = 'block';
+
+    const totalRows = importState.sheets.reduce((s,x) => s + x.rows.length, 0);
+    const noDate = importState.sheets.filter(s => !s.date).length;
+    let summary = `Đã đọc ${wb.SheetNames.length} sheet, tổng cộng ${totalRows} dòng dữ liệu.`;
+    summary += noDate ? ` Có ${noDate} sheet chưa đoán được Ngày — vui lòng gán tay ở BƯỚC 2.` : ' Đã đoán Ngày cho tất cả sheet từ tên sheet — kiểm tra lại trước khi nhập.';
+    status.textContent = summary;
+    status.classList.remove('err');
+  }catch(err){
+    status.textContent = 'Không đọc được file. Hãy chắc chắn đây là file Excel (.xlsx/.xls) hoặc CSV hợp lệ.';
+    status.classList.add('err');
+  }
+}
+
+function renderSheetList(){
+  const tbody = document.getElementById('sheetListBody');
+  tbody.innerHTML = '';
+  importState.sheets.forEach((s, idx) => {
+    const tr = document.createElement('tr');
+    const activeTag = idx === importState.activeSheetIdx ? ' <span class="tag pass" style="margin-left:6px;">đang xem</span>' : '';
+    tr.innerHTML = `
+      <td>${s.name}${activeTag}</td>
+      <td><input type="number" min="1" class="headerRowInput" data-sheet="${idx}" value="${s.headerRow}" style="width:64px;padding:6px;font-family:inherit;background:var(--field-bg);border:1px solid var(--line);border-radius:6px;color:var(--ink);"></td>
+      <td style="font-size:13px;color:var(--muted);">${s.rows.length}</td>
+      <td><input type="date" class="sheetDateInput" data-sheet="${idx}" value="${s.date||''}" style="padding:6px;font-family:inherit;background:var(--field-bg);border:1px solid var(--line);border-radius:6px;color:var(--ink);"></td>
+      <td><button class="small" type="button" data-sheet="${idx}">Xem trước</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll('.sheetDateInput').forEach(inp => {
+    inp.addEventListener('change', () => {
+      importState.sheets[Number(inp.dataset.sheet)].date = inp.value;
+    });
+  });
+  tbody.querySelectorAll('.headerRowInput').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const idx = Number(inp.dataset.sheet);
+      const headerRow1based = parseInt(inp.value, 10);
+      if(!headerRow1based || headerRow1based < 1) return;
+      const s = importState.sheets[idx];
+      const aoa = XLSX.utils.sheet_to_json(importState.workbook.Sheets[s.name], {header:1, defval:''});
+      const {headers, rows} = sliceSheetFromHeaderRow(aoa, headerRow1based - 1);
+      s.headerRow = headerRow1based;
+      s.headers = headers;
+      s.rows = rows;
+      renderSheetList();
+      if(idx === importState.activeSheetIdx) renderPreview(s.headers, s.rows);
+      if(idx === 0) buildMappingUI(s.headers, {excludeDate:true});
+    });
+  });
+  tbody.querySelectorAll('button[data-sheet]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      importState.activeSheetIdx = Number(btn.dataset.sheet);
+      renderSheetList();
+      const s = importState.sheets[importState.activeSheetIdx];
+      renderPreview(s.headers, s.rows);
+    });
+  });
+}
+
+// Merge tables extracted from several PDF files into one combined table,
+// matching columns by normalized header text (so files whose columns are
+// in a different order, or have slightly different spacing/diacritics in
+// the header, still line up under the same column).
+function mergeExtractedPdfTables(tables){
+  const combinedHeaders = [];
+  const combinedNorm = [];
+  const perTableColMap = tables.map(t=>
+    t.headers.map(h=>{
+      const norm = tightNorm(h);
+      let idx = combinedNorm.indexOf(norm);
+      if(idx === -1){
+        combinedHeaders.push(h);
+        combinedNorm.push(norm);
+        idx = combinedHeaders.length - 1;
+      }
+      return idx;
+    })
+  );
+  const combinedRows = [];
+  tables.forEach((t,ti)=>{
+    const colMap = perTableColMap[ti];
+    t.rows.forEach(r=>{
+      const newRow = new Array(combinedHeaders.length).fill('');
+      r.forEach((val, ci)=>{ newRow[colMap[ci]] = val; });
+      combinedRows.push(newRow);
+    });
+  });
+  return {headers: combinedHeaders, rows: combinedRows};
+}
+
+/* ---------- PDF table extraction ---------- */
+if(typeof pdfjsLib !== 'undefined'){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+async function extractPdfLines(file){
+  if(typeof pdfjsLib === 'undefined'){
+    throw new Error('pdfjs_not_loaded');
+  }
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data: buf}).promise;
+  const allLines = [];
+
+  for(let p = 1; p <= pdf.numPages; p++){
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const items = content.items
+      .filter(it => it.str && it.str.trim() !== '')
+      .map(it => ({
+        text: it.str,
+        x: it.transform[4],
+        y: it.transform[5],
+        w: it.width
+      }));
+    if(!items.length) continue;
+
+    // group items into lines by y position (tolerance for small jitter)
+    items.sort((a,b)=> b.y - a.y || a.x - b.x);
+    const lines = [];
+    const yTol = 2.5;
+    items.forEach(it=>{
+      let line = lines.find(l => Math.abs(l.y - it.y) <= yTol);
+      if(!line){ line = {y: it.y, items: []}; lines.push(line); }
+      line.items.push(it);
+    });
+    lines.sort((a,b)=> b.y - a.y);
+
+    // within each line, sort by x and merge items that are very close together (same word/cell fragment)
+    lines.forEach(line=>{
+      line.items.sort((a,b)=> a.x - b.x);
+      const merged = [];
+      line.items.forEach(it=>{
+        const prev = merged[merged.length-1];
+        if(prev && (it.x - (prev.x + prev.w)) < 2.2){
+          prev.text += it.text;
+          prev.w = (it.x + it.w) - prev.x;
+        }else{
+          merged.push({text: it.text, x: it.x, w: it.w, y: it.y});
+        }
+      });
+      allLines.push(merged);
+    });
+  }
+  return allLines;
+}
+
+function clusterColumns(tokens, tol){
+  const sorted = tokens.slice().sort((a,b)=> a.x - b.x);
+  const clusters = [];
+  sorted.forEach(t=>{
+    const last = clusters[clusters.length-1];
+    if(last && (t.x - last.repX) <= tol){
+      last.tokens.push(t);
+      last.repX = Math.min(last.repX, t.x);
+    }else{
+      clusters.push({repX: t.x, tokens:[t]});
+    }
+  });
+  return clusters;
+}
+
+// Cột nên bỏ khi đọc bảng từ PDF (không cần cho việc đối chiếu/lưu kết quả,
+// và việc bỏ bớt giúp thuật toán dò cột theo vị trí chữ chính xác hơn vì có
+// ít cột số sát nhau hơn). So khớp theo tiêu đề đã chuẩn hoá (bỏ dấu, bỏ khoảng trắng/ký tự đặc biệt).
+const PDF_DROP_HEADER_PATTERNS = ['soconnl', 'khoiluongnl', 'pcslb', 'soluongctn'];
+function tightNorm(s){
+  return normText(s).replace(/[^a-z0-9]/g, '');
+}
+function dropUnwantedPdfColumns(headers, rows){
+  const keepIdx = [];
+  headers.forEach((h, i)=>{
+    const t = tightNorm(h);
+    const drop = PDF_DROP_HEADER_PATTERNS.some(p => t.includes(p));
+    if(!drop) keepIdx.push(i);
+  });
+  if(keepIdx.length === headers.length) return {headers, rows};
+  return {
+    headers: keepIdx.map(i => headers[i]),
+    rows: rows.map(r => keepIdx.map(i => r[i]))
+  };
+}
+
+// group consecutive text-lines into "blocks" separated by an unusually
+// large vertical gap. Small gaps (a wrapped header spanning several
+// sub-lines, or a data row whose cells are vertically split across a
+// rowspan) stay within one block; big gaps mark a real transition —
+// between letterhead/title and the header, between the header and a
+// caption row, or between one data row and the next.
+function lineY(line){
+  if(!line.length) return 0;
+  return line.reduce((s,t)=> s + (t.y||0), 0) / line.length;
+}
+function groupLinesIntoBlocks(lines, gapThreshold){
+  const blocks = [];
+  let current = [];
+  let prevY = null;
+  lines.forEach(line=>{
+    if(!line.length) return;
+    const y = lineY(line);
+    if(prevY !== null && (prevY - y) > gapThreshold){
+      if(current.length) blocks.push(current);
+      current = [];
+    }
+    current.push(line);
+    prevY = y;
+  });
+  if(current.length) blocks.push(current);
+  return blocks;
+}
+
+function extractPdfLinesToTable(lines){
+  const nonEmpty = lines.filter(l => l.length);
+  if(!nonEmpty.length) return {headers:[], rows:[]};
+
+  const GAP_THRESHOLD = 10;
+  const blocks = groupLinesIntoBlocks(nonEmpty, GAP_THRESHOLD);
+
+  // Find the block holding the real column-header row via a "STT" cell
+  // (near-universal first column of these tables) — this lets us skip
+  // any company letterhead / report title sitting above the table,
+  // which would otherwise get swept into the header by mistake.
+  const headerBlockIdx = blocks.findIndex(block=>
+    block.some(line=> line.some(tok=> tightNorm(tok.text) === 'stt'))
+  );
+
+  let headerLines, dataBlocks;
+  if(headerBlockIdx !== -1){
+    headerLines = blocks[headerBlockIdx];
+    dataBlocks = blocks.slice(headerBlockIdx + 1);
+  }else{
+    // fallback: no "STT" cell found — use the old heuristic (first line
+    // whose leftmost token is exactly "1" marks the data start; treat
+    // every line above that as the header, one row per remaining line).
+    let dataStartIdx = nonEmpty.findIndex(line=>{
+      const leftmost = line.reduce((a,b)=> a.x < b.x ? a : b);
+      return leftmost.text.trim() === '1';
+    });
+    if(dataStartIdx <= 0){
+      dataStartIdx = nonEmpty.findIndex(l => l.length >= 2) + 1;
+    }
+    if(dataStartIdx <= 0) return {headers:[], rows:[]};
+    headerLines = nonEmpty.slice(0, dataStartIdx);
+    dataBlocks = nonEmpty.slice(dataStartIdx).map(l => [l]);
+  }
+
+  const headerTokens = [].concat(...headerLines);
+  if(!headerTokens.length) return {headers:[], rows:[]};
+  const headerTextForDupCheck = [].concat(...headerLines)
+    .slice().sort((a,b)=> a.y - b.y || a.x - b.x)
+    .map(t=>t.text.toLowerCase().trim()).join('|');
+
+  // First pass: find which of the blocks after the header are genuine data
+  // rows, by matching a run of increasing row-counter values (1, 2, 3, ...)
+  // in the STT-like leftmost column. A block that doesn't contain the next
+  // expected counter is a caption/footer line (e.g. "Ngày nhập nguyên
+  // liệu: ...") and is skipped. A block that does match is ONE row, even
+  // if its cells are split across several sub-lines (rowspan-style entries).
+  // Dòng tiêu đề nhóm kiểu "Ngày nhập nguyên liệu: 30.06.2026" (không phải dòng dữ liệu) → ghi nhớ
+  // ngày cho CÁC DÒNG PHÍA SAU; chân trang "Ngày kiểm: 01.07.2026" dùng làm ngày dự phòng. Trước đây
+  // các dòng này bị bỏ qua nên dữ liệu PDF không có cột Ngày (bắt buộc khi lưu).
+  const DATE_RE = /(\d{1,2})[.\/\-](\d{1,2})[.\/\-](\d{2,4})/;
+  const blockText = (block) => block.map(l => l.slice().sort((a,b)=>a.x-b.x).map(t=>t.text).join(' ')).join(' ');
+  const toIso = (m) => { const y = +m[3] < 100 ? 2000 + +m[3] : +m[3]; return `${y}-${String(+m[2]).padStart(2,'0')}-${String(+m[1]).padStart(2,'0')}`; };
+  let footerDate = '';
+  lines.forEach(line => { const t = normText(line.map(x=>x.text).join(' ')); if(/ngay kiem/.test(t)){ const m = t.match(DATE_RE); if(m && !footerDate) footerDate = toIso(m); } });
+  const matchedBlocks = [];
+  const blockDates = [];
+  let currentDate = '';
+  let expected = 1;
+  dataBlocks.forEach(block=>{
+    const blockLineNorm = block.map(l => l.map(t=>t.text.toLowerCase().trim()).join('|')).join('|');
+    if(blockLineNorm === headerTextForDupCheck) return; // repeated header row on a later page
+
+    const hasCounter = block.some(line=>{
+      if(!line.length) return false;
+      const leftmost = line.reduce((a,b)=> a.x < b.x ? a : b);
+      return leftmost.text.trim() === String(expected);
+    });
+    if(!hasCounter){
+      const t = normText(blockText(block));
+      const m = t.match(DATE_RE);
+      if(m && /ngay/.test(t) && !/ngay kiem/.test(t)) currentDate = toIso(m);
+      return;
+    }
+    matchedBlocks.push(block);
+    blockDates.push(currentDate || footerDate);
+    expected++;
+  });
+  if(!matchedBlocks.length) return {headers:[], rows:[]};
+
+  // Derive column boundaries from the DATA tokens rather than the header
+  // text: header words like "Sulfonamide" are often much wider than the
+  // narrow ("ND", numbers) values beneath them and start well to the left
+  // of the column's true center, which throws off x-clustering. The data
+  // cells are short and consistently placed, so clustering them gives much
+  // more reliable column boundaries.
+  // Dò cột theo TÂM chữ (x + w/2), không theo mép trái: ô trong bảng này căn GIỮA, nên 1 ô xuống
+  // dòng ("THUẬN PHƯỚC" / "X2L1", "ĐẠT NHẬT, ASC," / "HQ, MỸ") có mép trái khác hẳn nhau nhưng tâm gần
+  // như trùng — dò theo mép trái làm 1 ô bị tách thành 2 cột và đẩy lệch các cột phía sau.
+  const colTol = 9;
+  const cx = (t) => t.x + (t.w || 0) / 2;
+  const dataTokenPool = [].concat(...matchedBlocks.map(b => [].concat(...b)));
+  const columns = clusterColumns(dataTokenPool.map(t => ({ ...t, x: cx(t) })), colTol)
+    .map(c => ({ ...c, repX: c.tokens.reduce((a, t) => a + t.x, 0) / c.tokens.length }));
+  const bounds = [];
+  for(let i=0; i<columns.length-1; i++){
+    bounds.push((columns[i].repX + columns[i+1].repX) / 2);
+  }
+  function colIndexFor(x){
+    let idx = 0;
+    while(idx < bounds.length && x >= bounds[idx]) idx++;
+    return Math.min(idx, columns.length-1);
+  }
+
+  // assign each header token to its nearest data-derived column to build labels
+  const headerBuckets = columns.map(()=>[]);
+  headerTokens.forEach(tok=>{
+    headerBuckets[colIndexFor(cx(tok))].push(tok);
+  });
+  const headers = headerBuckets.map(bucket=>
+    bucket.slice().sort((a,b)=> b.y - a.y || a.x - b.x)
+      .map(t=>t.text.trim()).filter(Boolean).join(' ')
+  );
+
+  const rows = matchedBlocks.map(block=>{
+    const row = new Array(columns.length).fill('');
+    block.forEach(line=>{
+      line.forEach(tok=>{
+        const val = tok.text.trim();
+        if(!val) return;
+        const ci = colIndexFor(cx(tok));
+        if(!row[ci]) row[ci] = val;
+        else if(row[ci] !== val) row[ci] = row[ci] + ' ' + val;   // ô xuống dòng → nối liền bằng dấu cách
+      });
+    });
+    return row;
+  });
+
+  // Bỏ cột trống hoàn toàn (không tiêu đề, không dữ liệu) do chia cột dư.
+  const keep = headers.map((h, i) => !!(h || rows.some(r => r[i])));
+  let outHeaders = headers.filter((h, i) => keep[i]);
+  let outRows = rows.map(r => r.filter((v, i) => keep[i]));
+  // Thêm cột "Ngày nhập NL" lấy từ dòng tiêu đề nhóm / ngày kiểm (nếu bảng chưa có cột ngày riêng).
+  if(blockDates.some(Boolean) && !outHeaders.some(h => /^ngay/.test(normText(h)))){
+    outHeaders = ['Ngày nhập NL'].concat(outHeaders);
+    outRows = outRows.map((r, i) => [blockDates[i] || ''].concat(r));
+  }
+  return dropUnwantedPdfColumns(outHeaders, outRows);
+}
+
+async function extractPdfTable(file){
+  const lines = await extractPdfLines(file);
+  return extractPdfLinesToTable(lines);
+}
+
+function guessColumn(headers, aliases){
+  const normHeaders = headers.map(normText);
+  for(const alias of aliases){
+    const na = normText(alias);
+    const exact = normHeaders.findIndex(h => h === na);
+    if(exact !== -1) return exact;
+  }
+  for(const alias of aliases){
+    const na = normText(alias);
+    // BỎ QUA cột không có tiêu đề: chuỗi rỗng "nằm trong" mọi chuỗi (na.includes('') luôn đúng) nên trước
+    // đây MỌI mục (Ngày, Enro, Cipro…) đều bị tự khớp vào cột trống đầu tiên → lưu sai "THUẬN PHƯỚC" vào
+    // Ngày, Ký hiệu và cả 7 chỉ tiêu. Chỉ so gần đúng khi tiêu đề có ít nhất 2 ký tự.
+    // Chiều ngược (alias chứa tiêu đề) chỉ tính khi tiêu đề là PHẦN ĐẦU của alias (VD tiêu đề "Lô" ~ "lô hàng"),
+    // tránh "Kết Quả" bị nhận là cột Ngày vì alias "ngày trả kết quả" có chứa chữ "kết quả".
+    const partial = normHeaders.findIndex(h => h.length >= 2 && (h.includes(na) || na.startsWith(h)));
+    if(partial !== -1) return partial;
+  }
+  return -1;
+}
+
+function buildMappingUI(headers, opts){
+  opts = opts || {};
+  const grid = document.getElementById('mappingGrid');
+  grid.innerHTML = '';
+  const targets = opts.excludeDate ? IMPORT_TARGETS.filter(t => t.key !== 'date') : IMPORT_TARGETS;
+  targets.forEach(t=>{
+    const guess = guessColumn(headers, t.aliases);
+    const div = document.createElement('div');
+    div.className = 'field' + (t.required ? ' required' : '');
+    let optsHtml = `<option value="-1">-- Không dùng --</option>`;
+    headers.forEach((h,i)=>{
+      optsHtml += `<option value="${i}" ${i===guess?'selected':''}>${h || '(cột '+(i+1)+')'}</option>`;
+    });
+    div.innerHTML = `<label>${t.label}</label><select id="map_${t.key}">${optsHtml}</select>`;
+    grid.appendChild(div);
+  });
+}
+
+// Trả về -1 cho các mục không có trên UI hiện tại (VD: 'date' khi đang ở chế độ Excel nhiều sheet).
+function currentMapping(){
+  const m = {};
+  IMPORT_TARGETS.forEach(t=>{
+    const el = document.getElementById('map_'+t.key);
+    m[t.key] = el ? parseInt(el.value, 10) : -1;
+  });
+  return m;
+}
+
+function renderPreview(headers, rows){
+  const table = document.getElementById('previewTable');
+  const thead = table.querySelector('thead');
+  const tbody = table.querySelector('tbody');
+  thead.innerHTML = '<tr>' + headers.map(h=>`<th>${h||''}</th>`).join('') + '</tr>';
+  tbody.innerHTML = rows.length
+    ? rows.map(r => '<tr>' + headers.map((h,i)=>`<td>${formatCell(r[i])}</td>`).join('') + '</tr>').join('')
+    : `<tr><td colspan="${Math.max(headers.length,1)}" style="color:var(--muted);">Không có dữ liệu.</td></tr>`;
+}
+
+function formatCell(v){
+  if(v instanceof Date) return formatDateDMY(v);
+  return v==null ? '' : String(v);
+}
+
+// Định dạng ngày hiển thị mặc định cho mọi bảng trong module: dd/mm/yyyy.
+// Nhận Date object, chuỗi ISO "yyyy-mm-dd", hoặc chuỗi "d/m/yyyy" (chuẩn hoá về 2 chữ số).
+function formatDateDMY(v){
+  if(v instanceof Date && !isNaN(v)){
+    const d = String(v.getDate()).padStart(2,'0');
+    const mo = String(v.getMonth()+1).padStart(2,'0');
+    return `${d}/${mo}/${v.getFullYear()}`;
+  }
+  const s = String(v==null ? '' : v).trim();
+  if(!s) return '';
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(m) return `${m[3]}/${m[2]}/${m[1]}`;
+  m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if(m) return `${m[1].padStart(2,'0')}/${m[2].padStart(2,'0')}/${m[3]}`;
+  return s; // không nhận diện được là ngày hợp lệ, giữ nguyên
+}
+
+function excelValueToISODate(v){
+  if(v instanceof Date && !isNaN(v)){
+    const y = v.getFullYear(), m = String(v.getMonth()+1).padStart(2,'0'), d = String(v.getDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  }
+  const s = String(v||'').trim();
+  if(!s) return '';
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return `${m[1]}-${m[2]}-${m[3]}`;
+  // d/m/yyyy, d-m-yyyy, d.m.yyyy (file PDF dùng dấu chấm: 01.07.2026), năm 2 chữ số = 20xx
+  m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4}|\d{2})$/);
+  if(m){ const y = m[3].length === 2 ? '20' + m[3] : m[3]; return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`; }
+  return s; // giữ nguyên, không chuẩn hoá được
+}
+
+document.getElementById('btnImportReset').addEventListener('click', ()=>{
+  document.getElementById('importFile').value = '';
+  document.getElementById('mappingSection').style.display = 'none';
+  document.getElementById('sheetListWrap').style.display = 'none';
+  document.getElementById('importStatus').textContent = '';
+  document.getElementById('importSkipDetails').style.display = 'none';
+  document.getElementById('importSkipDetails').innerHTML = '';
+  importState = { mode: null, headers: [], rows: [], workbook: null, sheets: [], activeSheetIdx: 0 };
+});
+
+document.getElementById('btnImportRun').addEventListener('click', async ()=>{
+  if(importState.mode === 'excel'){
+    await runExcelSheetImport();
+  }else{
+    await runLegacyTableImport();
+  }
+});
+
+async function runLegacyTableImport(){
+  const status = document.getElementById('importStatus');
+  document.getElementById('importSkipDetails').style.display = 'none';
+  document.getElementById('importSkipDetails').innerHTML = '';
+  const map = currentMapping();
+  if(map.date === -1 || map.batch === -1){
+    status.textContent = 'Vui lòng khớp cột Ngày và Mã lô hàng trước khi nhập.';
+    status.classList.add('err');
+    return;
+  }
+
+  const btn = document.getElementById('btnImportRun');
+  btn.disabled = true;
+
+  // load existing date+batch combos for duplicate check
+  const skipDup = document.getElementById('importSkipDup').checked;
+  const existingCombos = new Set();
+  if(skipDup){
+    status.textContent = 'Đang kiểm tra dữ liệu đã có...';
+    status.classList.remove('err');
+    try{
+      const listRes = await storage.list('batch:', true);
+      (listRes.keys||[]).forEach(k=>{
+        const parts = k.split(':');
+        if(parts.length >= 3) existingCombos.add(parts[1]+'|'+parts[2]);
+      });
+    }catch(e){ /* ignore, proceed without dedupe */ }
+  }
+
+  let okCount = 0, dupCount = 0, skipCount = 0;
+  const skippedRows = [];
+  const rows = importState.rows;
+  // Chặn khớp cột nhầm: 1 cột bị chọn cho nhiều mục chỉ tiêu / ngày / lô → báo lại để người dùng sửa.
+  {
+    const used = {};
+    ['date','batch','enro','cipro','oxy','doxy','sulfo','aoz','cap','dat','kyhieu'].forEach(k=>{
+      if(map[k] !== undefined && map[k] !== -1){ (used[map[k]] = used[map[k]] || []).push(k); }
+    });
+    const clash = Object.values(used).find(ks => ks.length > 1);
+    if(clash){
+      status.textContent = 'Một cột đang được chọn cho nhiều mục (' + clash.join(', ') + ') — mỗi mục phải khớp 1 cột riêng. Kiểm tra lại phần "Khớp cột" rồi bấm nhập lại.';
+      status.classList.add('err');
+      btn.disabled = false;
+      return;
+    }
+  }
+
+  for(let i=0; i<rows.length; i++){
+    const r = rows[i];
+    status.textContent = `Đang nhập dòng ${i+1}/${rows.length}...`;
+
+    const date = excelValueToISODate(map.date !== -1 ? r[map.date] : '');
+    const batch = map.batch !== -1 ? String(r[map.batch]||'').trim() : '';
+
+    // Ngày phải đọc ra được dạng yyyy-mm-dd — nếu không (VD khớp nhầm cột chữ) thì bỏ dòng, không lưu sai.
+    if(!date || !batch || !/^\d{4}-\d{2}-\d{2}$/.test(date)){
+      skipCount++; skippedRows.push(i+1);
+      continue;
+    }
+    const comboKey = date+'|'+batch;
+    if(skipDup && existingCombos.has(comboKey)){
+      dupCount++;
+      continue;
+    }
+
+    const inputs = {};
+    FIELDS.forEach(f=>{
+      const idx = map[f.key];
+      inputs[f.key] = idx !== -1 ? String(r[idx] ?? '').trim() : '';
+    });
+    // Code/Mã NL (VD "PHI X2L2") ghép vào đầu Ghi chú để không mất thông tin nguồn nguyên liệu.
+    const codeVal = (map.code !== undefined && map.code !== -1) ? String(r[map.code]||'').trim() : '';
+    const noteVal = map.note !== -1 ? String(r[map.note]||'').trim() : '';
+    const note = [codeVal, noteVal].filter(Boolean).join(' · ');
+
+    let dat, kyhieu, mota, stt;
+    const fileDat = map.dat !== -1 ? String(r[map.dat]||'').trim() : '';
+    if(fileDat){
+      dat = fileDat;
+      kyhieu = map.kyhieu !== -1 ? String(r[map.kyhieu]||'').trim() : '';
+      mota = importState.mode === 'pdf' ? '(kết quả lấy từ file PDF)' : '(kết quả lấy từ file Excel)';
+      stt = null;
+    }else{
+      const matched = findMatch(inputs);
+      dat = matched ? matched.dat : 'Không xác định';
+      kyhieu = matched ? matched.kyhieu : '';
+      mota = matched ? matched.mota : '';
+      stt = matched ? matched.stt : null;
+    }
+
+    const record = { date, batch, note, inputs, stt, dat, kyhieu, mota, savedAt: new Date().toISOString(), source:'excel-import' };
+    try{
+      await saveBatchRecord(record);
+      existingCombos.add(comboKey);
+      okCount++;
+    }catch(e){
+      skipCount++; skippedRows.push(i+1);
+    }
+  }
+
+  btn.disabled = false;
+  let summary = `Hoàn tất: đã nhập ${okCount}/${rows.length} dòng.`;
+  if(dupCount) summary += ` Bỏ qua ${dupCount} dòng trùng (đã có sẵn Ngày+Mã lô).`;
+  if(skipCount) summary += ` Bỏ qua ${skipCount} dòng thiếu Ngày/Mã lô hoặc lỗi (dòng: ${skippedRows.join(', ')}).`;
+  summary += ' Xem tại tab "Dữ Liệu".';
+  status.textContent = summary;
+  status.classList.remove('err');
+}
+
+// Nhập Excel nhiều sheet: mỗi sheet dùng 1 Ngày đã gán ở BƯỚC 2 (không cần cột Ngày trong bảng),
+// dùng chung 1 cách khớp cột (từ sheet đầu tiên) cho tất cả các sheet.
+async function runExcelSheetImport(){
+  const status = document.getElementById('importStatus');
+  document.getElementById('importSkipDetails').style.display = 'none';
+  document.getElementById('importSkipDetails').innerHTML = '';
+  const map = currentMapping();
+  if(map.batch === -1){
+    status.textContent = 'Vui lòng khớp cột Mã lô hàng trước khi nhập.';
+    status.classList.add('err');
+    return;
+  }
+
+  const sheetsWithRows = importState.sheets.filter(s => s.rows.length > 0);
+  const missingDate = sheetsWithRows.filter(s => !s.date);
+  if(missingDate.length){
+    const ok = confirm(`Có ${missingDate.length} sheet chưa gán Ngày (${missingDate.map(s=>s.name).join(', ')}). Các sheet này sẽ bị BỎ QUA khi nhập. Vẫn tiếp tục nhập các sheet còn lại?`);
+    if(!ok) return;
+  }
+
+  const btn = document.getElementById('btnImportRun');
+  btn.disabled = true;
+
+  const skipDup = document.getElementById('importSkipDup').checked;
+  const existingCombos = new Set();
+  if(skipDup){
+    status.textContent = 'Đang kiểm tra dữ liệu đã có...';
+    status.classList.remove('err');
+    try{
+      const listRes = await storage.list('batch:', true);
+      (listRes.keys||[]).forEach(k=>{
+        const parts = k.split(':');
+        if(parts.length >= 3) existingCombos.add(parts[1]+'|'+parts[2]);
+      });
+    }catch(e){ /* ignore, proceed without dedupe */ }
+  }
+
+  let okCount = 0, dupCount = 0, skipCount = 0, skippedSheetCount = 0, sheetsDone = 0;
+  const totalRows = sheetsWithRows.reduce((s,x)=>s+x.rows.length,0);
+  let processedRows = 0;
+  const skippedSheetNames = [];
+  const skippedDetails = [];
+
+  for(const sheet of sheetsWithRows){
+    if(!sheet.date){ skippedSheetCount++; skippedSheetNames.push(sheet.name); continue; }
+    const date = sheet.date;
+    const rows = sheet.rows;
+
+    for(let i=0; i<rows.length; i++){
+      const r = rows[i];
+      processedRows++;
+      status.textContent = `Đang nhập sheet "${sheet.name}" (${date}) — dòng ${i+1}/${rows.length} (tổng ${processedRows}/${totalRows})...`;
+
+      const batch = map.batch !== -1 ? String(r[map.batch]||'').trim() : '';
+      if(!batch){
+        skipCount++;
+        skippedDetails.push({sheet: sheet.name, date, row: i+1, reason: 'Thiếu Mã lô hàng'});
+        continue;
+      }
+      const comboKey = date+'|'+batch;
+      if(skipDup && existingCombos.has(comboKey)){ dupCount++; continue; }
+
+      const inputs = {};
+      FIELDS.forEach(f=>{
+        const idx = map[f.key];
+        inputs[f.key] = idx !== -1 ? String(r[idx] ?? '').trim() : '';
+      });
+      // Code/Mã NL (VD "PHI X2L2") ghép vào đầu Ghi chú để không mất thông tin nguồn nguyên liệu.
+      const codeVal = (map.code !== undefined && map.code !== -1) ? String(r[map.code]||'').trim() : '';
+      const noteVal = map.note !== -1 ? String(r[map.note]||'').trim() : '';
+      const note = [codeVal, noteVal].filter(Boolean).join(' · ');
+
+      let dat, kyhieu, mota, stt;
+      const fileDat = map.dat !== -1 ? String(r[map.dat]||'').trim() : '';
+      if(fileDat){
+        dat = fileDat;
+        kyhieu = map.kyhieu !== -1 ? String(r[map.kyhieu]||'').trim() : '';
+        mota = importState.mode === 'pdf' ? '(kết quả lấy từ file PDF)' : '(kết quả lấy từ file Excel)';
+        stt = null;
+      }else{
+        const matched = findMatch(inputs);
+        dat = matched ? matched.dat : 'Không xác định';
+        kyhieu = matched ? matched.kyhieu : '';
+        mota = matched ? matched.mota : '';
+        stt = matched ? matched.stt : null;
+      }
+
+      const record = { date, batch, note, inputs, stt, dat, kyhieu, mota, savedAt: new Date().toISOString(), source: 'excel-import-sheet:'+sheet.name };
+      try{
+        await saveBatchRecord(record);
+        existingCombos.add(comboKey);
+        okCount++;
+      }catch(e){
+        skipCount++;
+        skippedDetails.push({sheet: sheet.name, date, row: i+1, reason: (e && e.message) ? e.message : 'Lỗi khi lưu dữ liệu'});
+      }
+    }
+    sheetsDone++;
+  }
+
+  btn.disabled = false;
+  let summary = `Hoàn tất: đã nhập ${okCount}/${totalRows} dòng từ ${sheetsDone}/${sheetsWithRows.length} sheet.`;
+  if(skippedSheetCount) summary += ` Bỏ qua ${skippedSheetCount} sheet chưa gán Ngày (${skippedSheetNames.join(', ')}).`;
+  if(dupCount) summary += ` Bỏ qua ${dupCount} dòng trùng (đã có sẵn Ngày+Mã lô).`;
+  if(skipCount) summary += ` Bỏ qua ${skipCount} dòng thiếu Mã lô hoặc lỗi — xem chi tiết bên dưới.`;
+  summary += ' Xem tại tab "Dữ Liệu".';
+  status.textContent = summary;
+  status.classList.remove('err');
+
+  const detailsEl = document.getElementById('importSkipDetails');
+  if(skippedDetails.length){
+    detailsEl.style.display = 'block';
+    detailsEl.innerHTML = '<strong>Chi tiết các dòng bị bỏ qua:</strong>'
+      + '<ul style="margin:6px 0 0 18px;padding:0;">'
+      + skippedDetails.map(d => `<li>Sheet "${d.sheet}" (Ngày ${d.date||'—'}) — dòng dữ liệu ${d.row}: ${d.reason}</li>`).join('')
+      + '</ul>';
+  }else{
+    detailsEl.style.display = 'none';
+    detailsEl.innerHTML = '';
+  }
+}
+
+/* ---------- tab 4: history ---------- */
+let allRecords = [];
+
+async function loadHistory(){
+  const status = document.getElementById('historyStatus');
+  const tbody = document.querySelector('#historyTable tbody');
+  status.textContent = 'Đang tải dữ liệu...';
+  tbody.innerHTML = '';
+
+  try{
+    const listRes = await storage.list('batch:', true);
+    const keys = (listRes && listRes.keys) ? listRes.keys : [];
+    const records = [];
+    for(const k of keys){
+      try{
+        const r = await storage.get(k, true);
+        if(r && r.value){
+          const rec = JSON.parse(r.value);
+          rec._key = k;
+          records.push(rec);
+        }
+      }catch(e){ /* skip unreadable record */ }
+    }
+    records.sort((a,b)=> (b.savedAt||'').localeCompare(a.savedAt||''));
+    allRecords = records;
+    rebuildHistoryFilterInputs(null);
+  }catch(e){
+    status.textContent = 'Không tải được dữ liệu đã lưu (bộ nhớ không khả dụng).';
+  }
+}
+
+// Màu kết quả theo chỉ tiêu đã nhập: tất cả ND → xanh lá; AOZ có giá trị → đỏ; còn lại → hổ phách.
+function resultToneClass(rec){
+  const inp = (rec && rec.inputs) || {};
+  if(!isBlankOrND(inp.aoz)) return 'ks-red';
+  if(FIELDS.every(f => isBlankOrND(inp[f.key]))) return 'ks-green';
+  return 'ks-amber';
+}
+
+function renderHistoryTable(records){
+  const tbody = document.querySelector('#historyTable tbody');
+  tbody.innerHTML = '';
+  if(!records.length) return;
+  records.forEach(rec=>{
+    const isFail = (rec.dat||'').indexOf('KHÔNG ĐẠT') !== -1;
+    const tr = document.createElement('tr');
+    const savedAtDate = rec.savedAt ? new Date(rec.savedAt) : null;
+    const savedAt = savedAtDate ? `${formatDateDMY(savedAtDate)} ${String(savedAtDate.getHours()).padStart(2,'0')}:${String(savedAtDate.getMinutes()).padStart(2,'0')}:${String(savedAtDate.getSeconds()).padStart(2,'0')}` : '';
+    tr.innerHTML = `
+      <td>${formatDateDMY(rec.date)}</td>
+      <td>${rec.batch||''}${rec.note ? '<br><span style="color:var(--muted);font-size:12px;">'+rec.note+'</span>' : ''}</td>
+      <td><span class="tag ${resultToneClass(rec)}" title="${isFail ? 'KHÔNG ĐẠT' : ''}">${rec.dat||'—'}</span></td>
+      <td>${rec.kyhieu||''}</td>
+      <td style="font-size:12px;color:var(--muted);">${enteredSummary(rec.inputs||{})}</td>
+      <td style="font-size:12px;color:var(--muted);">${savedAt}</td>
+      <td><button class="small" data-key="${rec._key}">Xoá</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('button[data-key]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      if(!confirm('Xoá bản ghi này?')) return;
+      try{
+        await storage.delete(btn.dataset.key, true);
+        loadHistory();
+      }catch(e){
+        alert('Xoá thất bại, thử lại.');
+      }
+    });
+  });
+  requestAnimationFrame(alignHistorySearchRowSticky);
+}
+
+/* ===== LỌC PHÂN TẦNG THEO TỪNG CỘT (gõ tay để tìm + datalist gợi ý) =====
+   Mỗi cột là 1 ô nhập chữ (input + datalist): gõ tự do để tìm kiếm gần đúng
+   (không phân biệt hoa/thường, có/không dấu), đồng thời có thể bấm để xem
+   gợi ý các giá trị đang có. Thứ tự cột quyết định thứ bậc lọc: gõ/chọn ở
+   1 cột sẽ xoá và thu hẹp gợi ý của TẤT CẢ các cột phía SAU nó. Bảng kết
+   quả luôn áp dụng đồng thời mọi cột đang có nội dung lọc (AND). */
+function escapeHtmlAttr(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+const HISTORY_COLUMNS = [
+  { key:'date', stringOf: rec => rec.date ? formatDateDMY(rec.date) : '' },
+  { key:'batch', stringOf: rec => rec.batch || '' },
+  { key:'dat', stringOf: rec => rec.dat || '' },
+  { key:'kyhieu', stringOf: rec => rec.kyhieu || '' },
+  { key:'inputsSummary', stringOf: rec => enteredSummary(rec.inputs||{}) },
+  { key:'savedAtDisplay', stringOf: rec => historySavedAtDisplay(rec) }
+];
+
+function historySavedAtDisplay(rec){
+  if(!rec.savedAt) return '';
+  const d = new Date(rec.savedAt);
+  if(isNaN(d)) return '';
+  return `${formatDateDMY(d)} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+}
+
+let historyColumnFilters = {};
+HISTORY_COLUMNS.forEach(c => { historyColumnFilters[c.key] = ''; });
+
+// So khớp gần đúng: không phân biệt hoa/thường, có/không dấu (dùng lại normText).
+function columnValueMatches(val, term){
+  if(!term) return true;
+  return normText(val).includes(normText(term));
+}
+
+function recordMatchesColumnFilters(rec, filters){
+  return Object.keys(filters).every(key=>{
+    if(!filters[key]) return true;
+    const col = HISTORY_COLUMNS.find(c=>c.key===key);
+    return columnValueMatches(col.stringOf(rec), filters[key]);
+  });
+}
+
+function distinctSuggestionsForColumn(colIdx){
+  // Chỉ áp dụng bộ lọc của các cột PHÍA TRƯỚC (lọc phân tầng 1 chiều).
+  const upstream = {};
+  for(let i=0;i<colIdx;i++){
+    const k = HISTORY_COLUMNS[i].key;
+    if(historyColumnFilters[k]) upstream[k] = historyColumnFilters[k];
+  }
+  const col = HISTORY_COLUMNS[colIdx];
+  const pool = allRecords.filter(r=>recordMatchesColumnFilters(r, upstream));
+  const values = new Set();
+  pool.forEach(r=>{
+    const val = col.stringOf(r);
+    if(val !== '') values.add(val);
+  });
+  return Array.from(values).sort((a,b)=> a.localeCompare(b, 'vi'));
+}
+
+function rebuildHistoryFilterInputs(changedColIdx){
+  // Xoá nội dung đã gõ ở các cột phía sau cột vừa thay đổi (đúng nghĩa "phân tầng").
+  if(changedColIdx !== null && changedColIdx !== undefined){
+    for(let i=changedColIdx+1;i<HISTORY_COLUMNS.length;i++){
+      const key = HISTORY_COLUMNS[i].key;
+      historyColumnFilters[key] = '';
+      const inp = document.getElementById('histFilter_'+key);
+      if(inp) inp.value = '';
+    }
+  }
+  HISTORY_COLUMNS.forEach((col, idx)=>{
+    const datalist = document.getElementById('histFilterList_'+col.key);
+    const input = document.getElementById('histFilter_'+col.key);
+    if(!datalist || !input) return;
+    const suggestions = distinctSuggestionsForColumn(idx);
+    datalist.innerHTML = suggestions.map(v=>`<option value="${escapeHtmlAttr(v)}"></option>`).join('');
+    input.classList.toggle('active-filter', !!historyColumnFilters[col.key]);
+  });
+  applyHistoryColumnFilters();
+}
+
+/* ===== PHÂN TRANG THEO NGÀY =====
+   Sau khi lọc theo các cột, nhóm kết quả theo Ngày và chỉ hiển thị 1 ngày
+   trong bảng mỗi lần — điều hướng bằng nút Ngày trước/Ngày sau hoặc chọn
+   thẳng ngày trong danh sách xổ xuống. */
+let historyMatchedRecords = [];
+let historyDateList = [];
+let historyDatePageIndex = 0;
+
+/* Ô "Tìm nhanh" (ghép VÀ với bộ lọc từng cột). Bản chép của ksHistMatcher() trong app điện thoại
+   (ban-dien-thoai/www/app.js) — sửa 1 bên thì sửa bên kia:
+   • Ngày: 3/5/2026, 3.5.2026, 3-5-26, 3/5, 3.5 (thiếu năm = mọi năm), hiểu là NGÀY/THÁNG.
+   • Lô: "L1", "Lô 1", "lo1", "L01" → đúng lô "1"/"Lô 1" (không lẫn lô 10, 11…).
+   • Từ khác: chứa là khớp (ký hiệu, kết luận, ghi chú, ngày). Thứ tự các từ tùy ý. */
+function ksParseDay(v){
+  const t = String(v==null?'':v).trim();
+  let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m) return { y:+m[1], m:+m[2], d:+m[3] };
+  m = t.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/);
+  if(m) return { d:+m[1], m:+m[2], y: +m[3] < 100 ? 2000 + +m[3] : +m[3] };
+  return null;
+}
+function ksLoKey(v){ const k = normText(v).replace(/\s+/g,'').replace(/^(lo|l)(?=[\w])[.\-:]?/, ''); return /^\d+$/.test(k) ? String(+k) : k; }
+function ksHistMatcher(q){
+  const toks = normText(q).split(/\s+/).filter(Boolean);
+  const conds = [];
+  for(let i = 0; i < toks.length; i++){
+    let t = toks[i];
+    if((t === 'lo' || t === 'l') && toks[i+1]){ t = t + toks[++i]; }
+    const dm = t.match(/^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?$/);
+    if(dm){
+      const d = +dm[1], m = +dm[2], y = dm[3] ? (+dm[3] < 100 ? 2000 + +dm[3] : +dm[3]) : null;
+      conds.push(r => { const p = ksParseDay(r.date); return !!p && p.d === d && p.m === m && (y == null || p.y === y); });
+      continue;
+    }
+    if(/^(lo|l)[.\-:]?[a-z0-9]/.test(t) && !/^lo?[a-z]{2,}/.test(t.replace(/^lo/, 'l'))){
+      const k = ksLoKey(t);
+      conds.push(r => ksLoKey(r.batch) === k);
+      continue;
+    }
+    conds.push(r => normText([r.batch, r.kyhieu, r.dat, r.note, formatDateDMY(r.date)].join(' ')).includes(t));
+  }
+  return r => conds.every(c => c(r));
+}
+let historyQuickQuery = '';
+// "Xoá bộ lọc" xoá luôn ô Tìm nhanh (bắt ở pha capture để chạy TRƯỚC handler có sẵn của nút).
+document.addEventListener('click', (e)=>{
+  if(e.target && e.target.id === 'btnFilterClear'){ historyQuickQuery = ''; const q = document.getElementById('histQuick'); if(q) q.value = ''; }
+}, true);
+document.addEventListener('input', (e)=>{
+  if(!e.target || e.target.id !== 'histQuick') return;
+  historyQuickQuery = e.target.value;
+  clearTimeout(window.__histQuickT);
+  window.__histQuickT = setTimeout(applyHistoryColumnFilters, 180);
+});
+
+function applyHistoryColumnFilters(){
+  const activeFilters = {};
+  Object.keys(historyColumnFilters).forEach(k=>{ if(historyColumnFilters[k]) activeFilters[k] = historyColumnFilters[k]; });
+  const quick = ksHistMatcher(historyQuickQuery);
+  historyMatchedRecords = allRecords.filter(r=>recordMatchesColumnFilters(r, activeFilters) && quick(r));
+  historyDateList = Array.from(new Set(historyMatchedRecords.map(r=>r.date).filter(Boolean))).sort((a,b)=> b.localeCompare(a));
+  historyDatePageIndex = 0;
+  renderHistoryDatePage();
+}
+
+function renderHistoryDatePage(){
+  const status = document.getElementById('historyStatus');
+  if(!allRecords.length){
+    status.textContent = 'Chưa có kết quả nào được lưu.';
+    renderHistoryTable([]);
+  }else if(!historyMatchedRecords.length){
+    status.textContent = 'Không có kết quả khớp bộ lọc.';
+    renderHistoryTable([]);
+  }else{
+    status.textContent = '';
+    const pageDate = historyDateList[historyDatePageIndex];
+    renderHistoryTable(historyMatchedRecords.filter(r=>r.date === pageDate));
+  }
+  updateHistoryDatePagerUI();
+}
+
+function updateHistoryDatePagerUI(){
+  const label = document.getElementById('historyDatePagerLabel');
+  const prevBtn = document.getElementById('historyDatePrevBtn');
+  const nextBtn = document.getElementById('historyDateNextBtn');
+  const select = document.getElementById('historyDatePagerSelect');
+  if(!label || !prevBtn || !nextBtn || !select) return;
+  if(!historyDateList.length){
+    label.textContent = '';
+    prevBtn.disabled = true;
+    nextBtn.disabled = true;
+    select.innerHTML = '';
+    select.disabled = true;
+    return;
+  }
+  select.disabled = false;
+  select.innerHTML = historyDateList.map((d,i)=>{
+    const count = historyMatchedRecords.filter(r=>r.date===d).length;
+    return `<option value="${i}" ${i===historyDatePageIndex?'selected':''}>${formatDateDMY(d)} (${count} dòng)</option>`;
+  }).join('');
+  label.textContent = `Ngày ${historyDatePageIndex+1}/${historyDateList.length}`;
+  prevBtn.disabled = historyDatePageIndex <= 0;
+  nextBtn.disabled = historyDatePageIndex >= historyDateList.length - 1;
+}
+
+document.getElementById('historyDatePrevBtn').addEventListener('click', ()=>{
+  if(historyDatePageIndex > 0){ historyDatePageIndex--; renderHistoryDatePage(); }
+});
+document.getElementById('historyDateNextBtn').addEventListener('click', ()=>{
+  if(historyDatePageIndex < historyDateList.length - 1){ historyDatePageIndex++; renderHistoryDatePage(); }
+});
+document.getElementById('historyDatePagerSelect').addEventListener('change', (e)=>{
+  historyDatePageIndex = Number(e.target.value) || 0;
+  renderHistoryDatePage();
+});
+
+const historyFilterDebounceTimers = {};
+HISTORY_COLUMNS.forEach((col, idx)=>{
+  const input = document.getElementById('histFilter_'+col.key);
+  if(!input) return;
+  input.addEventListener('input', ()=>{
+    historyColumnFilters[col.key] = input.value;
+    clearTimeout(historyFilterDebounceTimers[col.key]);
+    historyFilterDebounceTimers[col.key] = setTimeout(()=>{
+      rebuildHistoryFilterInputs(idx);
+    }, 150);
+  });
+});
+
+// Đặt lại vị trí "top" của dòng tìm kiếm cho khớp đúng chiều cao thực tế
+// của dòng tiêu đề (có thể thay đổi theo font/trình duyệt), để cả 2 dòng
+// luôn dính liền nhau khi cuộn.
+function alignHistorySearchRowSticky(){
+  const headerRow = document.querySelector('#historyTable thead tr.history-header-row');
+  const searchRow = document.querySelector('#historyTable thead tr.history-search-row');
+  if(!headerRow || !searchRow) return;
+  const top = headerRow.offsetHeight + 'px';
+  searchRow.querySelectorAll('th').forEach(th => { th.style.top = top; });
+}
+window.addEventListener('resize', alignHistorySearchRowSticky);
+
+document.getElementById('btnFilterClear').addEventListener('click', ()=>{
+  HISTORY_COLUMNS.forEach(c => {
+    historyColumnFilters[c.key] = '';
+    const inp = document.getElementById('histFilter_'+c.key);
+    if(inp) inp.value = '';
+  });
+  rebuildHistoryFilterInputs(null);
+});
+document.getElementById('btnHistoryReload').addEventListener('click', loadHistory);
+document.getElementById('btnHistoryFixBad').addEventListener('click', async ()=>{
+  const bad = allRecords.filter(r => !/^\d{4}-\d{2}-\d{2}$/.test(String(r.date || '')));
+  if(!bad.length){ alert('Không có bản ghi nào bị lỗi ngày.'); return; }
+  if(!confirm(`Xoá ${bad.length} bản ghi có Ngày không hợp lệ (VD "${String(bad[0].date).slice(0,30)}")? Các bản ghi đúng không bị ảnh hưởng.`)) return;
+  for(const rec of bad){ try{ await storage.delete(rec._key, true); }catch(e){} }
+  loadHistory();
+});
+
+document.getElementById('btnHistoryClearAll').addEventListener('click', async ()=>{
+  if(!allRecords.length){ return; }
+  if(!confirm(`Xoá toàn bộ ${allRecords.length} bản ghi đã lưu? Không thể hoàn tác.`)) return;
+  for(const rec of allRecords){
+    try{ await storage.delete(rec._key, true); }catch(e){}
+  }
+  loadHistory();
+});
+
+/* ---------- "Quy định kháng sinh" — bảng quy định có thể thêm/sửa/xóa ---------- */
+const RULE_FIELDS = FIELDS; // dùng chung định nghĩa 7 chỉ tiêu (Enro, Cipro, Oxy, Doxy, Sulfo, AOZ, CAP)
+const RULES_STORAGE_KEY = 'ksinhRulesData';
+
+const rulesTableBody = document.getElementById('rulesTableBody');
+const modalOverlay = document.getElementById('modalOverlay');
+const modalBox = document.getElementById('modalBox');
+
+function closeModal(){
+  modalOverlay.style.display = 'none';
+  modalBox.innerHTML = '';
+}
+modalOverlay.addEventListener('click', (e) => {
+  if(e.target === modalOverlay) closeModal();
+});
+
+function openModal(html){
+  modalBox.innerHTML = html;
+  modalOverlay.style.display = 'flex';
+}
+
+/* Hộp thoại xác nhận dùng chung — có nút "Xác nhận" và "Hủy". */
+function openConfirmModal(message, onConfirm){
+  openModal(`
+    <h2>Xác nhận</h2>
+    <p class="hint" style="margin-top:-4px;">${message}</p>
+    <div class="actions" style="margin-top:18px;">
+      <button class="primary" id="confirmYesBtn">Xác nhận</button>
+      <button class="secondary" id="confirmNoBtn" type="button">Hủy</button>
+    </div>
+  `);
+  document.getElementById('confirmYesBtn').addEventListener('click', () => {
+    closeModal();
+    onConfirm();
+  });
+  document.getElementById('confirmNoBtn').addEventListener('click', closeModal);
+}
+
+async function persistRulesData(){
+  try{
+    await storage.set(RULES_STORAGE_KEY, JSON.stringify(DATA), true);
+  }catch(e){ /* nếu lưu thất bại, dữ liệu vẫn dùng được trong phiên hiện tại */ }
+}
+
+async function loadRulesData(){
+  try{
+    const res = await storage.get(RULES_STORAGE_KEY, true);
+    if(res && res.value){
+      const parsed = JSON.parse(res.value);
+      if(Array.isArray(parsed) && parsed.length){
+        DATA = parsed;
+      }
+    }
+  }catch(e){ /* chưa có dữ liệu đã lưu => dùng DATA gốc */ }
+}
+
+function renderRulesTable(){
+  rulesTableBody.innerHTML = '';
+  if(!DATA.length){
+    rulesTableBody.innerHTML = `<tr><td colspan="11" style="color:var(--muted);">Chưa có quy định nào.</td></tr>`;
+    return;
+  }
+  DATA.forEach((row, idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${row.stt}</td><td>${row.enro}</td><td>${row.cipro}</td><td>${row.oxy}</td><td>${row.doxy}</td>
+      <td>${row.sulfo}</td><td>${row.aoz}</td><td>${row.cap}</td><td>${row.dat}</td><td>${row.kyhieu}</td>
+      <td style="white-space:nowrap;">
+        <button class="small" data-action="edit" data-idx="${idx}">Sửa</button>
+        <button class="danger" data-action="delete" data-idx="${idx}" style="margin-left:6px;">Xóa</button>
+      </td>
+    `;
+    rulesTableBody.appendChild(tr);
+  });
+}
+
+function ruleFormHtml(existing){
+  const v = existing || {enro:'',cipro:'',oxy:'',doxy:'',sulfo:'',aoz:'',cap:'',dat:'',kyhieu:'',mota:''};
+  const fieldInputs = RULE_FIELDS.map(f => `
+    <div class="field">
+      <label>${f.label}</label>
+      <input type="text" id="rf_${f.key}" placeholder="ND" value="${(v[f.key]||'').replace(/"/g,'&quot;')}">
+    </div>
+  `).join('');
+  return `
+    <h2>${existing ? 'Sửa quy định' : 'Thêm quy định mới'}
+      <small>Nhập "ND" nếu chỉ tiêu không phát hiện. Có phát hiện thì nhập số (vd: 8, 0.5, 12.3), có thể thêm dấu &lt; hoặc &gt; phía trước (vd: &lt;10, &gt;1).</small>
+    </h2>
+    <div class="grid">${fieldInputs}</div>
+    <div class="field required">
+      <label>Đạt theo thị trường</label>
+      <input type="text" id="rf_dat" placeholder="VD: ĐẠT NHẬT, EU, HQ" value="${(v.dat||'').replace(/"/g,'&quot;')}">
+    </div>
+    <div class="field required">
+      <label>Ký hiệu</label>
+      <input type="text" id="rf_kyhieu" placeholder="VD: 01.N-AS2-H" value="${(v.kyhieu||'').replace(/"/g,'&quot;')}">
+    </div>
+    <div class="field">
+      <label>Mô tả quy định</label>
+      <input type="text" id="rf_mota" placeholder="VD: NHẬT, ASC-A,B, EU, HQ: En<10, Cip<10" value="${(v.mota||'').replace(/"/g,'&quot;')}">
+    </div>
+    <div class="actions" style="margin-top:8px;">
+      <button class="primary" id="ruleFormSaveBtn">Lưu</button>
+      <button class="secondary" id="ruleFormCancelBtn" type="button">Hủy</button>
+    </div>
+  `;
+}
+
+function readRuleForm(){
+  const data = {};
+  RULE_FIELDS.forEach(f => {
+    data[f.key] = document.getElementById('rf_'+f.key).value.trim() || 'ND';
+  });
+  data.dat = document.getElementById('rf_dat').value.trim();
+  data.kyhieu = document.getElementById('rf_kyhieu').value.trim();
+  data.mota = document.getElementById('rf_mota').value.trim();
+  return data;
+}
+
+function openRuleFormModal(idx){
+  const existing = (idx !== null && idx !== undefined) ? DATA[idx] : null;
+  openModal(ruleFormHtml(existing));
+
+  document.getElementById('ruleFormCancelBtn').addEventListener('click', closeModal);
+  document.getElementById('ruleFormSaveBtn').addEventListener('click', () => {
+    const values = readRuleForm();
+    if(!values.dat || !values.kyhieu){
+      alert('Vui lòng nhập "Đạt theo thị trường" và "Ký hiệu".');
+      return;
+    }
+    const isEdit = existing !== null;
+    openConfirmModal(
+      isEdit ? `Lưu thay đổi cho quy định "${existing.kyhieu}"?` : 'Thêm quy định mới vào bảng?',
+      async () => {
+        if(isEdit){
+          DATA[idx] = { ...DATA[idx], ...values };
+        }else{
+          DATA.push({ stt: DATA.length + 1, ...values });
+        }
+        renumberRules();
+        renderRulesTable();
+        await persistRulesData();
+      }
+    );
+  });
+}
+
+function renumberRules(){
+  DATA.forEach((row, i) => { row.stt = i + 1; });
+}
+
+document.getElementById('btnAddRule').addEventListener('click', () => {
+  openRuleFormModal(null);
+});
+
+rulesTableBody.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-action]');
+  if(!btn) return;
+  const idx = Number(btn.dataset.idx);
+  const row = DATA[idx];
+  if(!row) return;
+
+  if(btn.dataset.action === 'edit'){
+    openRuleFormModal(idx);
+  }else if(btn.dataset.action === 'delete'){
+    openConfirmModal(
+      `Xóa quy định số ${row.stt} (Ký hiệu "${row.kyhieu}")? Hành động này không thể hoàn tác.`,
+      async () => {
+        DATA.splice(idx, 1);
+        renumberRules();
+        renderRulesTable();
+        await persistRulesData();
+      }
+    );
+  }
+});
+
+(async function initRulesData(){
+  await loadRulesData();
+  renderRulesTable();
+})();
+</script>
+</body>
+</html>

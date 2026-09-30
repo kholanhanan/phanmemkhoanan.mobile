@@ -1,0 +1,64 @@
+# Đăng thư mục www/ lên GitHub Pages — dùng cho 2 việc:
+#   1. Bản web chạy thử trên trình duyệt (như trước).
+#   2. NGUỒN TỰ CẬP NHẬT cho app APK (www/live-update.js): update.json + bundle-<mã>.zip.
+# Cần bật 1 lần: Settings → Pages → Source: "GitHub Actions". Repo để Public (tài khoản GitHub miễn phí).
+# Trong www/ và Code.gs KHÔNG chứa mã truy cập nào nên để public vẫn an toàn —
+# mã APP_TOKEN/PC_TOKEN chỉ nằm trong Thuộc tính tập lệnh của Apps Script.
+name: Web preview + cập nhật app
+
+on:
+  workflow_dispatch:
+  push:
+    paths: ['www/**', 'native-level.txt', '.github/workflows/web-preview.yml']
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+
+      # GIỐNG hệt bước cùng tên trong build-apk.yml — mã phiên bản = 7 ký tự đầu mã commit, nên APK và
+      # Pages build từ CÙNG 1 commit sẽ cùng mã (app không tải lại bản mình đang có).
+      - name: Ghi mã phiên bản + địa chỉ cập nhật vào www/
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          REPO="${{ github.event.repository.name }}"
+          if [ "$(echo "$REPO" | tr '[:upper:]' '[:lower:]')" = "$OWNER.github.io" ]; then BASE="https://$OWNER.github.io/"; else BASE="https://$OWNER.github.io/$REPO/"; fi
+          VER=$(echo "${{ github.sha }}" | cut -c1-7)
+          NATIVE=$(tr -dc '0-9' < native-level.txt 2>/dev/null); NATIVE=${NATIVE:-1}
+          MSG=$(git log -1 --pretty=%s | head -c 200)
+          DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          jq -n --arg v "$VER" --argjson n "$NATIVE" --arg d "$DATE" --arg m "$MSG" '{version:$v,nativeLevel:$n,date:$d,message:$m}' > www/bundle-version.json
+          jq -n --arg b "$BASE" '{base:$b}' > www/live-update-config.json
+          echo "VER=$VER" >> $GITHUB_ENV; echo "NATIVE=$NATIVE" >> $GITHUB_ENV; echo "MSG=$MSG" >> $GITHUB_ENV; echo "DATE=$DATE" >> $GITHUB_ENV
+          cat www/bundle-version.json www/live-update-config.json
+
+      - name: Đóng gói bản cập nhật (zip thư mục www, index.html ở gốc)
+        run: |
+          mkdir -p _site
+          cp -r www/. _site/
+          (cd www && zip -qr "../_site/bundle-$VER.zip" .)
+          SUM=$(sha256sum "_site/bundle-$VER.zip" | cut -d' ' -f1)
+          jq -n --arg v "$VER" --argjson n "$NATIVE" --arg f "bundle-$VER.zip" --arg s "$SUM" --arg m "$MSG" --arg d "$DATE" \
+            '{version:$v,nativeLevel:$n,file:$f,sha256:$s,message:$m,date:$d}' > _site/update.json
+          cat _site/update.json
+          ls -la _site | head -30
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4

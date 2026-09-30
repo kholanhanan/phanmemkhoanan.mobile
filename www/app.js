@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '1.1 (30/09/2026)';
+  const APP_VERSION = '1.2 (30/09/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -1322,11 +1322,12 @@
     const shown = rows.slice(0, state.limit.xuat);
     meta.textContent = lots.length ? `${fmt(rows.length)} dòng${q.length ? ' khớp tìm kiếm' : ''} · ${fmt(new Set(rows.map((w) => w._ma)).size)} mã`
       + (missing.length ? ` · chưa tải: ${missing.join(', ')}` : '') : '';
-    const unit = commonUnit(rows.map((w) => w.unit));
-    // Nhiều đơn vị lẫn nhau (kiện, SL, kg…) → thanh tổng cộng KG (không cộng lẫn số kiện với kg).
-    updateTotalBar(lots.length ? (unit
-      ? { filtered: q.length > 0, count: rows.length, unit, sum: rows.reduce((a, w) => a + (w.con - cartQty(w.key)), 0) }
-      : { filtered: q.length > 0, count: rows.length, unit: 'kg', sum: Math.round(rows.reduce((a, w) => a + tongKgOf(w), 0) * 100) / 100 }) : null);
+    // Cùng 1 đơn vị → cộng số lượng; lẫn nhiều đơn vị (kiện, SL, kg…) → cộng KG. Không cộng trùng Tồn kho An An
+    // với Tồn vị trí (totalsOf).
+    const T = totalsOf(rows.map((w) => [w.src, w.lot]));
+    updateTotalBar(lots.length ? (T.units.length === 1
+      ? { filtered: q.length > 0, count: rows.length, unit: T.units[0][0], sum: Math.round(T.units[0][1] * 100) / 100 }
+      : { filtered: q.length > 0, count: rows.length, unit: 'kg', sum: T.kg }) : null);
     if (!lots.length) {
       list.innerHTML = '';
       meta.innerHTML = emptyHtml('Chưa có số liệu', state.cfg.url ? 'Bấm nút tải lại ở góc trên để lấy tồn kho của mọi kho.' : 'Mở Cài đặt để nhập đường dẫn Web App.');
@@ -1985,6 +1986,27 @@
         <b>Tra cứu kháng sinh</b><span class="kt-sub">Kiểm tra kết quả · Quy định · Lô đã kiểm</span></button>`;
     renderHomeSearch();
   }
+  // Tổng số lượng + KL của 1 tập dòng [kho, dòng] (Trang chủ › tìm, Kho › Tổng):
+  //  - cộng RIÊNG theo đơn vị (SL, kiện, kg…; không phân biệt hoa/thường), không cộng lẫn đơn vị khác nhau;
+  //  - số lượng = còn lại sau phiếu đang soạn (giống cột SL từng dòng);
+  //  - KHÔNG cộng trùng: dòng "Tồn kho An An" (m01) có mã cũng có trong "Tồn vị trí" (vitri) là CÙNG 1 hàng →
+  //    chỉ cộng bên Tồn vị trí (GIỐNG quy tắc popup "Tìm trong toàn kho" trên PC).
+  function totalsOf(pairs) {
+    const vtCodes = new Set((state.lots.vitri || []).map((l) => noTpc((l.item || {}).maHang || '').toUpperCase()).filter(Boolean));
+    const units = new Map();
+    let kg = 0, skipped = 0;
+    pairs.forEach(([k, l]) => {
+      if (k === 'm01' && vtCodes.has(noTpc((l.item || {}).maHang || '').toUpperCase())) { skipped++; return; }
+      const q = l.con - cartQty(l.key);
+      const u = String(l.unit || '').trim();
+      const key = u.toLowerCase();
+      const cur = units.get(key) || [u, 0];
+      cur[1] += q; units.set(key, cur);
+      if (k === 'm03') kg += Math.max(q, 0);
+      else if (KHO_KG_PER[k]) kg += Math.max(q, 0) * (KHO_KG_PER[k](l.item || {}) || 0);
+    });
+    return { units: [...units.values()], kg: Math.round(kg * 100) / 100, skipped };
+  }
   // Tìm mã trong TẤT CẢ kho đã lưu trên máy (không tải thêm gì) — hiện tối đa 40 dòng, kèm tên kho.
   function renderHomeSearch() {
     const box = $('homeResults');
@@ -1995,7 +2017,15 @@
     SOURCES.forEach((k) => { const lotHit = makeLotMatch(qs, state.lots[k]); (state.lots[k] || []).forEach((l) => { if (lotHit(l)) hits.push([k, l]); }); });
     const missing = SOURCES.filter((k) => !(state[k] && state[k].data)).map((k) => KHO[k].name);
     setRowColWidths(box, hits.slice(0, 40));
-    box.innerHTML = `<div class="home-hint">${fmt(hits.length)} dòng khớp trong các kho đã lưu${missing.length ? ` · chưa tải: ${esc(missing.join(', '))}` : ''}</div>` +
+    // Tổng số lượng của TẤT CẢ dòng khớp (không chỉ 40 dòng đang hiện) — cộng riêng theo đơn vị (SL, kiện, kg…),
+    // không cộng lẫn; kèm tổng KL nếu tính được. Số lượng = còn lại sau phiếu đang soạn (giống cột SL của từng dòng).
+    const T = totalsOf(hits);
+    const sumHtml = hits.length ? `<div class="home-sum">
+        <div class="hs-cell"><small>Tổng số lượng</small><b>${T.units.map(([u, q]) => `${fmt(Math.round(q * 100) / 100)}${u ? ' <small>' + esc(u) + '</small>' : ''}`).join('<span class="hs-sep"> + </span>')}</b></div>
+        ${T.kg > 0 ? `<div class="hs-cell"><small>Tổng KL</small><b>≈ ${esc(fmtKg(T.kg))} <small>kg</small></b></div>` : ''}
+        ${T.skipped ? `<p class="hs-note">Không cộng ${fmt(T.skipped)} dòng Tồn kho An An trùng mã với Tồn vị trí (cùng 1 hàng).</p>` : ''}
+      </div>` : '';
+    box.innerHTML = `<div class="home-hint">${fmt(hits.length)} dòng khớp trong các kho đã lưu${hits.length > 40 ? ' · hiện 40 dòng đầu' : ''}${missing.length ? ` · chưa tải: ${esc(missing.join(', '))}` : ''}</div>` + sumHtml +
       (hits.length ? `<ul class="list">${hits.slice(0, 40).map(([k, l]) => lotRowHtml(k, l, KHO[k].name)).join('')}</ul>` : emptyHtml('Không tìm thấy', 'Thử vài ký tự cuối của mã hàng, hoặc mở kho chưa tải để tìm trong kho đó.'));
   }
 

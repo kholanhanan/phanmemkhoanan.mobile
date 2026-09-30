@@ -713,3 +713,21 @@ body.has-totalbar .multibar { bottom: calc(var(--tabbar-h) + var(--safe-bottom) 
 .hs-cell > b small { font-size: 13px; font-weight: 600; color: var(--muted); }
 .hs-sep { color: var(--muted); font-weight: 500; font-size: 15px; }
 .hs-note { flex: 1 1 100%; margin: 0; font-size: 12px; color: var(--muted); }
+
+/* Popup "Có phiên bản mới" (live-update.js) */
+.lu-ov { position: fixed; inset: 0; z-index: 90; background: rgba(8, 20, 40, .55); display: flex; align-items: center; justify-content: center;
+  padding: 20px calc(16px + env(safe-area-inset-right, 0px)) calc(20px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px)); }
+.lu-box { width: min(420px, 100%); background: var(--paper); color: var(--ink); border-radius: 22px; padding: 24px 20px 18px; text-align: center;
+  box-shadow: 0 20px 60px rgba(var(--shadow-rgb), .35); }
+.lu-icon { width: 56px; height: 56px; margin: 0 auto 10px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 26px; font-weight: 800; background: var(--cobalt); color: var(--on-cobalt); }
+.lu-box h2 { margin: 0 0 10px; font-size: 20px; }
+.lu-ver { display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--muted); font-size: 14px; }
+.lu-ver b { color: var(--ink); font-size: 17px; }
+.lu-arrow { color: var(--cobalt); font-weight: 800; }
+.lu-notes { text-align: left; margin-top: 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; font-size: 14px; line-height: 1.5; max-height: 30vh; overflow: auto; }
+.lu-notes b { display: block; margin-bottom: 2px; }
+.lu-p { margin: 12px 0 0; font-size: 13px; color: var(--muted); line-height: 1.45; }
+.lu-btns { display: flex; gap: 10px; margin-top: 16px; }
+.lu-b { flex: 1; height: 48px; border-radius: 14px; border: 1px solid var(--line); background: transparent; color: var(--ink); font: inherit; font-weight: 700; font-size: 15px; }
+.lu-b.pri { background: var(--cobalt); border-color: var(--cobalt); color: var(--on-cobalt); }

@@ -70,6 +70,29 @@
     el.hidden = false;
   }
   const hideBanner = () => { const el = document.getElementById('luBanner'); if (el) el.hidden = true; };
+  const escH = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  // POPUP giữa màn hình (thay cho thanh nhỏ) — dùng cho "Có phiên bản mới" và "cần cài APK mới".
+  function popup(o) {
+    closePopup();
+    const ov = document.createElement('div');
+    ov.id = 'luPopup'; ov.className = 'lu-ov';
+    const ver = (s) => String(s || '').replace(/\s*\(.*\)\s*$/, ''); // "1.2 (30/09/2026)" → "1.2"
+    const lines = String(o.message || '').split('\n').map((s) => s.trim()).filter(Boolean).slice(0, 6);
+    ov.innerHTML = `<div class="lu-box" role="dialog" aria-modal="true">
+        <div class="lu-icon">${o.warn ? '!' : '⬆'}</div>
+        <h2>${escH(o.title)}</h2>
+        ${o.from || o.to ? `<div class="lu-ver"><span>Đang dùng <b>${escH(ver(o.from) || '?')}</b></span><span class="lu-arrow">→</span><span>Bản mới <b>${escH(ver(o.to) || '?')}</b></span></div>` : ''}
+        ${lines.length ? `<div class="lu-notes"><b>Nội dung thay đổi</b>${lines.map((l) => `<div>• ${escH(l)}</div>`).join('')}</div>` : ''}
+        ${o.text ? `<p class="lu-p">${escH(o.text)}</p>` : ''}
+        <div class="lu-btns">${(o.actions || []).map((a, i) => `<button type="button" class="lu-b${a[2] ? ' pri' : ''}" data-i="${i}">${escH(a[0])}</button>`).join('')}</div>
+      </div>`;
+    ov.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-i]');
+      if (b) { const a = o.actions[Number(b.dataset.i)]; if (a && a[1]) a[1](); }
+    });
+    document.body.appendChild(ov);
+  }
+  function closePopup() { const ov = document.getElementById('luPopup'); if (ov) ov.remove(); }
   const firstLine = (m) => String(m || '').split('\n')[0].slice(0, 90);
 
   // ---------- tiện ích file ----------
@@ -126,7 +149,7 @@
     nx.tries = (nx.tries || 0) + 1;
     if (nx.tries > 2) { // đã thử 2 lần mà bản mới không chốt được → bản hỏng, bỏ
       lsSet(LS_BAD, nx.version); lsSet(LS_NEXT, null); await rmBundle(nx.version);
-      banner('Bản cập nhật ' + nx.version + ' không chạy được trên máy này — vẫn dùng bản cũ.', [['Đóng', hideBanner]]);
+      popup({ title: 'Chưa cập nhật được', warn: true, text: 'Bản cập nhật ' + nx.version + ' không chạy được trên máy này — vẫn dùng bản cũ.', actions: [['Đóng', closePopup, true]] });
       return false;
     }
     lsSet(LS_NEXT, nx);
@@ -161,7 +184,9 @@
       if (!manual && lsGet(LS_BAD) === R.version) return null;
       if (Number(R.nativeLevel || 1) > L.nativeLevel) {
         const msg = 'Có bản mới nhưng cần cài APK mới (bản này đổi phần gốc Android).';
-        if (manual || state.lastMsg !== msg) banner(msg, [['Đóng', hideBanner]]);
+        if (manual || state.lastMsg !== msg) popup({ title: 'Cần cài APK mới', warn: true, from: window.__KLANAN_APP_VERSION, to: R.appVersion, message: R.message,
+          text: 'Bản này thay đổi phần gốc Android nên không tự cập nhật được. Tải APK mới từ GitHub (tab Actions › Build APK) rồi cài đè.',
+          actions: [['Đã hiểu', closePopup, true]] });
         state.lastMsg = msg;
         return { ok: false, needApk: true, msg };
       }
@@ -174,10 +199,13 @@
         lsSet(LS_BAD, null);
         await cleanup([L.version, R.version]);
       }
-      banner('Có bản mới' + (R.message ? ': ' + firstLine(R.message) : '') + '. Tự áp dụng ở lần mở app sau.', [
-        ['Để sau', hideBanner],
-        ['Cập nhật ngay', () => { banner('Đang áp dụng bản mới…', []); applyNext().catch((e) => banner('Không áp dụng được: ' + (e.message || e), [['Đóng', hideBanner]])); }, true]
-      ]);
+      hideBanner();
+      popup({ title: 'Có phiên bản mới', from: window.__KLANAN_APP_VERSION, to: R.appVersion, message: R.message,
+        text: 'Cài đặt, mã truy cập và phiếu đang soạn được giữ nguyên. Chọn "Để sau" thì bản mới tự áp dụng ở lần mở app sau.',
+        actions: [
+          ['Để sau', closePopup],
+          ['Cập nhật ngay', () => { closePopup(); banner('Đang áp dụng bản mới…', []); applyNext().catch((e) => banner('Không áp dụng được: ' + (e.message || e), [['Đóng', hideBanner]])); }, true]
+        ] });
       return { ok: true, downloaded: true, msg: 'Đã tải bản mới ' + R.version + '.' };
     } catch (e) {
       if (manual) hideBanner();

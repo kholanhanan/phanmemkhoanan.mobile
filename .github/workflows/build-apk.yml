@@ -39,8 +39,9 @@ jobs:
           REPO="${{ github.event.repository.name }}"
           if [ "$(echo "$REPO" | tr '[:upper:]' '[:lower:]')" = "$OWNER.github.io" ]; then BASE="https://$OWNER.github.io/"; else BASE="https://$OWNER.github.io/$REPO/"; fi
           VER=$(echo "${{ github.sha }}" | cut -c1-7)
-          NATIVE=$(tr -dc '0-9' < native-level.txt 2>/dev/null); NATIVE=${NATIVE:-1}
-          MSG=$(git log -1 --pretty=%s | head -c 200)
+          # Chịu được khi thiếu file native-level.txt (quên tải lên) → mặc định 1; không để lệnh con làm dừng build.
+          NATIVE=$( (cat native-level.txt 2>/dev/null || echo 1) | tr -dc '0-9' ); NATIVE=${NATIVE:-1}
+          MSG=$( (git log -1 --pretty=%s 2>/dev/null || echo "") | head -c 200 )
           DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           jq -n --arg v "$VER" --argjson n "$NATIVE" --arg d "$DATE" --arg m "$MSG" '{version:$v,nativeLevel:$n,date:$d,message:$m}' > www/bundle-version.json
           jq -n --arg b "$BASE" '{base:$b}' > www/live-update-config.json

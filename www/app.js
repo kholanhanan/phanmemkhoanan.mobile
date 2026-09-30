@@ -3327,5 +3327,7 @@
     SOURCES.forEach(buildTonRows);
     switchTab('home');
     if (!state.cfg.url) openSettings(true);
+    // Báo cho live-update.js: giao diện đã khởi động xong → bản cập nhật vừa tải được CHỐT dùng tiếp.
+    window.__KLANAN_READY = true;
   })();
 })();

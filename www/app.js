@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '1.3 (01/10/2026)';
+  const APP_VERSION = '1.4 (01/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -180,6 +180,7 @@
     cart: load(LS_CART, null),           // { id, ghiChu, items: [{key, maHang, tenHang, soLo, size, phieuNhap, soKien, qty}] }
     tab: 'home',
     phieuSeg: 'cho',                    // nhóm đang xem ở tab Phiếu: soan | cho | nhan | huy
+    phieuMonth: '',                     // (bản 1.4) lọc phiếu Đã nhận / Đã hủy theo tháng 'YYYY-MM' — rỗng = tất cả
     // Tab Kho MỞ APP luôn vào "Tổng — tất cả kho" (người dùng yêu cầu 30/09/2026, bản 3.63). Đổi kho trong lúc dùng
     // vẫn giữ tới khi tắt app. Chỉ được dùng 1 kho thì vào thẳng kho đó (applyPerms).
     xuatSrc: SOURCES.length > 1 ? 'tong' : (SOURCES[0] || 'm02'),
@@ -1674,9 +1675,21 @@
       return;
     }
     const lastPush = state.m02 && state.m02.data && state.m02.data.meta && state.m02.data.meta.lastPushAt;
-    const rows = g[seg] || [];
+    let rows = g[seg] || [];
+    // LỊCH SỬ THEO THÁNG (bản 1.4): nhóm Đã nhận / Đã hủy có ô chọn tháng (theo lúc PC xử lý, chưa có thì lúc tạo).
+    // Phiếu quá 90 ngày PC tự chuyển sang tab lưu trữ trên Sheet nên không còn trong danh sách này.
+    const monthOf = (p) => { const d = new Date(p.xuLyLuc || p.ngayTao); return isNaN(d) ? '' : d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
+    let monthSel = '';
+    if (seg === 'nhan' || seg === 'huy') {
+      const months = Array.from(new Set(rows.map(monthOf).filter(Boolean))).sort().reverse();
+      if (state.phieuMonth && months.indexOf(state.phieuMonth) < 0) state.phieuMonth = '';
+      if (months.length > 1 || state.phieuMonth) {
+        monthSel = `<select class="px-month" data-pxmonth="1" aria-label="Lọc theo tháng"><option value="">Tất cả tháng</option>${months.map((m) => `<option value="${m}"${m === state.phieuMonth ? ' selected' : ''}>Tháng ${Number(m.slice(5))}/${m.slice(0, 4)} (${fmt(rows.filter((p) => monthOf(p) === m).length)})</option>`).join('')}</select> `;
+      }
+      if (state.phieuMonth) rows = rows.filter((p) => monthOf(p) === state.phieuMonth);
+    }
     const anN = seg === 'nhan' ? g.anNhan + g.cuNhan : seg === 'huy' ? g.anHuy : 0;
-    meta.innerHTML = `${fmt(rows.length)} phiếu`
+    meta.innerHTML = monthSel + `${fmt(rows.length)} phiếu`
       + (seg === 'nhan' && g.cuNhan ? ` · ${fmt(g.cuNhan)} phiếu thuộc tồn kho cũ đã ẩn` : '')
       + (anN ? ` · ${seg === 'nhan' && g.cuNhan && !g.anNhan ? '' : 'đã ẩn ' + fmt(anN) + ' '}<button type="button" class="linkbtn" data-anshow="1">hiện lại</button>` : '')
       + (state.showHidden && (seg === 'nhan' || seg === 'huy') ? ` · <button type="button" class="linkbtn" data-anshow="0">thôi hiện phiếu đã ẩn</button>` : '')
@@ -3266,6 +3279,9 @@
     if (!b) return;
     if (b.dataset.draft === 'open') openCartSheet();
     else { const k = SRC_OF[state.cart && state.cart.module]; if (k) selectKho(k); else switchTab('xuat'); }
+  });
+  $('phieuMeta').addEventListener('change', (e) => {
+    if (e.target.matches && e.target.matches('[data-pxmonth]')) { state.phieuMonth = e.target.value; renderPhieu(); }
   });
   $('phieuMeta').addEventListener('click', (e) => {
     const sh = e.target.closest('[data-anshow]');

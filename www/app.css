@@ -717,3 +717,10 @@ body.has-totalbar .multibar { bottom: calc(var(--tabbar-h) + var(--safe-bottom) 
 /* Lọc phiếu theo tháng (bản 1.4) */
 .px-month{ height: 34px; padding: 0 10px; margin-right: 6px; border: 1px solid var(--line, #cdd6e3); border-radius: 10px;
   background: var(--card, #fff); color: inherit; font: inherit; font-weight: 600; max-width: 100%; }
+
+/* Chọn kho — Tồn vị trí An An (bản 1.5) */
+.kho-pick[hidden]{ display: none !important; }
+.kho-pick{ flex: 0 0 auto; }
+.kho-pick select{ font-weight: 700; }
+.meta-row.has-toggle{ gap: 10px; }
+.meta-row.has-toggle .list-meta{ flex: 1 1 auto; text-align: right; }

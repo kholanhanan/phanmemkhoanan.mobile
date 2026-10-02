@@ -25,7 +25,7 @@
   const LS_NEXT = 'klanan.lu.next';   // {version, path, tries} — bản đã tải xong, chờ áp dụng
   const LS_BAD = 'klanan.lu.bad';     // mã bản đã thử 2 lần không chạy được → bỏ qua
   const DIR = 'DATA';
-  const state = { checking: false, local: null, lastMsg: '' };
+  const state = { checking: false, local: null, lastMsg: '', bootAt: Date.now(), touched: false };
   const lsGet = (k) => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* bỏ qua */ } };
 
@@ -70,29 +70,6 @@
     el.hidden = false;
   }
   const hideBanner = () => { const el = document.getElementById('luBanner'); if (el) el.hidden = true; };
-  const escH = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  // POPUP giữa màn hình (thay cho thanh nhỏ) — dùng cho "Có phiên bản mới" và "cần cài APK mới".
-  function popup(o) {
-    closePopup();
-    const ov = document.createElement('div');
-    ov.id = 'luPopup'; ov.className = 'lu-ov';
-    const ver = (s) => String(s || '').replace(/\s*\(.*\)\s*$/, ''); // "1.2 (30/09/2026)" → "1.2"
-    const lines = String(o.message || '').split('\n').map((s) => s.trim()).filter(Boolean).slice(0, 6);
-    ov.innerHTML = `<div class="lu-box" role="dialog" aria-modal="true">
-        <div class="lu-icon">${o.warn ? '!' : '⬆'}</div>
-        <h2>${escH(o.title)}</h2>
-        ${o.from || o.to ? `<div class="lu-ver"><span>Đang dùng <b>${escH(ver(o.from) || '?')}</b></span><span class="lu-arrow">→</span><span>Bản mới <b>${escH(ver(o.to) || '?')}</b></span></div>` : ''}
-        ${lines.length ? `<div class="lu-notes"><b>Nội dung thay đổi</b>${lines.map((l) => `<div>• ${escH(l)}</div>`).join('')}</div>` : ''}
-        ${o.text ? `<p class="lu-p">${escH(o.text)}</p>` : ''}
-        <div class="lu-btns">${(o.actions || []).map((a, i) => `<button type="button" class="lu-b${a[2] ? ' pri' : ''}" data-i="${i}">${escH(a[0])}</button>`).join('')}</div>
-      </div>`;
-    ov.addEventListener('click', (e) => {
-      const b = e.target.closest('[data-i]');
-      if (b) { const a = o.actions[Number(b.dataset.i)]; if (a && a[1]) a[1](); }
-    });
-    document.body.appendChild(ov);
-  }
-  function closePopup() { const ov = document.getElementById('luPopup'); if (ov) ov.remove(); }
   const firstLine = (m) => String(m || '').split('\n')[0].slice(0, 90);
 
   // ---------- tiện ích file ----------
@@ -128,7 +105,8 @@
     await rmBundle(R.version);
     const files = R.files || [];
     let done = 0;
-    for (const f of files) {
+    // NHANH HƠN (bản 1.5): tải / chép SONG SONG 4 file một lúc (trước: lần lượt từng file).
+    async function one(f) {
       let buf = null;
       try { const b = await getBytes(new URL(f.p, location.origin + '/').href); if (await sha256(b) === f.s) buf = b; } catch (e) { /* không có ở bản đang chạy */ }
       if (!buf) {
@@ -138,6 +116,9 @@
       await FS.writeFile({ path: dir + '/' + f.p, data: toBase64(buf), directory: DIR, recursive: true });
       done++; if (onProgress) onProgress(done, files.length);
     }
+    let next = 0;
+    const worker = async () => { while (next < files.length) { const f = files[next++]; await one(f); } };
+    await Promise.all([worker(), worker(), worker(), worker()]);
     const uri = await FS.getUri({ path: dir, directory: DIR });
     return decodeURIComponent(String(uri.uri || '').replace(/^file:\/\//, ''));
   }
@@ -149,7 +130,7 @@
     nx.tries = (nx.tries || 0) + 1;
     if (nx.tries > 2) { // đã thử 2 lần mà bản mới không chốt được → bản hỏng, bỏ
       lsSet(LS_BAD, nx.version); lsSet(LS_NEXT, null); await rmBundle(nx.version);
-      popup({ title: 'Chưa cập nhật được', warn: true, text: 'Bản cập nhật ' + nx.version + ' không chạy được trên máy này — vẫn dùng bản cũ.', actions: [['Đóng', closePopup, true]] });
+      banner('Bản cập nhật ' + nx.version + ' không chạy được trên máy này — vẫn dùng bản cũ.', [['Đóng', hideBanner]]);
       return false;
     }
     lsSet(LS_NEXT, nx);
@@ -184,9 +165,7 @@
       if (!manual && lsGet(LS_BAD) === R.version) return null;
       if (Number(R.nativeLevel || 1) > L.nativeLevel) {
         const msg = 'Có bản mới nhưng cần cài APK mới (bản này đổi phần gốc Android).';
-        if (manual || state.lastMsg !== msg) popup({ title: 'Cần cài APK mới', warn: true, from: window.__KLANAN_APP_VERSION, to: R.appVersion, message: R.message,
-          text: 'Bản này thay đổi phần gốc Android nên không tự cập nhật được. Tải APK mới từ GitHub (tab Actions › Build APK) rồi cài đè.',
-          actions: [['Đã hiểu', closePopup, true]] });
+        if (manual || state.lastMsg !== msg) banner(msg, [['Đóng', hideBanner]]);
         state.lastMsg = msg;
         return { ok: false, needApk: true, msg };
       }
@@ -199,13 +178,17 @@
         lsSet(LS_BAD, null);
         await cleanup([L.version, R.version]);
       }
-      hideBanner();
-      popup({ title: 'Có phiên bản mới', from: window.__KLANAN_APP_VERSION, to: R.appVersion, message: R.message,
-        text: 'Cài đặt, mã truy cập và phiếu đang soạn được giữ nguyên. Chọn "Để sau" thì bản mới tự áp dụng ở lần mở app sau.',
-        actions: [
-          ['Để sau', closePopup],
-          ['Cập nhật ngay', () => { closePopup(); banner('Đang áp dụng bản mới…', []); applyNext().catch((e) => banner('Không áp dụng được: ' + (e.message || e), [['Đóng', hideBanner]])); }, true]
-        ] });
+      // Vừa mở app (≤ 25 giây) và người dùng CHƯA chạm gì → áp dụng luôn (app tải lại vài giây, không mất gì: phiếu
+      // đang soạn lưu trên máy). Còn lại: hiện thông báo; bản mới tự áp dụng khi rời app (chuyển sang app khác / tắt
+      // màn hình) hoặc lần mở sau.
+      if (!manual && Date.now() - state.bootAt < 25000 && !state.touched && !document.hidden) {
+        banner('Đang cập nhật bản mới…', []);
+        if (await applyNext().catch(() => false)) return { ok: true, downloaded: true, applied: true, msg: 'Đang áp dụng bản mới.' };
+      }
+      banner('Có bản mới' + (R.message ? ': ' + firstLine(R.message) : '') + '. Tự áp dụng khi bạn rời app hoặc mở lại.', [
+        ['Để sau', hideBanner],
+        ['Cập nhật ngay', () => { banner('Đang áp dụng bản mới…', []); applyNext().catch((e) => banner('Không áp dụng được: ' + (e.message || e), [['Đóng', hideBanner]])); }, true]
+      ]);
       return { ok: true, downloaded: true, msg: 'Đã tải bản mới ' + R.version + '.' };
     } catch (e) {
       if (manual) hideBanner();
@@ -223,10 +206,19 @@
         if (nx && nx.version === L.version && !L.builtin) { await commitIfReady(); }          // bản mới vừa chạy → chốt
         else if (nx && nx.version !== L.version) { if (await applyNext()) return; }           // có bản đã tải → áp dụng khi mở app
       } catch (e) { /* không chặn app */ }
+      // KIỂM TRA NHANH HƠN (bản 1.5): 1,5 giây sau khi mở (trước 4 giây); mỗi lần quay lại app tối đa 3 phút / lần
+      // (trước 30 phút). update.json rất nhỏ nên hỏi thường xuyên không tốn mạng.
       let last = 0;
-      const run = () => { if (Date.now() - last < 30 * 60 * 1000) return; last = Date.now(); check(false); };
-      setTimeout(run, 4000);
-      document.addEventListener('visibilitychange', () => { if (!document.hidden) run(); });
+      const run = () => { if (Date.now() - last < 3 * 60 * 1000) return; last = Date.now(); check(false); };
+      setTimeout(run, 1500);
+      ['pointerdown', 'keydown'].forEach((ev) => window.addEventListener(ev, () => { state.touched = true; }, { once: true, capture: true }));
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) { run(); return; }
+        // Rời app (về màn hình chính / tắt màn hình) mà đã có bản mới tải sẵn → áp dụng ngay lúc này (người dùng không
+        // thấy gì; quay lại là bản mới). Phiếu đang soạn đã lưu trên máy nên không mất.
+        const nx = lsGet(LS_NEXT);
+        if (nx && nx.path && !state.checking) localInfo().then((L) => { if (nx.version !== L.version) applyNext().catch(() => {}); }).catch(() => {});
+      });
     })();
   }
 })();

@@ -10,8 +10,8 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
   <title>Kho Lạnh An An</title>
-<link rel="stylesheet" href="fonts.css?v=1.4-20261001"><!-- font trong máy (offline) -->
-  <link rel="stylesheet" href="app.css?v=1.4-20261001">
+<link rel="stylesheet" href="fonts.css?v=1.5-20261002"><!-- font trong máy (offline) -->
+  <link rel="stylesheet" href="app.css?v=1.5-20261002">
 </head>
 <body>
   <header class="topbar">
@@ -72,6 +72,20 @@
         <label class="toggle">
           <input type="checkbox" id="onlyAvail" checked>
           <span>Chỉ lô còn hàng</span>
+        </label>
+        <!-- CHỌN KHO (bản 1.5) — CHỈ hiện ở kho "Tồn vị trí An An": Tổng (mặc định) / Kho 1…5 = vị trí bắt đầu TG1.…TG5.
+             Lọc chung với ô tìm, lọc cột, "Chỉ lô còn hàng" (app.js › khoOk). Khi hiện, ô "Chỉ lô còn hàng" chuyển
+             xuống hàng số dòng (app.js › placeKhoPick). -->
+        <label class="sort-pick kho-pick" id="khoPick" title="Lọc theo kho (TG1…TG5)" hidden>
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V9l9-5 9 5v12"/><path d="M7 21v-7h10v7M7 17h10"/></svg>
+          <select id="xuatKho" aria-label="Lọc theo kho">
+            <option value="">Kho: Tổng</option>
+            <option value="1">Kho: Kho 1</option>
+            <option value="2">Kho: Kho 2</option>
+            <option value="3">Kho: Kho 3</option>
+            <option value="4">Kho: Kho 4</option>
+            <option value="5">Kho: Kho 5</option>
+          </select>
         </label>
         <!-- Sắp xếp danh sách (cùng trạng thái với bấm tiêu đề cột). "Đặc tính" gom các dòng cùng đặc tính
              lại với nhau, trong mỗi nhóm xếp theo vị trí/lô. -->
@@ -202,10 +216,10 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="live-update.js?v=1.4-20261001"></script><!-- tự cập nhật giao diện APK (đặt ĐẦU TIÊN: báo app đã chạy tốt) -->
-  <script src="export.js?v=1.4-20261001"></script>
-  <script src="size-label.js?v=1.4-20261001"></script>
-  <script src="ks-rules.js?v=1.4-20261001"></script>
-  <script src="app.js?v=1.4-20261001"></script>
+  <script src="live-update.js?v=1.5-20261002"></script><!-- tự cập nhật giao diện APK (đặt ĐẦU TIÊN: báo app đã chạy tốt) -->
+  <script src="export.js?v=1.5-20261002"></script>
+  <script src="size-label.js?v=1.5-20261002"></script>
+  <script src="ks-rules.js?v=1.5-20261002"></script>
+  <script src="app.js?v=1.5-20261002"></script>
 </body>
 </html>

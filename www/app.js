@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '1.4 (01/10/2026)';
+  const APP_VERSION = '1.5 (02/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -345,9 +345,14 @@
   // ------------------------------------------------------------------ gọi Web App
   async function api(action, extra) {
     if (!state.cfg.url || !state.cfg.token) throw Object.assign(new Error('Chưa cài đặt kết nối.'), { code: 'CFG' });
+    // MẠNG CHẬP CHỜN (bản 1.5): lệnh CHỈ ĐỌC (không kèm dữ liệu gửi đi) bị rớt mạng giữa chừng (lỗi kết nối, chưa nhận
+    // được trả lời) → tự thử lại 1 lần sau 1,5 giây. Lệnh GHI (tạo / sửa / hủy phiếu — có kèm dữ liệu) KHÔNG tự thử lại
+    // để không bao giờ tạo trùng phiếu. Quá 45 giây không trả lời thì không thử lại (mạng quá chậm).
+    const tries = extra ? 1 : 2;
+    let res;
+    for (let attempt = 1; ; attempt++) {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), 45000);
-    let res;
     try {
       // text/plain: yêu cầu "đơn giản", không kích hoạt CORS preflight (Apps Script không hỗ trợ).
       res = await fetch(state.cfg.url, {
@@ -356,10 +361,13 @@
         // nguoiDung: Tên người dùng (ID đăng nhập) — Web App kiểm tra cùng mã truy cập (như ID + mật khẩu).
         body: JSON.stringify(Object.assign({ token: state.cfg.token, nguoiDung: String(state.cfg.user || '').trim(), action }, extra || {}))
       });
+      break;
     } catch (e) {
+      if (e.name !== 'AbortError' && attempt < tries) { clearTimeout(timer); await new Promise((r) => setTimeout(r, 1500)); continue; }
       throw new Error(e.name === 'AbortError' ? 'Mạng quá chậm, đã chờ 45 giây không có phản hồi.' : 'Không kết nối được. Kiểm tra mạng hoặc đường dẫn Web App.');
     } finally {
       clearTimeout(timer);
+    }
     }
     const text = await res.text();
     let data;
@@ -903,7 +911,7 @@
         const onlyAvail = $('onlyAvail').checked;
         valueOf = xuatFieldValue;
         const lotHit = makeXuatMatch(qs, state.lots[src]);
-        rows = (state.lots[src] || []).filter((l) => (!onlyAvail || l.con > 0) && hsdQuickOk(src, l) && lotHit(l)
+        rows = (state.lots[src] || []).filter((l) => (!onlyAvail || l.con > 0) && hsdQuickOk(src, l) && khoOk(src, l) && lotHit(l)
           && cf.every(([k, set]) => set.has(norm(xuatFieldValue(l, k)))));
       } else {
         valueOf = tonFieldValue;
@@ -1029,6 +1037,26 @@
   // ngưỡng 10 ngày với màu cột "HSD (ngày)" trên PC. Không tính được hạn → ''.
   const hsdGroup = (l) => (l.hsdDays == null ? '' : l.hsdDays < 0 ? 'het' : l.hsdDays < 10 ? 'sap' : '');
   const hsdQuickOk = (src, l) => src !== 'vitribot' || !state.hsdQ || hsdGroup(l) === state.hsdQ;
+  // LỌC THEO KHO (bản 1.5) — chỉ kho "Tồn vị trí An An": vị trí "TG1.J.12.3.1" thuộc Kho 1 … "TG5.…" thuộc Kho 5.
+  // state.xuatKho: '' = Tổng (mặc định, KHÔNG lưu — mở app luôn về Tổng), '1'…'5'. Hiển thị vị trí vẫn bỏ tiền tố.
+  const khoNoOf = (l) => { const m = /^TG(\d+)\./i.exec(String((l && l.item && l.item.viTri) || '').trim()); return m ? String(Number(m[1])) : ''; };
+  const khoOk = (src, l) => src !== 'vitri' || !state.xuatKho || khoNoOf(l) === state.xuatKho;
+  function placeKhoPick(src, lots, onlyAvail) {
+    const on = src === 'vitri';
+    const pick = $('khoPick'), sel = $('xuatKho'); if (!pick || !sel) return;
+    pick.hidden = !on;
+    // Ô "Chỉ lô còn hàng": hàng trên (cạnh Sắp xếp) cho kho khác; khi có nút Kho thì xuống hàng số dòng (theo mẫu đã duyệt)
+    const tog = $('onlyAvail').closest('.toggle'), metaRow = $('xuatMeta').parentElement, optRow = pick.parentElement;
+    const target = on ? metaRow : optRow;
+    if (tog && tog.parentElement !== target) target.insertBefore(tog, target.firstChild);
+    metaRow.classList.toggle('has-toggle', on);
+    if (!on) return;
+    const cnt = { '': 0 };
+    (lots || []).forEach((l) => { if (onlyAvail && !(l.con > 0)) return; cnt['']++; const k = khoNoOf(l); if (k) cnt[k] = (cnt[k] || 0) + 1; });
+    Array.from(sel.options).forEach((o) => { o.textContent = (o.value ? 'Kho: Kho ' + o.value : 'Kho: Tổng') + ' (' + fmt(cnt[o.value] || 0) + ')'; });
+    if (sel.value !== (state.xuatKho || '')) sel.value = state.xuatKho || '';
+    pick.classList.toggle('on', !!state.xuatKho); // cùng kiểu "đang lọc" với nút Sắp xếp
+  }
   function sortKeyOf(src, l, key) {
     if (key === 'qty') return l.con - cartQty(l.key);
     // Hạn dùng: số ngày còn hạn (âm = đã hết hạn, lên đầu); dòng không tính được hạn xuống cuối.
@@ -1111,14 +1139,15 @@
     const onlyAvail = $('onlyAvail').checked;
     const cf = cfCompile(state.colf.xuat[src]);
     const lotHit = makeXuatMatch(q, lots);
-    const rows = sortLots(src, lots.filter((l) => (!onlyAvail || l.con > 0) && hsdQuickOk(src, l) && lotHit(l)
+    const rows = sortLots(src, lots.filter((l) => (!onlyAvail || l.con > 0) && hsdQuickOk(src, l) && khoOk(src, l) && lotHit(l)
       && cf.every(([k, set]) => set.has(norm(xuatFieldValue(l, k))))));
     renderHsdQuick(src, lots, onlyAvail);
+    placeKhoPick(src, lots, onlyAvail);
     paintSortHead();
     renderFilterUi('xuat');
     const shown = rows.slice(0, state.limit.xuat);
     state.xuatRows = rows; // cho "Chọn hết" ở chế độ chọn nhiều
-    meta.textContent = lots.length ? `${fmt(rows.length)} dòng${q.length ? ' khớp tìm kiếm' : ''}${src === 'vitribot' && state.hsdQ ? (state.hsdQ === 'het' ? ' · đã hết hạn' : ' · sắp hết hạn (< 10 ngày)') : ''}` : '';
+    meta.textContent = lots.length ? `${fmt(rows.length)} dòng${src === 'vitri' && state.xuatKho ? ' · Kho ' + state.xuatKho : ''}${q.length ? ' khớp tìm kiếm' : ''}${src === 'vitribot' && state.hsdQ ? (state.hsdQ === 'het' ? ' · đã hết hạn' : ' · sắp hết hạn (< 10 ngày)') : ''}` : '';
     if (src === 'm02' && lots.length && state.lots.m02DtIssue) meta.textContent += ' · ⚠ ' + state.lots.m02DtIssue + ' — trên PC bấm Đồng bộ / Đẩy tồn kho lại.';
     // Tổng = đúng con số "còn" đang hiện ở từng dòng (đã trừ phần đang soạn trong phiếu), cộng cho TẤT CẢ dòng đang lọc
     updateTotalBar(lots.length ? { filtered: q.length > 0, count: rows.length, unit: commonUnit(rows.map((l) => l.unit)),
@@ -3069,22 +3098,28 @@
   // Hỏi Web App (rất nhẹ): mốc PC đẩy từng bảng + số đang chờ. Cập nhật "chờ PC" cho mọi bảng đang
   // lưu mà KHÔNG tải lại bảng; bảng nào PC đẩy bản mới hơn thì đánh dấu và tải lại (bảng đang xem
   // tải ngay, bảng khác tải khi mở tới). Tối đa 1 lần / phút trừ khi force.
+  let lastPendingSig = null;
   async function checkUpdates(force) {
     if (!state.cfg.url) return;
     if (!force && Date.now() - lastCheckAt < 60000) return;
     lastCheckAt = Date.now();
     let st;
+    const meBefore = JSON.stringify(state.me || null);
     try { [st] = await Promise.all([api('trangThai'), fetchMe().catch(() => {})]); }
     catch (e) { if (e.code === 'AUTH') { toast(e.message, true); openSettings(false); } return; } // mất mạng / Web App bản cũ chưa có lệnh này → cứ dùng bản đã lưu
+    // MƯỢT HƠN (bản 1.5): chỉ dựng lại danh sách + vẽ lại khi số "chờ PC" hoặc dấu bảng mới THẬT SỰ đổi — trước đây mỗi
+    // lần quay lại app (≤ 1 lần/phút) đều dựng lại toàn bộ hàng nghìn dòng → giật nhẹ dù không có gì mới.
+    const pendSig = JSON.stringify(st.pending || {});
+    let changed = pendSig !== lastPendingSig || JSON.stringify(state.me || null) !== meBefore; // quyền đổi → vẽ lại
+    lastPendingSig = pendSig;
     SOURCES.concat(['m08']).forEach((k) => {
       const d = state[k] && state[k].data;
       if (!d) return;
       d.pending = st.pending || {};
       const pc = stampIn(st.meta, k), mine = stampIn(d.meta, k);
-      if (pc && pc > mine) state.stale.add(k);
+      if (pc && pc > mine && !state.stale.has(k)) { state.stale.add(k); changed = true; }
     });
-    buildLots();
-    renderAll();
+    if (changed) { buildLots(); renderAll(); }
     // + kho vừa được cấp quyền (chưa có số liệu trên máy)
     const now = neededFor(state.tab).filter((k) => state.stale.has(k) || !(state[k] && state[k].data));
     if (now.length) refresh(now);
@@ -3161,6 +3196,8 @@
     renderXuat();
   });
   $('onlyAvail').addEventListener('change', () => { state.limit.xuat = PAGE; renderXuat(); });
+  // Chọn kho (Tồn vị trí): GIỮ nguyên ô tìm / lọc cột — VD đã gõ "BTP 16" rồi chọn Kho 2 → còn BTP 16 ở TG2 để xuất phiếu.
+  $('xuatKho').addEventListener('change', (e) => { state.xuatKho = e.target.value || ''; state.limit.xuat = PAGE; renderXuat(); });
   $('hsdQuick').addEventListener('click', (e) => {
     const b = e.target.closest('[data-hsdq]');
     if (!b) return;

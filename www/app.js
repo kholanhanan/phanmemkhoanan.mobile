@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '1.8 (02/10/2026)';
+  const APP_VERSION = '1.9 (02/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -1522,7 +1522,7 @@
       return;
     }
     // SẮP XẾP (bản 1.8): ngày mới → cũ (mặc định) / ngày cũ → mới / theo số lô; trong cùng ngày luôn lô 1, 2, 3…
-    body.innerHTML = `<div class="search-row"><input type="search" class="search" id="ksHistQ" placeholder="VD: L1 3/5/2026 · L1 3.5 · 46.EU" value="${esc(M8.hq)}" autocomplete="off"></div>
+    body.innerHTML = `<div class="search-row"><input type="search" class="search" id="ksHistQ" placeholder="VD: L1 3/5/2026 · MKS2 9.9.26 · 46.EU" value="${esc(M8.hq)}" autocomplete="off"></div>
       <label class="sort-pick ks-sort"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4v16M3 8l4-4 4 4M17 20V4M13 16l4 4 4-4"/></svg>
         <select id="ksHistSort" aria-label="Sắp xếp lô đã kiểm">
           <option value="new"${M8.hsort === 'new' ? ' selected' : ''}>Ngày mới nhất trước</option>
@@ -1586,39 +1586,59 @@
   }
   const ksDmy = (v) => { const p = ksParseDay(v); return p ? String(p.d).padStart(2, '0') + '/' + String(p.m).padStart(2, '0') + '/' + p.y : String(v || ''); };
   const ksLoKey = (v) => { const k = norm(v).replace(/\s+/g, '').replace(/^(lo|l)(?=[\w])[.\-:]?/, ''); return /^\d+$/.test(k) ? String(+k) : k; };
+  // Bản 1.9 (đồng bộ PC 4.8): + MẪU CHỜ "MKS2" / "MCSKS2" / "MC2" / "MKS 2" / "MKS chờ 2"; ngày đi kèm MKS = ngày phân tích
+  // của lần kiểm lại; đi kèm L = ngày nhập của lô; chỉ ngày = mọi loại ngày (nhập, kiểm lần 1, kiểm lại).
+  const ksLan2List = (r) => (r && r.lan2All && r.lan2All.length ? r.lan2All : (r && r.lan2 ? [r.lan2] : []));
+  const ksMksNo = (mau) => { const m = norm(mau || '').match(/mks\s*cho\s*(\d+)/); return m ? +m[1] : null; };
   function ksHistMatcher(q) {
     const toks = norm(q).trim().split(/\s+/).filter(Boolean);
-    const conds = [];
+    const conds = [], dates = [];
+    let mks = null, lotGiven = false;
+    const MK = /^(?:mcsks|mkscho|mks|mcks|mc)$/;
     for (let i = 0; i < toks.length; i++) {
       let t = toks[i];
+      let mm = t.match(/^(?:mcsks|mkscho|mks|mcks|mc)(\d+)$/);
+      if (!mm && MK.test(t)) { let j = i + 1; if (toks[j] === 'cho') j++; if (toks[j] && /^\d+$/.test(toks[j])) { mm = [t, toks[j]]; i = j; } }
+      if (mm) { mks = +mm[1]; continue; }
       if ((t === 'lo' || t === 'l') && toks[i + 1]) { t = t + toks[++i]; }
       const dm = t.match(/^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?$/);
-      if (dm) {
-        const d = +dm[1], m = +dm[2], y = dm[3] ? (+dm[3] < 100 ? 2000 + +dm[3] : +dm[3]) : null;
-        conds.push((r) => { const p = ksParseDay(r.date); return !!p && p.d === d && p.m === m && (y == null || p.y === y); });
-        continue;
-      }
+      if (dm) { dates.push({ d: +dm[1], m: +dm[2], y: dm[3] ? (+dm[3] < 100 ? 2000 + +dm[3] : +dm[3]) : null }); continue; }
       if (/^(lo|l)[.\-:]?[a-z0-9]/.test(t) && !/^lo?[a-z]{2,}/.test(t.replace(/^lo/, 'l'))) {
-        const k = ksLoKey(t);
+        const k = ksLoKey(t); lotGiven = true;
         conds.push((r) => ksLoKey(r.batch) === k);
         continue;
       }
-      conds.push((r) => wordsHit(norm([r.batch, r.kyhieu, r.dat, r.note, ksDmy(r.date)].concat(r.lan2 ? [r.lan2.dat, r.lan2.kyhieu, r.lan2.ghichu, r.lan2.mau, 'lan 2'] : []).join(' ')), [t], null));
+      conds.push((r) => wordsHit(norm([r.batch, r.kyhieu, r.dat, r.note, ksDmy(r.date)].concat(ksLan2List(r).map((l) => [l.dat, l.kyhieu, l.ghichu, l.mau, 'lan 2', 'kiem lai'].join(' '))).join(' ')), [t], null));
     }
-    return (r) => conds.every((c) => c(r));
+    const dOk = (iso) => { const p = ksParseDay(iso); return !!p && dates.every((x) => p.d === x.d && p.m === x.m && (x.y == null || p.y === x.y)); };
+    return (r) => {
+      if (!conds.every((c) => c(r))) return false;
+      if (mks != null) return ksLan2List(r).some((l) => ksMksNo(l.mau) === mks && (!dates.length || dOk(l.date)));
+      if (!dates.length) return true;
+      if (lotGiven) return dOk(r.date);
+      return dOk(r.date) || ksLan2List(r).some((l) => dOk(l.date)) || !!(r.lan1Src && dOk(r.lan1Src.ngayKiem));
+    };
   }
+
   // KẾT QUẢ LẦN 2 (bản 1.6) — PC 3.4+ gắn rec.lan2 vào lô khi nhập phiếu "KẾT QUẢ LẦN 1 + LẦN 2" (Module 8). Kết quả lần 1
   // giữ nguyên ở trên; khối dưới chỉ hiện khi lô có lần 2. Mẫu không ghi lô (MKS chờ, mẫu kiểm…) có mã = cả tên mẫu.
   function ksBatchLabel(b) {
     const t = String(b || '').replace(/：/g, ':').trim();
     return !t ? 'Lô —' : (/^[0-9]+[A-Za-z]?$/.test(t) ? 'Lô ' + esc(t) : esc(t));
   }
+  // Kết quả KIỂM LẠI mới nhất theo NGÀY (bản 1.9): "Lần N" = thứ tự ngày kiểm lại + 1; kiểm lại nhiều lần → "đã kiểm lại K lần".
   function ksLan2Html(r) {
-    const l = r && r.lan2; if (!l) return '';
+    const list = ksLan2List(r).slice().sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+    const l = list[list.length - 1]; if (!l) return '';
+    const days = Array.from(new Set(list.map((x) => x.date || ''))).sort();
+    const lan = days.indexOf(l.date || '') + 2;
     const fail = /KHÔNG\s*ĐẠT/i.test(String(l.dat || ''));
-    return `<div class="ks-lan2"><div class="ks-lan2-top"><span class="ks-lan2-tag">Lần 2</span><span class="ks-badge ${fail ? 'fail' : 'pass'}">${esc(l.dat || '—')}</span>${l.kyhieu ? '<b>' + esc(l.kyhieu) + '</b>' : ''}</div>`
-      + `<div class="ks-rule-dat">Kiểm ${esc(ksDmy(l.date))}${l.ghichu ? ' · ' + esc(l.ghichu) : ''}${l.so ? ' · Phiếu ' + esc(l.so) + (l.stt ? ' mẫu ' + esc(l.stt) : '') : ''}</div></div>`;
+    return `<div class="ks-lan2"><div class="ks-lan2-top"><span class="ks-lan2-tag">Lần ${lan}</span><span class="ks-badge ${fail ? 'fail' : 'pass'}">${esc(l.dat || '—')}</span>${l.kyhieu ? '<b>' + esc(l.kyhieu) + '</b>' : ''}</div>`
+      + `<div class="ks-rule-dat">Kiểm ${esc(ksDmy(l.date))}${l.ghichu ? ' · ' + esc(l.ghichu) : ''}${l.so ? ' · Phiếu ' + esc(l.so) + (l.stt ? ' mẫu ' + esc(l.stt) : '') : ''}</div>`
+      + (days.length > 1 ? `<div class="ks-rule-dat">Đã kiểm lại ${days.length} lần: ${list.map((x) => 'Lần ' + (days.indexOf(x.date || '') + 2) + ' ' + esc(ksDmy(x.date)) + ' ' + esc(x.dat || '')).join(' · ')}</div>` : '')
+      + `</div>`;
   }
+
   function renderKsHist() {
     const box = $('ksList'); if (!box) return;
     const D = ksData();

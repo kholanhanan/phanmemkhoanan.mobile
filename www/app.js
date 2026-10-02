@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '2.0 (02/10/2026)';
+  const APP_VERSION = '2.1 (02/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -1630,17 +1630,52 @@
   // Bản 1.9 (đồng bộ PC 4.8): + MẪU CHỜ "MKS2" / "MCSKS2" / "MC2" / "MKS 2" / "MKS chờ 2"; ngày đi kèm MKS = ngày phân tích
   // của lần kiểm lại; đi kèm L = ngày nhập của lô; chỉ ngày = mọi loại ngày (nhập, kiểm lần 1, kiểm lại).
   const ksLan2List = (r) => (r && r.lan2All && r.lan2All.length ? r.lan2All : (r && r.lan2 ? [r.lan2] : []));
-  const ksMksNo = (mau) => { const m = norm(mau || '').match(/mks\s*cho\s*(\d+)/); return m ? +m[1] : null; };
+  // Bản 2.1: nhận diện MẪU CHỜ rộng hơn. Từ khóa: MKS / MCS / MKSC / MCKS / MCSKS / MC + số (MKS2, MCS3, MKSC2, MC2, "MKS chờ 2",
+  // "MKS 2", "mẫu chờ 3", "mks-2"…). Số = SỐ MẪU chờ (2, 3, 4, 5…). Gõ \"mẫu chờ\" / \"MKS chờ\" không kèm số = mọi mẫu chờ.
+  const KS_MK_WORD = '(?:mcsks|mcks|mkscho|mksc|mcs|mks|mc)';
+  const KS_MK_ONLY = new RegExp('^' + KS_MK_WORD + '$');
+  const KS_MK_NUM = new RegExp('^' + KS_MK_WORD + '[.\\-_:#]*(\\d+)$');
+  // Đọc tên mẫu: trả { cho: true/false, no: số mẫu | null }. Mẫu chờ = tên có \"MKS chờ\", \"mẫu chờ\", \"MC 2\", \"MCS3\"… ở ĐẦU tên
+  // hoặc có chữ \"chờ\" đi kèm MKS/MCS/MC. Không lấy số ở phần \"ngày 26.09 · LSX 073/09\" phía sau.
+  function ksMauInfo(name) {
+    const t = norm(name || '').replace(/\s+/g, ' ').trim();
+    if (!t) return { cho: false, no: null };
+    let m = t.match(new RegExp('(?:^|[\\s(\\[])(?:' + KS_MK_WORD.slice(3, -1) + '|mau)\\s*cho\\s*(?:so|mau|no|#)?\\s*[.\\-:]?\\s*(\\d+)'));
+    if (m) return { cho: true, no: +m[1] };
+    m = t.match(new RegExp('^' + KS_MK_WORD + '\\s*[.\\-_:#]?\\s*(?:so|mau|no)?\\s*[.\\-_:#]?\\s*(\\d+)(?!\\d|[./\\-]\\d)'));
+    if (m) return { cho: true, no: +m[1] };
+    m = t.match(new RegExp('(?:^|[\\s(\\[])(?:' + KS_MK_WORD.slice(3, -1) + '|mau)\\s*cho(?![a-z])'));
+    if (m) return { cho: true, no: null };
+    return { cho: false, no: null };
+  }
+  const ksMksNo = (mau) => { const i = ksMauInfo(mau); return i.no; };
+  // Một lần kiểm lại l của lô r có phải mẫu chờ số no (null = bất kỳ)? Tên mẫu = l.mau, hoặc (mẫu không ghi lô) tên lô.
+  // Mẫu chờ không ghi số trong tên → lấy số mẫu trên phiếu (l.stt).
+  function ksLanIsMks(r, l, no) {
+    // Có tên mẫu riêng (vd "Lô 9") thì chỉ xét tên đó; chỉ khi lần kiểm lại không ghi tên mẫu mới xét tên lô.
+    const i = String(l.mau || '').trim() ? ksMauInfo(l.mau) : ksMauInfo(r.batch);
+    if (!i.cho) return false;
+    if (no == null) return true;
+    const n = i.no != null ? i.no : (/^\d+$/.test(String(l.stt || '').trim()) ? +String(l.stt).trim() : null);
+    return n === no;
+  }
   function ksHistMatcher(q) {
     const toks = norm(q).trim().split(/\s+/).filter(Boolean);
     const conds = [], dates = [];
-    let mks = null, lotGiven = false;
-    const MK = /^(?:mcsks|mkscho|mks|mcks|mc)$/;
+    let mks = null, mksAny = false, lotGiven = false;
     for (let i = 0; i < toks.length; i++) {
       let t = toks[i];
-      let mm = t.match(/^(?:mcsks|mkscho|mks|mcks|mc)(\d+)$/);
-      if (!mm && MK.test(t)) { let j = i + 1; if (toks[j] === 'cho') j++; if (toks[j] && /^\d+$/.test(toks[j])) { mm = [t, toks[j]]; i = j; } }
+      let mm = t.match(KS_MK_NUM);
       if (mm) { mks = +mm[1]; continue; }
+      // \"mks 2\" / \"mks cho 2\" / \"mks cho so 2\" / \"mau cho 3\" / \"mks cho\" (không số = mọi mẫu chờ)
+      const isMk = KS_MK_ONLY.test(t), isMau = t === 'mau' && toks[i + 1] === 'cho';
+      if (isMk || isMau) {
+        let j = i + 1, sawCho = isMau;
+        if (isMau) j = i + 2; else if (toks[j] === 'cho') { sawCho = true; j++; }
+        if (toks[j] === 'so' || toks[j] === 'no') j++;
+        if (toks[j] && /^\d+$/.test(toks[j])) { mks = +toks[j]; i = j; continue; }
+        if (sawCho) { mksAny = true; i = j - 1; continue; }
+      }
       if ((t === 'lo' || t === 'l') && toks[i + 1]) { t = t + toks[++i]; }
       const dm = t.match(/^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?$/);
       if (dm) { dates.push({ d: +dm[1], m: +dm[2], y: dm[3] ? (+dm[3] < 100 ? 2000 + +dm[3] : +dm[3]) : null }); continue; }
@@ -1652,13 +1687,24 @@
       conds.push((r) => wordsHit(norm([r.batch, r.kyhieu, r.dat, r.note, ksDmy(r.date)].concat(ksLan2List(r).map((l) => [l.dat, l.kyhieu, l.ghichu, l.mau, 'lan 2', 'kiem lai'].join(' '))).join(' ')), [t], null));
     }
     const dOk = (iso) => { const p = ksParseDay(iso); return !!p && dates.every((x) => p.d === x.d && p.m === x.m && (x.y == null || p.y === x.y)); };
-    return (r) => {
+    const mksMode = mks != null || mksAny;
+    // Chế độ MẪU CHỜ: chỉ lấy lô có lần kiểm lại là mẫu chờ khớp số + ngày (ngày = ngày phân tích của lần đó). Hàm pick(r) trả
+    // về đúng lần kiểm lại khớp để thẻ hiện ĐÚNG kết quả đó (không hiện lần mới nhất khác).
+    const lanOk = (r, l) => ksLanIsMks(r, l, mks) && (!dates.length || dOk(l.date));
+    const fn = (r) => {
       if (!conds.every((c) => c(r))) return false;
-      if (mks != null) return ksLan2List(r).some((l) => ksMksNo(l.mau) === mks && (!dates.length || dOk(l.date)));
+      if (mksMode) return ksLan2List(r).some((l) => lanOk(r, l));
       if (!dates.length) return true;
       if (lotGiven) return dOk(r.date);
       return dOk(r.date) || ksLan2List(r).some((l) => dOk(l.date)) || !!(r.lan1Src && dOk(r.lan1Src.ngayKiem));
     };
+    fn.mksMode = mksMode;
+    fn.pick = (r) => {
+      if (!mksMode) return null;
+      const hits = ksLan2List(r).filter((l) => lanOk(r, l)).sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+      return hits.length ? hits[hits.length - 1] : null;
+    };
+    return fn;
   }
 
   // KẾT QUẢ LẦN 2 (bản 1.6) — PC 3.4+ gắn rec.lan2 vào lô khi nhập phiếu "KẾT QUẢ LẦN 1 + LẦN 2" (Module 8). Kết quả lần 1
@@ -1668,9 +1714,9 @@
     return !t ? 'Lô —' : (/^[0-9]+[A-Za-z]?$/.test(t) ? 'Lô ' + esc(t) : esc(t));
   }
   // Kết quả KIỂM LẠI mới nhất theo NGÀY (bản 1.9): "Lần N" = thứ tự ngày kiểm lại + 1; kiểm lại nhiều lần → "đã kiểm lại K lần".
-  function ksLan2Html(r) {
+  function ksLan2Html(r, pick) {
     const list = ksLan2List(r).slice().sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
-    const l = list[list.length - 1]; if (!l) return '';
+    const l = (pick && list.indexOf(pick) >= 0 ? pick : null) || list[list.length - 1]; if (!l) return '';
     const days = Array.from(new Set(list.map((x) => x.date || ''))).sort();
     const lan = days.indexOf(l.date || '') + 2;
     const fail = /KHÔNG\s*ĐẠT/i.test(String(l.dat || ''));
@@ -1696,7 +1742,7 @@
         <div class="ks-rule-top"><b>${ksBatchLabel(r.batch)}</b>${r.dat ? ksVerdict(r) : ''}</div>
         <div class="ks-rule-dat">${esc(ksDmy(r.date))}${r.kyhieu ? ' · ' + esc(r.kyhieu) : ''}${r.note ? ' · ' + esc(r.note) : ''}</div>
         ${r.inputs && Object.keys(r.inputs).length ? ksPills(Object.fromEntries(KS_FIELDS.map((f) => [f.key, ksBlank(r.inputs[f.key]) ? 'ND' : r.inputs[f.key]]))) : ''}
-        ${ksLan2Html(r)}
+        ${ksLan2Html(r, hit.pick ? hit.pick(r) : null)}
       </li>`).join('')}</ul>${rows.length > M8.limit ? `<button type="button" class="more-btn" id="ksMore">Xem thêm (${fmt(rows.length - M8.limit)})</button>` : ''}`
       : emptyHtml('Không có lô nào khớp', 'Thử số lô hoặc ngày khác.');
   }

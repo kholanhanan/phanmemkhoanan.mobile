@@ -729,3 +729,11 @@ body.has-totalbar .multibar { bottom: calc(var(--tabbar-h) + var(--safe-bottom) 
 .ks-lan2 { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--line); }
 .ks-lan2-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .ks-lan2-tag { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--cobalt); color: var(--on-cobalt); font-size: 12px; font-weight: 700; }
+
+/* Đếm ngày số liệu trên ô kho — Trang chủ (bản 1.7, mẫu A) */
+.kho-tile .kt-age { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; height: 22px; padding: 0 8px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.kho-tile .kt-age i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.kho-tile .kt-age.ok { background: var(--green-soft); color: var(--green); }
+.kho-tile .kt-age.warn { background: var(--amber-soft); color: var(--amber); }
+.kho-tile .kt-age.old { background: var(--red-soft); color: var(--red); }

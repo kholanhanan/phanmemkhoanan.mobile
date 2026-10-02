@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '1.6 (02/10/2026)';
+  const APP_VERSION = '1.7 (02/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -2020,6 +2020,18 @@
     b.hidden = !n;
     b.textContent = n > 99 ? '99+' : String(n);
   }
+  // ĐẾM NGÀY SỐ LIỆU (bản 1.7, mẫu A — giống trang chính PC): "● 01/10 · hôm qua" dưới tên kho.
+  // Màu: xanh lá = hôm nay / hôm qua · cam = 2–3 ngày · đỏ = từ 4 ngày (số liệu cũ, nên đẩy bản mới từ PC).
+  function ageBadge(dateText) {
+    const m = /(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String(dateText || ''));
+    if (!m) return '';
+    const d = new Date(+m[3], +m[2] - 1, +m[1]), t = new Date(); t.setHours(0, 0, 0, 0);
+    const days = Math.round((t - d) / 86400000);
+    const ago = days <= 0 ? 'hôm nay' : days === 1 ? 'hôm qua' : days + ' ngày';
+    const tone = days <= 1 ? 'ok' : days <= 3 ? 'warn' : 'old';
+    const tip = 'Số liệu ngày ' + m[1].padStart(2, '0') + '/' + m[2].padStart(2, '0') + '/' + m[3] + (days >= 2 ? ' — đã ' + days + ' ngày, nên đẩy bản mới từ PC' : '');
+    return `<span class="kt-age ${tone}" title="${esc(tip)}"><i></i>${esc(m[1].padStart(2, '0') + '/' + m[2].padStart(2, '0'))} · ${esc(ago)}</span>`;
+  }
   function renderHome() {
     const g = phieuGroups();
     const soan = state.cart && state.cart.items.length ? state.cart.items.length : 0;
@@ -2032,7 +2044,8 @@
       const m = khoSummary(k);
       return `<button type="button" class="kho-tile${m.loaded ? '' : ' is-empty'}" data-kho="${k}">
         <span class="kt-top"><b>${esc(KHO[k].name)}</b><small>${esc(KHO[k].mod.replace('Module ', 'M'))}</small></span>
-        ${m.loaded ? `<span class="kt-num">${fmt(m.con)}${m.unit ? ' <small>' + esc(m.unit) + '</small>' : ''}</span><span class="kt-sub">${fmt(m.rows)} dòng${m.date ? ' · ngày ' + esc(shortDate(m.date)) : ''}</span>${kgText(m.kg) ? `<span class="qty-kg">${esc(kgText(m.kg))}</span><span class="qty-tan">${esc(tanText(m.kg))}</span>` : ''}`
+        ${m.loaded ? ageBadge(m.date) : ''}
+        ${m.loaded ? `<span class="kt-num">${fmt(m.con)}${m.unit ? ' <small>' + esc(m.unit) + '</small>' : ''}</span><span class="kt-sub">${fmt(m.rows)} dòng</span>${kgText(m.kg) ? `<span class="qty-kg">${esc(kgText(m.kg))}</span><span class="qty-tan">${esc(tanText(m.kg))}</span>` : ''}`
           : '<span class="kt-num">Chưa tải</span><span class="kt-sub">chạm để mở kho</span>'}
         ${m.cho ? `<span class="pill wait">${fmt(m.cho)} dòng chờ PC</span>` : ''}
       </button>`;

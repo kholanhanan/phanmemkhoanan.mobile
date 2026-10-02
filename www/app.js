@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '1.9 (02/10/2026)';
+  const APP_VERSION = '2.0 (02/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -268,7 +268,7 @@
   }
 
   // ---- Kho lưu dữ liệu trên máy: IndexedDB (dung lượng lớn), dự phòng localStorage ----
-  const CACHE_KEYS = ['m02', 'vitri', 'vitribot', 'm01', 'm03', 'm04', 'm08', 'phieu'];
+  const CACHE_KEYS = ['m02', 'vitri', 'vitribot', 'm01', 'm03', 'm04', 'm08', 'phieu', 'ks']; // ks = kháng sinh tải dần (bản 2.0)
   const store = (() => {
     let dbp = null;
     const open = () => {
@@ -348,7 +348,7 @@
     // MẠNG CHẬP CHỜN (bản 1.5): lệnh CHỈ ĐỌC (không kèm dữ liệu gửi đi) bị rớt mạng giữa chừng (lỗi kết nối, chưa nhận
     // được trả lời) → tự thử lại 1 lần sau 1,5 giây. Lệnh GHI (tạo / sửa / hủy phiếu — có kèm dữ liệu) KHÔNG tự thử lại
     // để không bao giờ tạo trùng phiếu. Quá 45 giây không trả lời thì không thử lại (mạng quá chậm).
-    const tries = extra ? 1 : 2;
+    const tries = extra && !extra.readOnly ? 1 : 2; // readOnly: lệnh đọc có tham số (m08 noKs, ksSince) vẫn được thử lại
     let res;
     for (let attempt = 1; ; attempt++) {
     const ctl = new AbortController();
@@ -382,9 +382,33 @@
     return data;
   }
 
+  // KHÁNG SINH "CHỈ PHẦN MỚI" (bản 2.0, cần Code.gs mới): dữ liệu kháng sinh lưu TRÊN MÁY (state.ks.rows: key → giá trị),
+  // mỗi lần chỉ hỏi ksSince(since = mốc lần trước) → nhận dòng mới / vừa sửa + dòng đã xoá; so TỔNG số dòng với máy chủ,
+  // lệch → tải lại toàn bộ. Code.gs cũ chưa có ksSince → state.ksOff = true, quay về cách cũ (bảng khangSinh trong m08).
+  async function ksSync(full) {
+    const cur = state.ks && state.ks.rows ? state.ks : null;
+    const since = full || !cur ? '' : (cur.u || '');
+    const res = await api('ksSince', { since, readOnly: true });
+    const rows = since ? Object.assign({}, cur.rows) : {};
+    (res.rows || []).forEach((r) => { rows[r[0]] = r[2]; });
+    (res.dels || []).forEach((k) => { delete rows[k]; });
+    const n = Object.keys(rows).length;
+    if (since && typeof res.total === 'number' && n !== res.total) return ksSync(true); // lệch → tải lại toàn bộ
+    state.ks = { rows, u: res.u || since, n, at: new Date().toISOString() };
+    await store.set('ks', state.ks);
+    M8.dataOf = null;
+  }
   async function fetchInto(key, action) {
     try {
-      const data = await api(action);
+      let data;
+      if (key === 'm08' && !state.ksOff) {
+        data = await api(action, { noKs: true, readOnly: true });
+        try { await ksSync(false); }
+        catch (e) {
+          if (/Không có chức năng|không hỗ trợ|unknown/i.test(e.message || '')) { state.ksOff = true; state.ks = null; await store.del('ks'); data = await api(action); }
+          else throw e;
+        }
+      } else data = await api(action);
       state[key] = { data, fetchedAt: new Date().toISOString(), error: null };
       state.stale.delete(key);
       await store.set(key, state[key]);
@@ -1424,12 +1448,29 @@
   ];
   const KS_MARKETS = ['NHẬT', 'EU', 'ASC', 'MỸ', 'HQ', 'MKS'];
   const M8 = { ks: 'history', hsort: 'new', /* bản 1.8: mở luôn "Lô đã kiểm" (trang mặc định) */ inp: load('klanan.ksInput', {}), q: '', mk: '', hq: '', limit: PAGE, dataOf: null, rules: null, hist: null };
+  // Mở rộng dòng rút gọn "~{...}" do PC 5.0 gửi về đúng khuôn bản ghi cũ (để phần hiển thị / tìm kiếm không phải đổi).
+  function ksExpand(v) {
+    if (typeof v !== 'string' || v.charAt(0) !== '~') return v;
+    let o; try { o = JSON.parse(v.slice(1)); } catch (e) { return ''; }
+    const F = ['enro', 'cipro', 'oxy', 'doxy', 'sulfo', 'aoz', 'cap'];
+    const rec = { date: o.d, batch: o.b, note: o.n, dat: o.r, kyhieu: o.k, savedAt: o.s, mota: o.m, inputs: {} };
+    F.forEach((f, i) => { rec.inputs[f] = (o.i || [])[i] || ''; });
+    if (o.nk) rec.lan1Src = { ngayKiem: o.nk };
+    if (o.L && o.L.length) {
+      rec.lan2All = o.L.map((a) => ({ date: a[0], dat: a[1], kyhieu: a[2], ghichu: a[3], so: a[4], stt: a[5], mau: a[6], group: a[7] }));
+      rec.lan2 = rec.lan2All.slice().sort((a, b) => String(a.date || '').localeCompare(String(b.date || ''))).pop();
+    }
+    return JSON.stringify(rec);
+  }
   function ksData() {
     const d = state.m08 && state.m08.data;
-    if (M8.dataOf === d && M8.rules) return M8;
+    const src = state.ks && state.ks.rows ? state.ks : d;
+    if (M8.dataOf === src && M8.rules) return M8;
     const map = new Map();
     const t = d && d.khangSinh;
-    if (t && t.headers) {
+    if (state.ks && state.ks.rows) {
+      Object.keys(state.ks.rows).forEach((k) => map.set(k, ksExpand(state.ks.rows[k])));
+    } else if (t && t.headers) {
       const ik = t.headers.indexOf('key'), iv = t.headers.indexOf('value');
       (t.rows || []).forEach((r) => { if (r[ik] != null && r[ik] !== '') map.set(String(r[ik]), r[iv]); });
     }
@@ -1444,7 +1485,7 @@
       try { const rec = JSON.parse(v); if (rec && typeof rec === 'object') hist.push(rec); } catch (e) { /* bỏ bản ghi lỗi */ }
     });
     hist.sort((a, b) => String(b.savedAt || b.date || '').localeCompare(String(a.savedAt || a.date || '')));
-    M8.hist = hist; M8.dataOf = d;
+    M8.hist = hist; M8.dataOf = src;
     return M8;
   }
   // ---- so khớp (chép từ khangsinh.html) ----

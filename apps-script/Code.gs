@@ -37,7 +37,7 @@ var TAB = {
   M01: 'TonKho_M01', VITRI: 'TonKho_M01_ViTri', VITRIBOT: 'TonKho_M01_ViTriBot', M02: 'TonKho_M02',
   M03: 'TonKho_M03', M03_LSX: 'DanhMuc_M03_LSX', M04: 'TonKho_M04',
   M08_MAHOA: 'M08_MaHoa', M08_MADATAO: 'M08_MaDaTao', M08_TONGHOP: 'M08_TongHop',
-  M08_RADONG: 'M08_RaDong', M08_SIZE: 'M08_SizeLabel', M08_KS: 'M08_KhangSinh',
+  M08_RADONG: 'M08_RaDong', M08_SIZE: 'M08_SizeLabel', M08_KS: 'M08_KhangSinh', M08_KSXOA: 'M08_KhangSinhXoa',
   META: 'Meta', PX: 'PhieuXuat', PXI: 'PhieuXuatItems', PQ: 'PhanQuyen',
   M01_BAOCAO: 'BaoCao_M01', // file Excel "Báo Cáo Tổng Tồn" + "Bảng Tổng Hợp HLSO" (base64 cắt nhiều ô) do PC dựng
   M02_BAOCAO: 'BaoCao_M02', // file Excel "Bảng Tổng Hợp" của Module 02 (cùng cách lưu)
@@ -45,7 +45,7 @@ var TAB = {
   PX_LUUTRU: 'PhieuXuat_LuuTru', PXI_LUUTRU: 'PhieuXuatItems_LuuTru'
 };
 // Kho (mã giống cột "module" của phiếu) mà từng lệnh đọc dữ liệu cần — dùng để chặn token không được xem kho đó.
-var KHO_OF_ACTION = { tonKhoGui: 'M02', tonKho: 'M01', baoCaoM01: 'BC01', baoCaoM02: 'BC02', viTri: 'M01VT', viTriBot: 'M01VTB', tonKhoM03: 'M03', tonKhoM04: 'M04', m08: 'M08' };
+var KHO_OF_ACTION = { tonKhoGui: 'M02', tonKho: 'M01', baoCaoM01: 'BC01', baoCaoM02: 'BC02', viTri: 'M01VT', viTriBot: 'M01VTB', tonKhoM03: 'M03', tonKhoM04: 'M04', m08: 'M08', ksSince: 'M08' };
 // BC01 / BC02 = quyền xem trang "Báo cáo" trên điện thoại (file Excel Module 01 / Module 02) — KHÔNG phải kho hàng,
 // độc lập với quyền xem kho M01 / M02. Khớp PQ_KHO (main.js), KHO (cai-dat.js), REPORT_CFG + PQ_KHO (www/app.js).
 var ALL_KHO = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M08', 'BC01', 'BC02'];
@@ -173,8 +173,11 @@ function doPost(e) {
       case 'm08': {
         var pick = function (name) { var t = readTab_(name); return { headers: t.headers, rows: t.rows }; };
         return json_({ ok: true, meta: getMeta_(), maHoa: pick(TAB.M08_MAHOA), maDaTao: pick(TAB.M08_MADATAO),
-          tongHop: pick(TAB.M08_TONGHOP), raDong: pick(TAB.M08_RADONG), sizeLabel: pick(TAB.M08_SIZE), khangSinh: pick(TAB.M08_KS) });
+          tongHop: pick(TAB.M08_TONGHOP), raDong: pick(TAB.M08_RADONG), sizeLabel: pick(TAB.M08_SIZE),
+          // Điện thoại bản 2.0+ gửi noKs: tải kháng sinh riêng theo kiểu "chỉ phần mới" (ksSince) → không gửi lại cả bảng
+          khangSinh: req.noKs ? { headers: [], rows: [] } : pick(TAB.M08_KS) });
       }
+      case 'ksSince': return json_(ksSince_(req.since));
       case 'baoCaoM01': return json_(getBaoCao_(TAB.M01_BAOCAO));
       case 'baoCaoM02': return json_(getBaoCao_(TAB.M02_BAOCAO));
       case 'phieu': return json_(getPhieu_(user));
@@ -188,6 +191,7 @@ function doPost(e) {
       case 'pc.readTable': return json_(pcReadTable_(req.name));
       case 'pc.markRows': return json_(pcMarkRows_(req.name, req.updates));
       case 'pc.archive': return json_(pcArchive_(req.days));
+      case 'pc.ksUpsert': return json_(pcKsUpsert_(req.rows, req.dels, req.full));
       default: return json_({ ok: false, error: 'Không có chức năng "' + action + '".' });
     }
   } catch (err) {
@@ -862,7 +866,7 @@ function buildItemsVTB_(id, reqItems, pending) {
 // CÁC LỆNH DÀNH RIÊNG CHO APP PC (PC_TOKEN) — xem app/sheets-webapp-client.js
 // ============================================================================================
 var PC_ALLOWED_TABS = [TAB.PQ, TAB.M01, TAB.VITRI, TAB.VITRIBOT, TAB.M02, TAB.M03, TAB.M03_LSX, TAB.M04, TAB.META, TAB.PX, TAB.PXI,
-  TAB.M08_MAHOA, TAB.M08_MADATAO, TAB.M08_TONGHOP, TAB.M08_RADONG, TAB.M08_SIZE, TAB.M08_KS, TAB.M01_BAOCAO, TAB.M02_BAOCAO, TAB.PX_LUUTRU, TAB.PXI_LUUTRU];
+  TAB.M08_MAHOA, TAB.M08_MADATAO, TAB.M08_TONGHOP, TAB.M08_RADONG, TAB.M08_SIZE, TAB.M08_KS, TAB.M08_KSXOA, TAB.M01_BAOCAO, TAB.M02_BAOCAO, TAB.PX_LUUTRU, TAB.PXI_LUUTRU];
 function assertPcTab_(name) {
   if (PC_ALLOWED_TABS.indexOf(name) < 0) throw new Error('Không được phép thao tác tab "' + name + '".');
 }
@@ -1048,4 +1052,77 @@ function pcArchive_(days) {
   } finally {
     lock.releaseLock();
   }
+}
+
+
+// ===========================================================================================
+// KHÁNG SINH — ĐỒNG BỘ "CHỈ PHẦN MỚI" (PC 5.0 / điện thoại 2.0)
+// Tab M08_KhangSinh: key | u (lúc sửa cuối, ISO) | v (bản rút gọn JSON). Tab M08_KhangSinhXoa: key | u (lúc xoá).
+// PC gửi pc.ksUpsert chỉ các dòng mới / vừa sửa / vừa xoá (lần đầu: full = true, gửi cả bảng theo từng đợt). Cột u do
+// Apps Script gán = giờ máy chủ lúc nhận (luôn tăng) — điện thoại dùng làm mốc "kể từ".
+// Điện thoại gọi ksSince(since): nhận dòng có u > since + danh sách xoá có u > since + TỔNG số dòng để tự kiểm khớp.
+// ===========================================================================================
+var KS_COLS = ['key', 'u', 'v'];
+function ksTab_(name, cols) {
+  var sh = ss_().getSheetByName(name) || ss_().insertSheet(name);
+  if (sh.getLastRow() < 1) sh.getRange(1, 1, 1, cols.length).setValues([cols]);
+  return sh;
+}
+function pcKsUpsert_(rows, dels, full) {
+  rows = Array.isArray(rows) ? rows : []; dels = Array.isArray(dels) ? dels : [];
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error('Sheet đang bận, thử lại sau.');
+  try {
+    var sh = ksTab_(TAB.M08_KS, KS_COLS);
+    var data = full ? [] : (sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, 3).getValues() : []);
+    var idx = {};
+    data.forEach(function (r, i) { idx[String(r[0])] = i; });
+    var nowU = new Date().toISOString(); // mốc do MÁY CHỦ gán (không tin đồng hồ máy PC)
+    rows.forEach(function (r) {
+      var k = String(r[0] || ''); if (!k) return;
+      var line = [k, nowU, String(r[2] == null ? '' : r[2])];
+      if (idx.hasOwnProperty(k)) data[idx[k]] = line; else { idx[k] = data.length; data.push(line); }
+    });
+    var delSet = {};
+    dels.forEach(function (d) { delSet[String(d[0] || '')] = true; });
+    if (dels.length) data = data.filter(function (r) { return !delSet[String(r[0])]; });
+    // ghi lại cả tab (đơn giản, chắc chắn; 60.000 dòng × 3 ô vẫn trong vài giây)
+    var values = [KS_COLS].concat(data);
+    if (sh.getMaxRows() < values.length) sh.insertRowsAfter(sh.getMaxRows(), values.length - sh.getMaxRows());
+    sh.getRange(1, 1, values.length, 3).setNumberFormat('@').setValues(values);
+    var last = sh.getLastRow();
+    if (last > values.length) sh.getRange(values.length + 1, 1, last - values.length, 3).clearContent();
+    // danh sách xoá (để điện thoại xoá theo); lần full thì làm mới
+    var xs = ksTab_(TAB.M08_KSXOA, ['key', 'u']);
+    if (full && xs.getLastRow() > 1) xs.getRange(2, 1, xs.getLastRow() - 1, 2).clearContent();
+    if (dels.length) {
+      var start = Math.max(xs.getLastRow(), 1) + 1;
+      var dv = dels.map(function (d) { return [String(d[0] || ''), nowU]; });
+      if (xs.getMaxRows() < start + dv.length) xs.insertRowsAfter(xs.getMaxRows(), start + dv.length - xs.getMaxRows());
+      xs.getRange(start, 1, dv.length, 2).setNumberFormat('@').setValues(dv);
+    }
+    SpreadsheetApp.flush();
+    return { ok: true, total: data.length };
+  } finally {
+    lock.releaseLock();
+  }
+}
+function ksSince_(since) {
+  since = String(since || '');
+  var sh = ss_().getSheetByName(TAB.M08_KS);
+  var data = sh && sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, 3).getValues() : [];
+  var rows = [], maxU = since;
+  data.forEach(function (r) {
+    var k = String(r[0] || ''); if (!k) return;
+    var u = String(r[1] || '');
+    if (u > maxU) maxU = u;
+    if (!since || u > since) rows.push([k, u, String(r[2] == null ? '' : r[2])]);
+  });
+  var dels = [];
+  if (since) {
+    var xs = ss_().getSheetByName(TAB.M08_KSXOA);
+    var xd = xs && xs.getLastRow() > 1 ? xs.getRange(2, 1, xs.getLastRow() - 1, 2).getValues() : [];
+    xd.forEach(function (r) { var u = String(r[1] || ''); if (u > since) { dels.push(String(r[0] || '')); if (u > maxU) maxU = u; } });
+  }
+  return { ok: true, full: !since, rows: rows, dels: dels, total: data.filter(function (r) { return String(r[0] || ''); }).length, u: maxU };
 }

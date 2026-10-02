@@ -737,3 +737,6 @@ body.has-totalbar .multibar { bottom: calc(var(--tabbar-h) + var(--safe-bottom) 
 .kho-tile .kt-age.ok { background: var(--green-soft); color: var(--green); }
 .kho-tile .kt-age.warn { background: var(--amber-soft); color: var(--amber); }
 .kho-tile .kt-age.old { background: var(--red-soft); color: var(--red); }
+
+/* Sắp xếp Lô đã kiểm (bản 1.8) */
+.ks-sort { margin: 8px 0 4px; align-self: flex-start; }

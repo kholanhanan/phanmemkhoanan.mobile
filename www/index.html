@@ -10,8 +10,8 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
   <title>Kho Lạnh An An</title>
-<link rel="stylesheet" href="fonts.css?v=1.7-20261002"><!-- font trong máy (offline) -->
-  <link rel="stylesheet" href="app.css?v=1.7-20261002">
+<link rel="stylesheet" href="fonts.css?v=1.8-20261002"><!-- font trong máy (offline) -->
+  <link rel="stylesheet" href="app.css?v=1.8-20261002">
 </head>
 <body>
   <header class="topbar">
@@ -137,9 +137,10 @@
       <div class="ks-top">
         <h2 class="ks-title">Tra cứu kháng sinh</h2>
         <div class="segmented three" id="m8KsSeg" role="tablist">
-          <button type="button" class="seg is-on" data-ks="lookup">Kiểm tra</button>
+          <!-- bản 1.8: Lô đã kiểm đứng đầu (mặc định), Quy định đứng cuối -->
+          <button type="button" class="seg is-on" data-ks="history">Lô đã kiểm</button>
+          <button type="button" class="seg" data-ks="lookup">Kiểm tra</button>
           <button type="button" class="seg" data-ks="rules">Quy định</button>
-          <button type="button" class="seg" data-ks="history">Lô đã kiểm</button>
         </div>
       </div>
       <div id="m8Body"></div>
@@ -216,10 +217,10 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="live-update.js?v=1.7-20261002"></script><!-- tự cập nhật giao diện APK (đặt ĐẦU TIÊN: báo app đã chạy tốt) -->
-  <script src="export.js?v=1.7-20261002"></script>
-  <script src="size-label.js?v=1.7-20261002"></script>
-  <script src="ks-rules.js?v=1.7-20261002"></script>
-  <script src="app.js?v=1.7-20261002"></script>
+  <script src="live-update.js?v=1.8-20261002"></script><!-- tự cập nhật giao diện APK (đặt ĐẦU TIÊN: báo app đã chạy tốt) -->
+  <script src="export.js?v=1.8-20261002"></script>
+  <script src="size-label.js?v=1.8-20261002"></script>
+  <script src="ks-rules.js?v=1.8-20261002"></script>
+  <script src="app.js?v=1.8-20261002"></script>
 </body>
 </html>

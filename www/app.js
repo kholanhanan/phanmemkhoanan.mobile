@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '1.7 (02/10/2026)';
+  const APP_VERSION = '1.8 (02/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -1423,7 +1423,7 @@
     { key: 'sulfo', label: 'Sulfo' }, { key: 'aoz', label: 'AOZ' }, { key: 'cap', label: 'CAP' },
   ];
   const KS_MARKETS = ['NHẬT', 'EU', 'ASC', 'MỸ', 'HQ', 'MKS'];
-  const M8 = { ks: load('klanan.ksTab', 'lookup'), inp: load('klanan.ksInput', {}), q: '', mk: '', hq: '', limit: PAGE, dataOf: null, rules: null, hist: null };
+  const M8 = { ks: 'history', hsort: 'new', /* bản 1.8: mở luôn "Lô đã kiểm" (trang mặc định) */ inp: load('klanan.ksInput', {}), q: '', mk: '', hq: '', limit: PAGE, dataOf: null, rules: null, hist: null };
   function ksData() {
     const d = state.m08 && state.m08.data;
     if (M8.dataOf === d && M8.rules) return M8;
@@ -1521,7 +1521,14 @@
       renderKsRules();
       return;
     }
-    body.innerHTML = `<div class="search-row"><input type="search" class="search" id="ksHistQ" placeholder="VD: L1 3/5/2026 · L1 3.5 · 46.EU" value="${esc(M8.hq)}" autocomplete="off"></div><div id="ksList"></div>`;
+    // SẮP XẾP (bản 1.8): ngày mới → cũ (mặc định) / ngày cũ → mới / theo số lô; trong cùng ngày luôn lô 1, 2, 3…
+    body.innerHTML = `<div class="search-row"><input type="search" class="search" id="ksHistQ" placeholder="VD: L1 3/5/2026 · L1 3.5 · 46.EU" value="${esc(M8.hq)}" autocomplete="off"></div>
+      <label class="sort-pick ks-sort"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4v16M3 8l4-4 4 4M17 20V4M13 16l4 4 4-4"/></svg>
+        <select id="ksHistSort" aria-label="Sắp xếp lô đã kiểm">
+          <option value="new"${M8.hsort === 'new' ? ' selected' : ''}>Ngày mới nhất trước</option>
+          <option value="old"${M8.hsort === 'old' ? ' selected' : ''}>Ngày cũ nhất trước</option>
+          <option value="lo"${M8.hsort === 'lo' ? ' selected' : ''}>Theo số lô (1, 2, 3…)</option>
+        </select></label><div id="ksList"></div>`;
     renderKsHist();
   }
   function renderKsResult() {
@@ -1617,7 +1624,13 @@
     const D = ksData();
     if (!D.hist.length) { box.innerHTML = emptyHtml('Chưa có lô nào', 'Lô đã kiểm được nhập ở PC (Module 08 → Tra cứu kháng sinh → Nhập theo ngày, lô) và đồng bộ “Tổng hợp (M08)”.'); return; }
     const hit = ksHistMatcher(M8.hq);
-    const rows = D.hist.filter(hit);
+    const loNum = (b) => { const n = parseInt(String(b || '').replace(/\D+/g, ''), 10); return isNaN(n) ? 1e9 : n; };
+    const byLo = (a, b) => loNum(a.batch) - loNum(b.batch) || String(a.batch || '').localeCompare(String(b.batch || ''));
+    const byDate = (a, b) => String(a.date || '').localeCompare(String(b.date || ''));
+    const cmp = M8.hsort === 'old' ? (a, b) => byDate(a, b) || byLo(a, b)
+      : M8.hsort === 'lo' ? (a, b) => byLo(a, b) || byDate(b, a)
+      : (a, b) => byDate(b, a) || byLo(a, b);
+    const rows = D.hist.filter(hit).sort(cmp);
     box.innerHTML = rows.length ? `<p class="list-meta">${fmt(rows.length)} lô</p><ul class="ks-rules">${rows.slice(0, M8.limit).map((r) => `<li class="ks-rule ${ksFail(r) ? 'fail' : ''}">
         <div class="ks-rule-top"><b>${ksBatchLabel(r.batch)}</b>${r.dat ? ksVerdict(r) : ''}</div>
         <div class="ks-rule-dat">${esc(ksDmy(r.date))}${r.kyhieu ? ' · ' + esc(r.kyhieu) : ''}${r.note ? ' · ' + esc(r.note) : ''}</div>
@@ -3400,6 +3413,7 @@
     const f = e.target.dataset && e.target.dataset.ksf;
     if (f) { M8.inp[f] = e.target.value; save('klanan.ksInput', M8.inp); renderKsResult(); return; }
     if (e.target.id === 'ksRuleQ') { M8.q = e.target.value; M8.limit = PAGE; clearTimeout(searchTimer); searchTimer = setTimeout(renderKsRules, 150); return; }
+    if (e.target.id === 'ksHistSort') { M8.hsort = e.target.value; M8.limit = PAGE; renderKsHist(); return; }
     if (e.target.id === 'ksHistQ') { M8.hq = e.target.value; M8.limit = PAGE; clearTimeout(searchTimer); searchTimer = setTimeout(renderKsHist, 150); }
   });
   // Quay lại app sau khi để nền: tải lại màn hình đang xem nếu số liệu đã cũ.

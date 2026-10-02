@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '1.5 (02/10/2026)';
+  const APP_VERSION = '1.6 (02/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -1596,9 +1596,21 @@
         conds.push((r) => ksLoKey(r.batch) === k);
         continue;
       }
-      conds.push((r) => wordsHit(norm([r.batch, r.kyhieu, r.dat, r.note, ksDmy(r.date)].join(' ')), [t], null));
+      conds.push((r) => wordsHit(norm([r.batch, r.kyhieu, r.dat, r.note, ksDmy(r.date)].concat(r.lan2 ? [r.lan2.dat, r.lan2.kyhieu, r.lan2.ghichu, r.lan2.mau, 'lan 2'] : []).join(' ')), [t], null));
     }
     return (r) => conds.every((c) => c(r));
+  }
+  // KẾT QUẢ LẦN 2 (bản 1.6) — PC 3.4+ gắn rec.lan2 vào lô khi nhập phiếu "KẾT QUẢ LẦN 1 + LẦN 2" (Module 8). Kết quả lần 1
+  // giữ nguyên ở trên; khối dưới chỉ hiện khi lô có lần 2. Mẫu không ghi lô (MKS chờ, mẫu kiểm…) có mã = cả tên mẫu.
+  function ksBatchLabel(b) {
+    const t = String(b || '').replace(/：/g, ':').trim();
+    return !t ? 'Lô —' : (/^[0-9]+[A-Za-z]?$/.test(t) ? 'Lô ' + esc(t) : esc(t));
+  }
+  function ksLan2Html(r) {
+    const l = r && r.lan2; if (!l) return '';
+    const fail = /KHÔNG\s*ĐẠT/i.test(String(l.dat || ''));
+    return `<div class="ks-lan2"><div class="ks-lan2-top"><span class="ks-lan2-tag">Lần 2</span><span class="ks-badge ${fail ? 'fail' : 'pass'}">${esc(l.dat || '—')}</span>${l.kyhieu ? '<b>' + esc(l.kyhieu) + '</b>' : ''}</div>`
+      + `<div class="ks-rule-dat">Kiểm ${esc(ksDmy(l.date))}${l.ghichu ? ' · ' + esc(l.ghichu) : ''}${l.so ? ' · Phiếu ' + esc(l.so) + (l.stt ? ' mẫu ' + esc(l.stt) : '') : ''}</div></div>`;
   }
   function renderKsHist() {
     const box = $('ksList'); if (!box) return;
@@ -1607,9 +1619,10 @@
     const hit = ksHistMatcher(M8.hq);
     const rows = D.hist.filter(hit);
     box.innerHTML = rows.length ? `<p class="list-meta">${fmt(rows.length)} lô</p><ul class="ks-rules">${rows.slice(0, M8.limit).map((r) => `<li class="ks-rule ${ksFail(r) ? 'fail' : ''}">
-        <div class="ks-rule-top"><b>Lô ${esc(r.batch || '—')}</b>${r.dat ? ksVerdict(r) : ''}</div>
+        <div class="ks-rule-top"><b>${ksBatchLabel(r.batch)}</b>${r.dat ? ksVerdict(r) : ''}</div>
         <div class="ks-rule-dat">${esc(ksDmy(r.date))}${r.kyhieu ? ' · ' + esc(r.kyhieu) : ''}${r.note ? ' · ' + esc(r.note) : ''}</div>
-        ${r.inputs ? ksPills(Object.fromEntries(KS_FIELDS.map((f) => [f.key, ksBlank(r.inputs[f.key]) ? 'ND' : r.inputs[f.key]]))) : ''}
+        ${r.inputs && Object.keys(r.inputs).length ? ksPills(Object.fromEntries(KS_FIELDS.map((f) => [f.key, ksBlank(r.inputs[f.key]) ? 'ND' : r.inputs[f.key]]))) : ''}
+        ${ksLan2Html(r)}
       </li>`).join('')}</ul>${rows.length > M8.limit ? `<button type="button" class="more-btn" id="ksMore">Xem thêm (${fmt(rows.length - M8.limit)})</button>` : ''}`
       : emptyHtml('Không có lô nào khớp', 'Thử số lô hoặc ngày khác.');
   }

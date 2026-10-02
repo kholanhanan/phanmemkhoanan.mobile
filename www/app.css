@@ -724,3 +724,8 @@ body.has-totalbar .multibar { bottom: calc(var(--tabbar-h) + var(--safe-bottom) 
 .kho-pick select{ font-weight: 700; }
 .meta-row.has-toggle{ gap: 10px; }
 .meta-row.has-toggle .list-meta{ flex: 1 1 auto; text-align: right; }
+
+/* Kết quả kháng sinh LẦN 2 (bản 1.6) */
+.ks-lan2 { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.ks-lan2-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ks-lan2-tag { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--cobalt); color: var(--on-cobalt); font-size: 12px; font-weight: 700; }

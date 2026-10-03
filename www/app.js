@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '2.1 (02/10/2026)';
+  const APP_VERSION = '2.6 (03/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -3038,23 +3038,18 @@
     const c = state.cfg;
     openSheet(`
       <h2>${first ? 'Kết nối với kho' : 'Cài đặt'}</h2>
-      <p class="lead">${FIXED_URL ? 'Nhập ID và mật khẩu do người quản lý app PC cấp.' : 'Lấy đường dẫn Web App và mã truy cập từ người quản lý app PC.'}</p>
-      <label class="field${FIXED_URL ? ' is-locked' : ''}"><span>Đường dẫn Web App</span>
-        <input type="url" id="cfgUrl" value="${esc(FIXED_URL || c.url)}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" ${FIXED_URL ? 'disabled' : (first ? 'autofocus' : '')}>
-        ${FIXED_URL ? '<small>🔒 Đã cài sẵn trong app — không cần nhập.</small>' : ''}
-      </label>
-      <label class="field"><span>${FIXED_URL ? 'ID (tên người dùng)' : 'Tên người dùng'}</span>
+      <p class="lead">${FIXED_URL ? 'Nhập tài khoản và mật khẩu do người quản lý app PC cấp.' : 'Lấy đường dẫn Web App và mã truy cập từ người quản lý app PC.'}</p>
+      ${FIXED_URL ? '' : `<label class="field"><span>Đường dẫn Web App</span>
+        <input type="url" id="cfgUrl" value="${esc(c.url)}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" ${first ? 'autofocus' : ''}>
+      </label>`}
+      <label class="field"><span>Tài khoản</span>
         <input type="text" id="cfgUser" value="${esc(c.user || '')}" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="VD: thang" ${first && FIXED_URL ? 'autofocus' : ''}>
-        <small>Không phân biệt chữ hoa/thường. Mã chung của quản lý thì để trống.</small>
+        <small>Không phân biệt chữ hoa/thường.</small>
       </label>
-      <label class="field"><span>${FIXED_URL ? 'Mật khẩu (mã truy cập)' : 'Mã truy cập'}</span>
+      <label class="field"><span>${FIXED_URL ? 'Mật khẩu' : 'Mã truy cập'}</span>
         <input type="password" id="cfgToken" value="${esc(c.token)}" autocomplete="current-password">
       </label>
       ${state.me && !state.me.admin ? `<div class="me-card">Xin chào <b>${esc(state.me.hienThi || state.me.ten)}</b> <span style="opacity:.75">(${esc(state.me.ten)})</span><br>Quyền: <b>${esc(QUYEN_TEXT[state.me.quyen] || state.me.quyen)}${state.me.quanTri ? ' · Quản trị' : ''}</b><br>Kho: ${esc(SOURCES.map((k) => KHO[k].name).concat(canView('m08') ? ['Tra cứu kháng sinh'] : []).join(', ') || 'chưa được cấp kho nào')}</div>` : ''}
-      <label class="field"${state.me && !state.me.admin ? ' hidden' : ''}><span>Tên người gửi phiếu</span>
-        <input type="text" id="cfgName" value="${esc(c.name)}" maxlength="60" placeholder="VD: Tuấn - ca sáng">
-        <small>Hiện trên phiếu xuất ở PC để biết ai tạo. (Mã truy cập riêng từng người thì tên lấy theo mã.)</small>
-      </label>
       <div class="notice" id="cfgMsg" hidden></div>
       <button type="button" class="btn btn-primary" id="cfgSave">Lưu và kiểm tra</button>
       ${first || !canManage() ? '' : `<button type="button" class="btn btn-ghost" id="cfgUsers">👥 Quản lý người dùng &amp; phân quyền</button>`}
@@ -3099,7 +3094,7 @@
       if (e.target.id !== 'cfgSave') return;
       const btn = e.target;
       const msg = $('cfgMsg');
-      const next = { url: FIXED_URL || $('cfgUrl').value.trim(), user: $('cfgUser').value.trim(), token: $('cfgToken').value.trim(), name: $('cfgName').value.trim() };
+      const next = { url: FIXED_URL || $('cfgUrl').value.trim(), user: $('cfgUser').value.trim(), token: $('cfgToken').value.trim(), name: String(c.name || '').trim() }; // không còn ô "Tên người gửi phiếu": tài khoản riêng → lấy theo tài khoản (me.hienThi); mã chung → ID đã nhập
       if (!/^https:\/\/script\.google(usercontent)?\.com\/.+\/exec(\?.*)?$/.test(next.url)) {
         msg.className = 'notice err'; msg.textContent = 'Đường dẫn phải là link Web App của Apps Script, kết thúc bằng /exec.'; msg.hidden = false; return;
       }
@@ -3113,7 +3108,7 @@
         try { const r = await api('toi'); me = r.user && !r.user.admin ? r.user : null; }
         catch (err) { if (/Không có chức năng/.test(err.message)) await api('ping'); else throw err; }
         if (me) next.name = me.hienThi || me.ten;   // tài khoản riêng: tên hiển thị theo tài khoản
-        else if (!next.name) { state.cfg = prev; msg.className = 'notice err'; msg.textContent = 'Nhập tên người gửi phiếu.'; msg.hidden = false; btn.disabled = false; btn.textContent = 'Lưu và kiểm tra'; return; }
+        else if (!next.name || next.user) next.name = next.user || next.name || 'Quản lý';   // mã chung (không có tài khoản riêng): tên người gửi = ID nhập ở ô Tài khoản
         state.me = me; save(LS_ME, me);
         applyPerms();
         save(LS_CFG, state.cfg);

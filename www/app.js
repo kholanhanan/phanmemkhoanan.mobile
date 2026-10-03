@@ -404,11 +404,12 @@
     const since = full || !cur ? '' : (cur.u || '');
     const res = await api('ksSince', { since, readOnly: true });
     const rows = since ? Object.assign({}, cur.rows) : {};
-    (res.rows || []).forEach((r) => { rows[r[0]] = r[2]; });
+    // Sheet còn khuôn CŨ (key | value) do PC đẩy lúc Web App chưa cập nhật: giá trị nằm ở cột 2, cột 3 trống → lấy cột 2.
+    (res.rows || []).forEach((r) => { rows[r[0]] = (r[2] === '' || r[2] == null) && r[1] && !/^\d{4}-\d{2}-\d{2}T[\d:.]+Z?$/.test(String(r[1])) ? r[1] : r[2]; });
     (res.dels || []).forEach((k) => { delete rows[k]; });
     const n = Object.keys(rows).length;
     if (since && typeof res.total === 'number' && n !== res.total) return ksSync(true); // lệch → tải lại toàn bộ
-    state.ks = { rows, u: res.u || since, n, at: new Date().toISOString() };
+    state.ks = { rows, u: res.u || since, n, at: new Date().toISOString(), srvTotal: res.total };
     await store.set('ks', state.ks);
     M8.dataOf = null;
   }
@@ -417,8 +418,15 @@
       let data;
       if (key === 'm08' && !state.ksOff) {
         data = await api(action, { noKs: true, readOnly: true });
-        try { await ksSync(false); }
-        catch (e) {
+        try {
+          await ksSync(false);
+          const hasBatch = Object.keys(state.ks.rows).some((k) => k.startsWith('s:batch:'));
+          if (!hasBatch) { // ksSince không có lô nào → thử lấy cả bảng kháng sinh theo cách cũ (m08 đầy đủ)
+            const full = await api(action, { readOnly: true });
+            const t = full && full.khangSinh;
+            if (t && t.rows && t.rows.length) { data = full; state.ks = null; await store.del('ks'); M8.dataOf = null; }
+          }
+        } catch (e) {
           if (/Không có chức năng|không hỗ trợ|unknown/i.test(e.message || '')) { state.ksOff = true; state.ks = null; await store.del('ks'); data = await api(action); }
           else throw e;
         }
@@ -1751,7 +1759,13 @@
       box.innerHTML = er ? emptyHtml('Chưa tải được dữ liệu', er + ' — bấm nút tải lại ở góc trên để thử lại.') : emptyHtml('Đang tải dữ liệu…', 'Vui lòng đợi trong giây lát.');
       return;
     }
-    if (!D.hist.length) { box.innerHTML = emptyHtml('Chưa có lô nào', 'Lô đã kiểm được nhập ở PC (Module 08 → Tra cứu kháng sinh → Nhập theo ngày, lô) và đồng bộ “Tổng hợp (M08)”.'); return; }
+    if (!D.hist.length) {
+      const nKs = state.ks && state.ks.rows ? Object.keys(state.ks.rows).length : 0;
+      const nM8 = (state.m08.data.khangSinh && state.m08.data.khangSinh.rows || []).length;
+      box.innerHTML = emptyHtml('Chưa có lô nào', 'Lô đã kiểm được nhập ở PC (Module 08 → Tra cứu kháng sinh → Nhập theo ngày, lô) và đồng bộ “Tổng hợp (M08)”.')
+        + `<p class="ks-note">Chẩn đoán: máy nhận ${fmt(nKs)} dòng kháng sinh (máy chủ báo ${state.ks && state.ks.srvTotal != null ? fmt(state.ks.srvTotal) : '—'}), bảng m08 có ${fmt(nM8)} dòng${state.ksOff ? ' · Web App chưa cập nhật Code.gs' : ''}. Nếu đều là 0 thì PC chưa đẩy dữ liệu kháng sinh lên Google Sheet.</p>`;
+      return;
+    }
     const hit = ksHistMatcher(M8.hq);
     const loNum = (b) => { const n = parseInt(String(b || '').replace(/\D+/g, ''), 10); return isNaN(n) ? 1e9 : n; };
     const byLo = (a, b) => loNum(a.batch) - loNum(b.batch) || String(a.batch || '').localeCompare(String(b.batch || ''));

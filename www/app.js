@@ -210,6 +210,11 @@
   // state.me = null  → Web App bản cũ / mã APP_TOKEN chung: đủ mọi quyền như trước.
   // state.me = { admin, ten, quyen: 'xem'|'xuat', kho: ['M01','M01VT','M01VTB','M02','M08',…] }.
   // Máy chủ mới là nơi CHẶN thật; ở đây chỉ ẩn kho / nút không có quyền cho gọn.
+  // Đường dẫn Web App cố định trong app-config.js (nếu có) → ẩn ô nhập đường dẫn, luôn dùng link này.
+  const FIXED_URL = (() => { const u = String((window.KLANAN_CONFIG && window.KLANAN_CONFIG.url) || '').trim(); return /^https:\/\/script\.google(usercontent)?\.com\/.+\/exec(\?.*)?$/.test(u) ? u : ''; })();
+  if (FIXED_URL && state.cfg.url !== FIXED_URL) { state.cfg.url = FIXED_URL; save(LS_CFG, state.cfg); }
+  // Đã đủ thông tin kết nối chưa (đường dẫn + mã truy cập). Có link cố định thì chỉ còn thiếu ID / mật khẩu.
+  const cfgOk = () => !!(state.cfg.url && state.cfg.token);
   state.me = load('klanan.me.v1', null);
   const LS_ME = 'klanan.me.v1';
   const isAdmin = () => !state.me || !!state.me.admin;
@@ -3033,15 +3038,15 @@
     const c = state.cfg;
     openSheet(`
       <h2>${first ? 'Kết nối với kho' : 'Cài đặt'}</h2>
-      <p class="lead">Lấy đường dẫn Web App và mã truy cập từ người quản lý app PC.</p>
-      <label class="field"><span>Đường dẫn Web App</span>
+      <p class="lead">${FIXED_URL ? 'Nhập ID và mật khẩu do người quản lý app PC cấp.' : 'Lấy đường dẫn Web App và mã truy cập từ người quản lý app PC.'}</p>
+      ${FIXED_URL ? '' : `<label class="field"><span>Đường dẫn Web App</span>
         <input type="url" id="cfgUrl" value="${esc(c.url)}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" ${first ? 'autofocus' : ''}>
-      </label>
-      <label class="field"><span>Tên người dùng</span>
-        <input type="text" id="cfgUser" value="${esc(c.user || '')}" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="VD: thang">
+      </label>`}
+      <label class="field"><span>${FIXED_URL ? 'ID (tên người dùng)' : 'Tên người dùng'}</span>
+        <input type="text" id="cfgUser" value="${esc(c.user || '')}" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="VD: thang" ${first && FIXED_URL ? 'autofocus' : ''}>
         <small>Không phân biệt chữ hoa/thường. Mã chung của quản lý thì để trống.</small>
       </label>
-      <label class="field"><span>Mã truy cập</span>
+      <label class="field"><span>${FIXED_URL ? 'Mật khẩu (mã truy cập)' : 'Mã truy cập'}</span>
         <input type="password" id="cfgToken" value="${esc(c.token)}" autocomplete="current-password">
       </label>
       ${state.me && !state.me.admin ? `<div class="me-card">Xin chào <b>${esc(state.me.hienThi || state.me.ten)}</b> <span style="opacity:.75">(${esc(state.me.ten)})</span><br>Quyền: <b>${esc(QUYEN_TEXT[state.me.quyen] || state.me.quyen)}${state.me.quanTri ? ' · Quản trị' : ''}</b><br>Kho: ${esc(SOURCES.map((k) => KHO[k].name).concat(canView('m08') ? ['Tra cứu kháng sinh'] : []).join(', ') || 'chưa được cấp kho nào')}</div>` : ''}
@@ -3093,7 +3098,7 @@
       if (e.target.id !== 'cfgSave') return;
       const btn = e.target;
       const msg = $('cfgMsg');
-      const next = { url: $('cfgUrl').value.trim(), user: $('cfgUser').value.trim(), token: $('cfgToken').value.trim(), name: $('cfgName').value.trim() };
+      const next = { url: FIXED_URL || $('cfgUrl').value.trim(), user: $('cfgUser').value.trim(), token: $('cfgToken').value.trim(), name: $('cfgName').value.trim() };
       if (!/^https:\/\/script\.google(usercontent)?\.com\/.+\/exec(\?.*)?$/.test(next.url)) {
         msg.className = 'notice err'; msg.textContent = 'Đường dẫn phải là link Web App của Apps Script, kết thúc bằng /exec.'; msg.hidden = false; return;
       }
@@ -3237,7 +3242,7 @@
 
   const queuedKeys = new Set();
   async function refresh(keys) {
-    if (!state.cfg.url) { openSettings(true); return; }
+    if (!cfgOk()) { openSettings(true); return; }
     const list = keys || neededFor(state.tab);
     // Đang tải dở (VD vừa mở app, đang tải Phiếu) mà người dùng chuyển sang màn khác → GHI NHỚ phần cần tải thêm,
     // tải ngay khi xong. (Trước đây bị bỏ qua → màn Tra cứu kẹt "Chưa có lô nào" dù dữ liệu chưa hề được tải.)
@@ -3275,7 +3280,7 @@
   // Dùng dữ liệu đã lưu trên máy; chỉ tải khi: chưa có bản lưu, PC vừa đẩy bản mới hơn, hoặc danh
   // sách "Phiếu đã gửi" (nhỏ) đã cũ hơn 2 phút. Sau đó hỏi nhẹ Web App xem có gì mới không.
   function autoRefresh() {
-    if (!state.cfg.url) return;
+    if (!cfgOk()) return;
     if (state.tab === 'baocao') loadReports(false);
     const need = neededFor(state.tab).filter((k) => !state[k] || !state[k].data || state.stale.has(k) ||
       (k === 'm08' && !state.ksOff && !(state.ks && state.ks.rows)) ||
@@ -3289,7 +3294,7 @@
   // tải ngay, bảng khác tải khi mở tới). Tối đa 1 lần / phút trừ khi force.
   let lastPendingSig = null;
   async function checkUpdates(force) {
-    if (!state.cfg.url) return;
+    if (!cfgOk()) return;
     if (!force && Date.now() - lastCheckAt < 60000) return;
     lastCheckAt = Date.now();
     let st;
@@ -3339,7 +3344,7 @@
     if (f) openReportDate(f, b.dataset.rsave ? 'save' : 'share');
   });
   $('settingsBtn').addEventListener('click', () => openSettings(false));
-  $('scrim').addEventListener('click', () => { if (state.cfg.url) closeSheet(); });
+  $('scrim').addEventListener('click', () => { if (cfgOk()) closeSheet(); });
   $('cartBar').addEventListener('click', () => openCartSheet());
 
   let searchTimer = null;
@@ -3580,7 +3585,7 @@
   const CapApp = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
   if (CapApp) {
     CapApp.addListener('backButton', () => {
-      if (!$('sheet').hidden) { if (state.cfg.url) closeSheet(); return; }
+      if (!$('sheet').hidden) { if (cfgOk()) closeSheet(); return; }
       if (state.tab !== firstTab()) { switchTab(firstTab()); return; }
       CapApp.exitApp();
     });
@@ -3601,11 +3606,11 @@
     try { await loadCaches(); } catch (e) { /* không đọc được bản lưu → tải mới */ }
     applyPerms(); // quyền đã biết lần trước (lưu trên máy) — cập nhật lại từ Web App ở checkUpdates()
     // Chưa từng hỏi quyền (máy vừa cập nhật lên bản có phân quyền): hỏi TRƯỚC khi tải kho, để không gọi kho bị cấm.
-    if (state.cfg.url && localStorage.getItem(LS_ME) === null) { try { await fetchMe(); } catch (e) { /* AUTH: màn Cài đặt sẽ báo */ } }
+    if (cfgOk() && localStorage.getItem(LS_ME) === null) { try { await fetchMe(); } catch (e) { /* AUTH: màn Cài đặt sẽ báo */ } }
     buildLots();
     SOURCES.forEach(buildTonRows);
     switchTab(firstTab());
-    if (!state.cfg.url) openSettings(true);
+    if (!cfgOk()) openSettings(true);
     // Báo cho live-update.js: giao diện đã khởi động xong → bản cập nhật vừa tải được CHỐT dùng tiếp.
     window.__KLANAN_READY = true;
   })();

@@ -203,7 +203,8 @@ function doPost(e) {
 // QUẢN LÝ NGƯỜI DÙNG TRÊN ĐIỆN THOẠI (09/2026) — đọc / ghi tab PhanQuyen. App PC ghi CÙNG định dạng này
 // (main.js › PQ_COLUMNS) và khi mở Cài Đặt → Điện Thoại sẽ đọc tab này về để gộp thay đổi từ điện thoại.
 // ---------------------------------------------------------------------------------------------
-var PQ_COLS = ['tokenHash', 'ten', 'tenHienThi', 'quyen', 'kho', 'trangThai', 'capNhat', 'maTruyCap'];
+// pcModules (PC 5.7) = module được mở trên PC ("M01,M02,CAIDAT"). Điện thoại KHÔNG sửa cột này — pqSave_ giữ nguyên giá trị cũ.
+var PQ_COLS = ['tokenHash', 'ten', 'tenHienThi', 'quyen', 'kho', 'trangThai', 'capNhat', 'maTruyCap', 'pcModules'];
 var PQ_USER_OK_ = /^[A-Za-z0-9._-]{1,40}$/;
 var PQ_TOKEN_OK_ = /^[A-Za-z0-9\-_.@#!]+$/;
 
@@ -272,7 +273,8 @@ function pqSave_(me, u) {
       if (i !== idx && o.maTruyCap.toLowerCase() === token.toLowerCase()) throw new Error('Mã này đang là mã của \"' + (o.tenHienThi || o.ten) + '\" — chọn mã khác.');
     });
     var row = { tokenHash: sha256Hex_(token), ten: cur ? cur.ten : ten, tenHienThi: hienThi, quyen: quyen, kho: kho.join(','),
-      trangThai: bat ? 'Bật' : 'Tắt', capNhat: new Date().toISOString(), maTruyCap: token };
+      trangThai: bat ? 'Bật' : 'Tắt', capNhat: new Date().toISOString(), maTruyCap: token,
+      pcModules: cur ? (cur.pcModules || '') : '' };
     if (idx >= 0) list[idx] = row; else list.push(row);
   });
   return pqList_();

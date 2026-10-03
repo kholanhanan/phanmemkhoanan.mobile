@@ -22,7 +22,8 @@
  *     cột "nguoiDung" của phiếu = tên người dùng (dùng để lọc "phiếu của tôi").
  *     APP_TOKEN chung (nếu còn đặt) = QUẢN TRỊ: đủ mọi quyền như trước — để máy cũ không bị gián đoạn.
  *     Quyền 'quantri' (Quản trị, 09/2026): như 'xuat' + thêm / sửa / khóa / xóa người dùng ngay trên app điện thoại
- *     (Cài đặt → Quản lý người dùng; lệnh pq.list / pq.luu / pq.xoa). Tab PhanQuyen giờ có thêm cột "maTruyCap"
+ *     (Cài đặt → Quản lý người dùng; lệnh pq.list / pq.luu / pq.xoa). Mọi tài khoản riêng tự đổi mật khẩu
+ *     của mình ở Cài đặt (lệnh doiMa). Tab PhanQuyen giờ có thêm cột "maTruyCap"
  *     (mã dạng chữ, để xem lại được trên điện thoại + app PC) — CHỈ dùng nội bộ.
  *
  * Quy ước dữ liệu PHẢI khớp với app PC (main.js + sheets-webapp-client.js):
@@ -155,6 +156,8 @@ function doPost(e) {
       case 'pq.list': return json_(pqList_());
       case 'pq.luu': return json_(pqSave_(user, req.u));
       case 'pq.xoa': return json_(pqDelete_(user, req.ten));
+      // Tự đổi mật khẩu của CHÍNH MÌNH (mọi tài khoản riêng, không cần quyền Quản trị) — xem pqSelfPassword_.
+      case 'doiMa': return json_(pqSelfPassword_(user, req.matKhauMoi));
       // Câu hỏi "nhẹ" lúc mở app: mốc PC đẩy từng bảng + số đang chờ — điện thoại dùng dữ liệu đã
       // lưu trên máy, chỉ tải lại bảng nào PC vừa cập nhật.
       case 'trangThai': return json_({ ok: true, meta: getMeta_(), pending: pendingByKey_() });
@@ -289,6 +292,30 @@ function pqDelete_(me, ten) {
     if (list.length === n) throw new Error('Không tìm thấy người dùng này.');
   });
   return pqList_();
+}
+
+// Tự đổi mật khẩu (mã truy cập) của chính tài khoản đang đăng nhập (10/2026). Người gọi đã được resolveUser_ xác thực bằng
+// Tên người dùng + mật khẩu hiện tại nên không cần quyền Quản trị. Mã chung APP_TOKEN (admin) không có dòng riêng → không đổi ở đây.
+// Ghi cả tokenHash + maTruyCap; app PC kéo mã mới về khi mở Cài Đặt → Điện Thoại (mergePermFromSheet: Sheet thắng ở mã).
+function pqSelfPassword_(me, moi) {
+  if (me.admin) throw new Error('Đang dùng mã chung của app — không đổi được ở đây. Nhờ người quản lý tạo tài khoản riêng.');
+  var token = String(moi || '').trim();
+  if (token.length < 8 || token.length > 64 || !PQ_TOKEN_OK_.test(token)) throw new Error('Mật khẩu mới chỉ gồm chữ không dấu, số và - _ . @ # ! (8–64 ký tự, không dấu cách).');
+  var props = PropertiesService.getScriptProperties();
+  if (token === props.getProperty('PC_TOKEN') || token === props.getProperty('APP_TOKEN')) throw new Error('Mật khẩu này không dùng được — chọn mật khẩu khác.');
+  var hash = sha256Hex_(token), ten = String(me.ten || '').toLowerCase();
+  pqMutate_(function (list) {
+    var idx = -1;
+    list.forEach(function (o, i) { if (o.ten.toLowerCase() === ten) idx = i; });
+    if (idx < 0) throw new Error('Không tìm thấy tài khoản.');
+    list.forEach(function (o, i) {
+      if (i !== idx && (o.maTruyCap.toLowerCase() === token.toLowerCase() || String(o.tokenHash).toLowerCase() === hash)) throw new Error('Mật khẩu này không dùng được — chọn mật khẩu khác.');
+    });
+    list[idx].tokenHash = hash;
+    list[idx].maTruyCap = token;
+    list[idx].capNhat = new Date().toISOString();
+  });
+  return { ok: true };
 }
 
 function json_(obj) {

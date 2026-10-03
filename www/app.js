@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '2.6 (03/10/2026)';
+  const APP_VERSION = '2.7 (03/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -3038,23 +3038,22 @@
     const c = state.cfg;
     openSheet(`
       <h2>${first ? 'Kết nối với kho' : 'Cài đặt'}</h2>
-      <p class="lead">${FIXED_URL ? 'Nhập tài khoản và mật khẩu do người quản lý app PC cấp.' : 'Lấy đường dẫn Web App và mã truy cập từ người quản lý app PC.'}</p>
+      ${first ? `<p class="lead">${FIXED_URL ? 'Nhập tài khoản và mật khẩu do người quản lý cấp.' : 'Lấy đường dẫn Web App và mã truy cập từ người quản lý.'}</p>` : ''}
       ${FIXED_URL ? '' : `<label class="field"><span>Đường dẫn Web App</span>
         <input type="url" id="cfgUrl" value="${esc(c.url)}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" ${first ? 'autofocus' : ''}>
       </label>`}
       <label class="field"><span>Tài khoản</span>
         <input type="text" id="cfgUser" value="${esc(c.user || '')}" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="VD: thang" ${first && FIXED_URL ? 'autofocus' : ''}>
-        <small>Không phân biệt chữ hoa/thường.</small>
       </label>
       <label class="field"><span>${FIXED_URL ? 'Mật khẩu' : 'Mã truy cập'}</span>
         <input type="password" id="cfgToken" value="${esc(c.token)}" autocomplete="current-password">
       </label>
-      ${state.me && !state.me.admin ? `<div class="me-card">Xin chào <b>${esc(state.me.hienThi || state.me.ten)}</b> <span style="opacity:.75">(${esc(state.me.ten)})</span><br>Quyền: <b>${esc(QUYEN_TEXT[state.me.quyen] || state.me.quyen)}${state.me.quanTri ? ' · Quản trị' : ''}</b><br>Kho: ${esc(SOURCES.map((k) => KHO[k].name).concat(canView('m08') ? ['Tra cứu kháng sinh'] : []).join(', ') || 'chưa được cấp kho nào')}</div>` : ''}
+      ${state.me && !state.me.admin ? `<div class="me-card"><b>${esc(state.me.hienThi || state.me.ten)}</b> · ${esc(QUYEN_TEXT[state.me.quyen] || state.me.quyen)}${state.me.quanTri ? ' · Quản trị' : ''}</div>` : ''}
       <div class="notice" id="cfgMsg" hidden></div>
       <button type="button" class="btn btn-primary" id="cfgSave">Lưu và kiểm tra</button>
+      ${first || !state.me || state.me.admin ? '' : `<button type="button" class="btn btn-ghost" id="cfgPw">🔑 Đổi mật khẩu</button>`}
       ${first || !canManage() ? '' : `<button type="button" class="btn btn-ghost" id="cfgUsers">👥 Quản lý người dùng &amp; phân quyền</button>`}
       ${first ? '' : `<button type="button" class="btn btn-ghost" data-close>Đóng</button>
-        <p class="lead" style="margin:16px 0 4px">Số liệu tồn kho được lưu trên máy — mở app không phải tải lại, chỉ tải bảng nào PC vừa cập nhật.</p>
         <button type="button" class="btn btn-danger" id="cfgClearData">Xóa dữ liệu đã lưu trên máy</button>`}
       <div class="field theme-field"><span>Giao diện</span>
         <div class="segmented three" role="group" aria-label="Chế độ giao diện">
@@ -3062,7 +3061,6 @@
           <button type="button" class="seg${themeChoice() === 'dark' ? ' is-on' : ''}" data-theme-pick="dark">🌙 Tối</button>
           <button type="button" class="seg${themeChoice() === 'auto' ? ' is-on' : ''}" data-theme-pick="auto">📱 Theo máy</button>
         </div>
-        <small>Tối: đỡ chói khi làm trong kho thiếu sáng. Theo máy: tự đổi theo chế độ Sáng/Tối của điện thoại.</small>
       </div>
       <p class="lead" style="margin:14px 0 0;text-align:center;font-size:12px">Phiên bản app: <b>${APP_VERSION}</b><span id="luVer"></span></p>
       ${window.KLLiveUpdate && window.KLLiveUpdate.isNative ? '<button type="button" class="btn btn-ghost" id="luCheck" style="margin-top:8px">⟳ Kiểm tra cập nhật app</button>' : ''}
@@ -3085,6 +3083,7 @@
         return;
       }
       if (e.target.id === 'cfgUsers') { openUserAdmin(); return; }
+      if (e.target.id === 'cfgPw') { openChangePassword(); return; }
       if (e.target.id === 'cfgClearData') {
         if (confirm('Xóa toàn bộ số liệu đã lưu trên máy? Lần tới app sẽ tải lại từ đầu.')) {
           await clearSavedData(); closeSheet(); toast('Đã xóa dữ liệu đã lưu.'); autoRefresh();
@@ -3119,6 +3118,51 @@
         state.cfg = prev; state.me = prevMe;
         msg.className = 'notice err'; msg.textContent = 'Chưa kết nối được: ' + err.message; msg.hidden = false;
         btn.disabled = false; btn.textContent = 'Lưu và kiểm tra';
+      }
+    };
+  }
+
+
+  // ------------------------------------------------------------------ đổi mật khẩu của chính mình (lệnh 'doiMa' của Web App)
+  function openChangePassword() {
+    openSheet(`
+      <h2>Đổi mật khẩu</h2>
+      <label class="field"><span>Mật khẩu hiện tại</span>
+        <input type="password" id="pwOld" autocomplete="current-password" autofocus>
+      </label>
+      <label class="field"><span>Mật khẩu mới</span>
+        <input type="password" id="pwNew" autocomplete="new-password" autocapitalize="none" spellcheck="false" placeholder="8–64 ký tự, không dấu">
+      </label>
+      <label class="field"><span>Nhập lại mật khẩu mới</span>
+        <input type="password" id="pwNew2" autocomplete="new-password" autocapitalize="none" spellcheck="false">
+      </label>
+      <div class="notice" id="pwMsg" hidden></div>
+      <button type="button" class="btn btn-primary" id="pwGo">Đổi mật khẩu</button>
+      <button type="button" class="btn btn-ghost" id="pwBack">Quay lại</button>
+    `);
+    $('sheetBody').onclick = async (e) => {
+      if (e.target.id === 'pwBack') { openSettings(false); return; }
+      if (e.target.id !== 'pwGo') return;
+      const btn = e.target, msg = $('pwMsg');
+      const o = $('pwOld').value, n = $('pwNew').value.trim(), n2 = $('pwNew2').value.trim();
+      const err = !o ? 'Nhập mật khẩu hiện tại.'
+        : o !== state.cfg.token ? 'Mật khẩu hiện tại chưa đúng.'
+        : n.length < 8 ? 'Mật khẩu mới quá ngắn — tối thiểu 8 ký tự.'
+        : n.length > 64 ? 'Mật khẩu mới quá dài — tối đa 64 ký tự.'
+        : !/^[A-Za-z0-9\-_.@#!]+$/.test(n) ? 'Chỉ dùng chữ không dấu, số và - _ . @ # ! (không có dấu cách).'
+        : n === o ? 'Mật khẩu mới phải khác mật khẩu hiện tại.'
+        : n !== n2 ? 'Hai lần nhập mật khẩu mới không giống nhau.' : '';
+      if (err) { msg.className = 'notice err'; msg.textContent = err; msg.hidden = false; return; }
+      btn.disabled = true; btn.textContent = 'Đang đổi…';
+      try {
+        await api('doiMa', { matKhauMoi: n });
+        state.cfg = Object.assign({}, state.cfg, { token: n });
+        save(LS_CFG, state.cfg);
+        closeSheet();
+        toast('Đã đổi mật khẩu.');
+      } catch (ex) {
+        msg.className = 'notice err'; msg.textContent = ex.message; msg.hidden = false;
+        btn.disabled = false; btn.textContent = 'Đổi mật khẩu';
       }
     };
   }

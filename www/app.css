@@ -740,3 +740,7 @@ body.has-totalbar .multibar { bottom: calc(var(--tabbar-h) + var(--safe-bottom) 
 
 /* Sắp xếp Lô đã kiểm (bản 1.8) */
 .ks-sort { margin: 8px 0 4px; align-self: flex-start; }
+
+/* Đường dẫn Web App cài cố định (app-config.js): hiện nhưng làm mờ */
+.field.is-locked input { opacity: .55; }
+.field.is-locked small { opacity: .8; }

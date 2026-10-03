@@ -3039,9 +3039,10 @@
     openSheet(`
       <h2>${first ? 'Kết nối với kho' : 'Cài đặt'}</h2>
       <p class="lead">${FIXED_URL ? 'Nhập ID và mật khẩu do người quản lý app PC cấp.' : 'Lấy đường dẫn Web App và mã truy cập từ người quản lý app PC.'}</p>
-      ${FIXED_URL ? '' : `<label class="field"><span>Đường dẫn Web App</span>
-        <input type="url" id="cfgUrl" value="${esc(c.url)}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" ${first ? 'autofocus' : ''}>
-      </label>`}
+      <label class="field${FIXED_URL ? ' is-locked' : ''}"><span>Đường dẫn Web App</span>
+        <input type="url" id="cfgUrl" value="${esc(FIXED_URL || c.url)}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" ${FIXED_URL ? 'disabled' : (first ? 'autofocus' : '')}>
+        ${FIXED_URL ? '<small>🔒 Đã cài sẵn trong app — không cần nhập.</small>' : ''}
+      </label>
       <label class="field"><span>${FIXED_URL ? 'ID (tên người dùng)' : 'Tên người dùng'}</span>
         <input type="text" id="cfgUser" value="${esc(c.user || '')}" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="VD: thang" ${first && FIXED_URL ? 'autofocus' : ''}>
         <small>Không phân biệt chữ hoa/thường. Mã chung của quản lý thì để trống.</small>

@@ -245,14 +245,28 @@
     if (state.cart && state.cart.items.length && (!canCreate() || !SOURCES.includes(SRC_OF[state.cart.module]))) { state.cart = null; localStorage.removeItem(LS_CART); }
     const myName = state.me && !state.me.admin ? (state.me.hienThi || state.me.ten) : '';
     if (myName && state.cfg.name !== myName) { state.cfg.name = myName; save(LS_CFG, state.cfg); }
-    const tabM8 = document.querySelector('.tab[data-tab="m8"]'); if (tabM8) tabM8.hidden = !canView('m08');
     const anyReport = REPORT_SRCS.some(canReport);
-    const tabBc = document.querySelector('.tab[data-tab="baocao"]'); if (tabBc) tabBc.hidden = !anyReport;
     REPORT_SRCS.forEach((k) => { if (!canReport(k)) delete repState[k]; }); // mất quyền → bỏ file đã tải
-    if (state.tab === 'baocao' && !anyReport) state.tab = 'home';
-    const tabPh = document.querySelector('.tab[data-tab="phieu"]'); if (tabPh) tabPh.hidden = !canCreate();
+    if (!canView('m08')) { state.ks = null; store.del('ks'); M8.dataOf = null; } // mất quyền kháng sinh → bỏ dữ liệu đã lưu
     const multi = $('xuatMulti'); if (multi) multi.hidden = !canCreate();
-    if ((state.tab === 'm8' && !canView('m08')) || (state.tab === 'phieu' && !canCreate())) state.tab = 'home';
+    // Thanh tab chỉ hiện phần tài khoản này thật sự dùng được. Tài khoản KHÔNG có kho nào (VD chỉ được
+    // "Tra cứu kháng sinh") thì bỏ Trang chủ / Kho / Phiếu — các trang đó chẳng có gì để xem.
+    document.querySelectorAll('.tab').forEach((b) => { b.hidden = !tabOk(b.dataset.tab); });
+    if (!tabOk(state.tab)) { state.tab = firstTab(); showTabUi(); }
+  }
+  // Tab nào được dùng với quyền hiện tại. Không có tab nào dùng được (chưa cấp quyền gì) → vẫn cho Trang chủ.
+  function tabOk(t) {
+    const hasKho = SOURCES.length > 0;
+    if (t === 'home' || t === 'xuat') return hasKho || !(canView('m08') || REPORT_SRCS.some(canReport));
+    if (t === 'phieu') return hasKho && canCreate();
+    if (t === 'baocao') return REPORT_SRCS.some(canReport);
+    if (t === 'm8') return canView('m08');
+    return false;
+  }
+  const firstTab = () => ['home', 'xuat', 'phieu', 'baocao', 'm8'].find(tabOk) || 'home';
+  function showTabUi() {
+    document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('is-on', b.dataset.tab === state.tab));
+    document.querySelectorAll('.view').forEach((v) => { v.hidden = v.dataset.view !== state.tab; });
   }
   // Hỏi Web App "tôi là ai". Web App bản cũ chưa có lệnh 'toi' → coi như đủ quyền (state.me = null).
   async function fetchMe() {
@@ -1464,11 +1478,14 @@
   }
   function ksData() {
     const d = state.m08 && state.m08.data;
-    const src = state.ks && state.ks.rows ? state.ks : d;
-    if (M8.dataOf === src && M8.rules) return M8;
+    const t0 = d && d.khangSinh;
+    // Bảng kháng sinh tải riêng (state.ks) còn TRỐNG mà bản m08 có sẵn dữ liệu → dùng bản m08.
+    const ksOk = state.ks && state.ks.rows && (Object.keys(state.ks.rows).length || !(t0 && t0.rows && t0.rows.length));
+    const src = ksOk ? state.ks : d;
+    if (M8.dataOf === src && M8.rules && src) return M8;
     const map = new Map();
     const t = d && d.khangSinh;
-    if (state.ks && state.ks.rows) {
+    if (ksOk) {
       Object.keys(state.ks.rows).forEach((k) => map.set(k, ksExpand(state.ks.rows[k])));
     } else if (t && t.headers) {
       const ik = t.headers.indexOf('key'), iv = t.headers.indexOf('value');
@@ -1729,6 +1746,11 @@
   function renderKsHist() {
     const box = $('ksList'); if (!box) return;
     const D = ksData();
+    if (!D.hist.length && !(state.m08 && state.m08.data)) {
+      const er = state.m08 && state.m08.error;
+      box.innerHTML = er ? emptyHtml('Chưa tải được dữ liệu', er + ' — bấm nút tải lại ở góc trên để thử lại.') : emptyHtml('Đang tải dữ liệu…', 'Vui lòng đợi trong giây lát.');
+      return;
+    }
     if (!D.hist.length) { box.innerHTML = emptyHtml('Chưa có lô nào', 'Lô đã kiểm được nhập ở PC (Module 08 → Tra cứu kháng sinh → Nhập theo ngày, lô) và đồng bộ “Tổng hợp (M08)”.'); return; }
     const hit = ksHistMatcher(M8.hq);
     const loNum = (b) => { const n = parseInt(String(b || '').replace(/\D+/g, ''), 10); return isNaN(n) ? 1e9 : n; };
@@ -3199,12 +3221,15 @@
     return ['phieu', 'm02'];
   }
 
+  const queuedKeys = new Set();
   async function refresh(keys) {
     if (!state.cfg.url) { openSettings(true); return; }
-    if (state.busy) return;
+    const list = keys || neededFor(state.tab);
+    // Đang tải dở (VD vừa mở app, đang tải Phiếu) mà người dùng chuyển sang màn khác → GHI NHỚ phần cần tải thêm,
+    // tải ngay khi xong. (Trước đây bị bỏ qua → màn Tra cứu kẹt "Chưa có lô nào" dù dữ liệu chưa hề được tải.)
+    if (state.busy) { list.forEach((k) => queuedKeys.add(k)); return; }
     state.busy = true;
     $('refreshBtn').classList.add('is-busy');
-    const list = keys || neededFor(state.tab);
     const errors = [];
     await Promise.all(list.map((k) => fetchInto(k, ACTION[k]).catch((e) => errors.push(e))));
     if (list.some((k) => SOURCES.includes(k) || k === 'm08')) buildLots();
@@ -3212,6 +3237,9 @@
     state.busy = false;
     $('refreshBtn').classList.remove('is-busy');
     renderAll();
+    const more = Array.from(queuedKeys).filter((k) => !list.includes(k) && tabOk(state.tab));
+    queuedKeys.clear();
+    if (more.length) refresh(more);
     if (errors.length) {
       const e = errors[0];
       if (e.code === 'FORBIDDEN') { fetchMe().then(renderAll).catch(() => {}); }
@@ -3222,9 +3250,9 @@
 
   function switchTab(tab) {
     if (state.multi && state.multi.on && tab !== 'xuat') setMulti(false, true); // rời tab Kho → thôi chọn nhiều
+    if (!tabOk(tab)) tab = firstTab();
     state.tab = tab;
-    document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('is-on', b.dataset.tab === tab));
-    document.querySelectorAll('.view').forEach((v) => { v.hidden = v.dataset.view !== tab; });
+    showTabUi();
     window.scrollTo(0, 0);
     renderAll();
     autoRefresh();
@@ -3236,6 +3264,7 @@
     if (!state.cfg.url) return;
     if (state.tab === 'baocao') loadReports(false);
     const need = neededFor(state.tab).filter((k) => !state[k] || !state[k].data || state.stale.has(k) ||
+      (k === 'm08' && !state.ksOff && !(state.ks && state.ks.rows)) ||
       (k === 'phieu' && Date.now() - new Date(state[k].fetchedAt || 0).getTime() > 120000));
     if (need.length) refresh(need);
     checkUpdates(false);
@@ -3538,7 +3567,7 @@
   if (CapApp) {
     CapApp.addListener('backButton', () => {
       if (!$('sheet').hidden) { if (state.cfg.url) closeSheet(); return; }
-      if (state.tab !== 'home') { switchTab('home'); return; }
+      if (state.tab !== firstTab()) { switchTab(firstTab()); return; }
       CapApp.exitApp();
     });
   }
@@ -3561,7 +3590,7 @@
     if (state.cfg.url && localStorage.getItem(LS_ME) === null) { try { await fetchMe(); } catch (e) { /* AUTH: màn Cài đặt sẽ báo */ } }
     buildLots();
     SOURCES.forEach(buildTonRows);
-    switchTab('home');
+    switchTab(firstTab());
     if (!state.cfg.url) openSettings(true);
     // Báo cho live-update.js: giao diện đã khởi động xong → bản cập nhật vừa tải được CHỐT dùng tiếp.
     window.__KLANAN_READY = true;

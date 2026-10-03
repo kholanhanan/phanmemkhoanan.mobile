@@ -2,7 +2,7 @@
 #   1. Bản web chạy thử trên trình duyệt (như trước).
 #   2. NGUỒN TỰ CẬP NHẬT cho app APK (www/live-update.js): update.json (danh sách file + sha256) + các file www.
 # Cần bật 1 lần: Settings → Pages → Source: "GitHub Actions". Repo để Public (tài khoản GitHub miễn phí).
-# Trong www/ và Code.gs KHÔNG chứa mã truy cập nào nên để public vẫn an toàn —
+# Trong www/ và Code.gs KHÔNG chứa mã truy cập nào (www/app-config.js chỉ có link Web App, vẫn cần ID + mật khẩu mới vào được) nên để public vẫn an toàn —
 # mã APP_TOKEN/PC_TOKEN chỉ nằm trong Thuộc tính tập lệnh của Apps Script.
 name: Web preview + cập nhật app
 
@@ -69,9 +69,7 @@ jobs:
                   data = open(full, 'rb').read()
                   files.append({'p': rel, 's': hashlib.sha256(data).hexdigest(), 'n': len(data)})
           files.sort(key=lambda f: f['p'])
-          import re
-          m = re.search(r"APP_VERSION = '([^']+)'", open('www/app.js', encoding='utf-8').read())
-          out = {'version': os.environ['VER'], 'appVersion': m.group(1) if m else '', 'nativeLevel': int(os.environ['NATIVE']), 'message': os.environ.get('MSG', ''),
+          out = {'version': os.environ['VER'], 'nativeLevel': int(os.environ['NATIVE']), 'message': os.environ.get('MSG', ''),
                  'date': os.environ.get('DATE', ''), 'files': files}
           json.dump(out, open('_site/update.json', 'w', encoding='utf-8'), ensure_ascii=False)
           print(len(files), 'file,', sum(f['n'] for f in files), 'byte')

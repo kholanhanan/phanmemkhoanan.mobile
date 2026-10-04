@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '3.1 (04/10/2026)';
+  const APP_VERSION = '3.2 (04/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -235,7 +235,7 @@
   const canReport = (src) => !state.me || (state.me.kho || []).includes(REPORT_CFG[src].perm);
   const QUYEN_TEXT = { xem: 'Người dùng cấp 1 — chỉ xem tồn kho', xuat: 'Người dùng cấp 2 — xem + tạo phiếu xuất', quanly: 'Quản lý', quantri: 'Quản trị' };
   // 4 vai trò (màu chữ ở app.css: .role-xem vàng · .role-xuat xanh lá · .role-quanly xanh đậm · .role-quantri đỏ)
-  const ROLE_SHORT = { xem: 'Người dùng · cấp 1', xuat: 'Người dùng · cấp 2', quanly: 'Quản lý', quantri: 'Quản trị' };
+  const ROLE_SHORT = { xem: 'Người dùng', xuat: 'Người dùng', quanly: 'Quản lý', quantri: 'Quản trị' }; // 3.2: không ghi số cấp — phân biệt bằng màu (.role-xem vàng · .role-xuat xanh lá)
   // Quản lý người dùng (Cài đặt → Quản lý người dùng): mã APP_TOKEN chung (state.me = null), tài khoản Quản trị, hoặc Quản lý được cấp quyền Tài khoản
   // (state.me.canPq do Web App tính — cùng luật với app PC; Quản lý chỉ tạo / sửa / xóa được người dùng cấp 1 & 2).
   const canManage = () => !state.me || !!state.me.quanTri || !!state.me.canPq;
@@ -3058,7 +3058,7 @@
       <label class="field"><span>${FIXED_URL ? 'Mật khẩu' : 'Mã truy cập'}</span>
         <input type="password" id="cfgToken" value="${esc(c.token)}" autocomplete="current-password">
       </label>
-      ${state.me && !state.me.admin ? `<div class="me-card"><b>${esc(state.me.hienThi || state.me.ten)}</b> · <span class="role-${esc(state.me.vaiTro || state.me.quyen)}">${esc(ROLE_SHORT[state.me.vaiTro || state.me.quyen] || QUYEN_TEXT[state.me.quyen] || state.me.quyen)}</span></div>` : ''}
+      ${state.me && !state.me.admin ? `<div class="me-card"><b class="role-${esc(state.me.vaiTro || state.me.quyen)}">${esc(state.me.hienThi || state.me.ten)}</b> · <span class="role-${esc(state.me.vaiTro || state.me.quyen)}">${esc(ROLE_SHORT[state.me.vaiTro || state.me.quyen] || QUYEN_TEXT[state.me.quyen] || state.me.quyen)}</span></div>` : ''}
       <div class="notice" id="cfgMsg" hidden></div>
       <button type="button" class="btn btn-primary" id="cfgSave">Lưu và kiểm tra</button>
       ${first || !state.me || state.me.admin ? '' : `<button type="button" class="btn btn-ghost" id="cfgPw">🔑 Đổi mật khẩu</button>`}

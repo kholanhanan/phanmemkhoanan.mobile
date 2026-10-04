@@ -426,15 +426,19 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .home-search:focus-within { border-color: var(--cobalt); }
 .home-search input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: inherit; font-size: 16px; color: var(--ink); }
 .home-search svg { flex: 0 0 auto; width: 20px; height: 20px; }
-.todo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.todo { border: 0; border-radius: 14px; padding: 10px 12px; text-align: left; display: flex; flex-direction: column; gap: 2px; min-height: 76px; }
+.hsec { margin: 22px 2px 10px; font-size: 15px; font-weight: 700; color: var(--ink); display: flex; justify-content: space-between; align-items: baseline; }
+.hsec small { font-weight: 500; font-size: 12.5px; color: var(--muted); }
+.todo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: var(--paper); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.todo { border: 0; border-right: 1px solid var(--line); background: transparent; padding: 12px 14px; text-align: left; display: flex; flex-direction: column; gap: 3px; min-height: 76px; color: var(--ink); }
+.todo:last-child { border-right: 0; }
+.todo:active { background: var(--cobalt-soft); }
 .todo b { font-size: 26px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.todo span { font-size: 12.5px; line-height: 1.3; font-weight: 600; }
-.todo.t-soan { background: var(--cobalt); color: var(--on-cobalt); }
-.todo.t-cho { background: var(--amber-soft); color: var(--amber); }
-.todo.t-nhan { background: var(--green-soft); color: var(--green); }
+.todo span { font-size: 12.5px; line-height: 1.3; font-weight: 600; color: var(--muted); }
+.todo.t-soan b { color: var(--cobalt); }
+.todo.t-cho b { color: var(--amber); }
+.todo.t-nhan b { color: var(--green); }
 .kho-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.kho-tile { border: 1px solid var(--line); background: var(--paper); border-radius: 16px; padding: 12px 14px; text-align: left;
+.kho-tile { border: 1px solid var(--line); background: var(--paper); border-radius: 14px; padding: 12px 14px; text-align: left;
   display: flex; flex-direction: column; gap: 3px; min-height: 96px; color: var(--ink); }
 .kho-tile .kt-top { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
 .kho-tile .kt-top b { font-size: 15px; }
@@ -443,8 +447,10 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .kho-tile .kt-num small { font-size: 12px; font-weight: 500; color: var(--muted); }
 .kho-tile .kt-sub { font-size: 12.5px; color: var(--muted); }
 .kho-tile.is-empty .kt-num { font-size: 14px; font-weight: 600; color: var(--muted); }
-.kho-tile.kt-tracuu { border-style: dashed; justify-content: center; }
-.kho-tile.kt-tracuu svg { width: 22px; height: 22px; color: var(--cobalt); }
+.kho-tile.kt-tracuu { grid-column: 1 / -1; display: grid; grid-template-columns: 40px 1fr; grid-template-rows: auto auto; column-gap: 12px; row-gap: 1px;
+  align-items: center; min-height: 0; padding: 12px 14px; }
+.kho-tile.kt-tracuu svg { grid-row: 1 / 3; width: 40px; height: 40px; padding: 9px; box-sizing: border-box; border-radius: 10px; background: var(--cobalt-soft); color: var(--cobalt); }
+.kho-tile.kt-tracuu b { font-size: 15px; }
 .pill { align-self: flex-start; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
 .pill.wait { color: var(--amber); background: var(--amber-soft); }
 .pill.soan { color: var(--cobalt); background: var(--cobalt-soft); }
@@ -750,38 +756,11 @@ body.has-totalbar .multibar { bottom: calc(var(--tabbar-h) + var(--safe-bottom) 
 .role-xem{ color:#facc15; font-weight:700; } .role-xuat{ color:#4ade80; font-weight:700; }
 .role-quanly{ color:#15803d; font-weight:700; } .role-quantri{ color:#ef4444; font-weight:700; }
 
-/* ---------- Lịch xuất nhập hàng (chỉ xem, bản 2.8) ---------- */
-.lx-pick { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 4px; margin-bottom: 8px; }
-.lx-pick b { font-size: 16px; color: var(--ink); }
-.lx-nav { width: 44px; height: 40px; border: 0; border-radius: 10px; background: var(--cobalt-soft); color: var(--cobalt); font-size: 22px; font-weight: 700; }
-.lx-day { display: flex; gap: 10px; align-items: flex-start; background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; margin-top: 6px; }
-.lx-day.is-we .lx-dl b { color: var(--amber); }
-.lx-day.is-today { border-color: var(--cobalt); box-shadow: 0 0 0 1px var(--cobalt); }
-.lx-dl { min-width: 46px; display: flex; flex-direction: column; font-size: 12px; color: var(--muted); }
-.lx-dl b { font-size: 14px; color: var(--ink); }
-.lx-dc { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; flex: 1; align-items: center; }
-.lx-e { font-size: 12.5px; color: var(--muted); opacity: .6; }
-.lx-chip { min-height: 36px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); border-left: 4px solid var(--cobalt); background: var(--cobalt-soft); color: var(--ink); font-size: 13.5px; font-weight: 700; }
-.lx-chip.st-ok { border-left-color: var(--green); background: var(--green-soft); }
-.lx-chip.st-run { border-left-color: var(--amber); background: var(--amber-soft); }
-.lx-chip.st-wait { border-left-color: var(--muted); background: var(--chip-bg); }
+/* ---------- Lịch xuất nhập hàng (chỉ xem; bản 3.0: chỉ hôm nay, ở Trang chủ) ---------- */
 .lx-pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--cobalt-soft); color: var(--cobalt); }
 .lx-pill.st-ok { background: var(--green-soft); color: var(--green); }
 .lx-pill.st-run { background: var(--amber-soft); color: var(--amber); }
 .lx-pill.st-wait { background: var(--chip-bg); color: var(--muted); }
-.lx-k { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
-.lx-k > div { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
-.lx-k small { display: block; color: var(--muted); font-size: 12px; }
-.lx-k b { font-size: 20px; color: var(--ink); }
-.lx-k em { font-style: normal; font-size: 12px; font-weight: 500; color: var(--muted); }
-.lx-bar { height: 8px; border-radius: 4px; background: var(--seg-bg); overflow: hidden; margin: 10px 0 8px; }
-.lx-bar i { display: block; height: 100%; background: var(--green); }
-.lx-stt { display: flex; flex-wrap: wrap; gap: 6px; }
-.lx-list { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-.lx-list > div, .lx-hrow { display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--line); background: transparent; text-align: left; font-size: 14px; color: var(--ink); }
-.lx-list > :last-child { border-bottom: 0; }
-.lx-list b { font-weight: 600; white-space: nowrap; }
-.lx-hrow.is-on { background: var(--cobalt-soft); }
 .lx-err { color: var(--red); font-size: 13px; margin: 8px 0 0; }
 .lx-dh { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
 .lx-dh small { color: var(--muted); font-size: 12px; }
@@ -799,4 +778,32 @@ body.has-totalbar .multibar { bottom: calc(var(--tabbar-h) + var(--safe-bottom) 
 
 /* ---------- Lịch xuất nhập hàng: thẻ NHẬP (bản 2.9) ---------- */
 .lx-tp{ display: inline-block; font-style: normal; font-size: 9px; font-weight: 800; letter-spacing: .04em; line-height: 1; padding: 2px 5px; border-radius: 4px; color: #0e7490; background: rgba(8,145,178,.14); border: 1px solid rgba(8,145,178,.4); margin-right: 4px; vertical-align: middle; }
-.lx-chip.is-in{ border-style: dashed; }
+
+/* ---------- Trang chủ › thẻ "Lịch xuất nhập hôm nay" (bản 3.0) ----------
+   Điểm nhấn duy nhất của Trang chủ: tờ lịch nhỏ (tháng + ngày) bên trái, các lịch hôm nay xếp dọc bên dưới.
+   Màu vạch trái = tình trạng (đã xong xanh lá · đang làm vàng · còn lại xanh dương / xám). */
+#homeLx { margin: 2px 0 0; }
+.lxt { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.lxt-head { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+.lxt-leaf { flex: 0 0 auto; width: 52px; border-radius: 10px; overflow: hidden; border: 1px solid var(--cobalt); background: var(--paper); text-align: center; }
+.lxt-leaf i { display: block; font-style: normal; font-size: 12px; font-weight: 700; line-height: 1; padding: 5px 0 4px; background: var(--cobalt); color: var(--on-cobalt); }
+.lxt-leaf b { display: block; font-size: 24px; font-weight: 800; line-height: 1; padding: 6px 0 7px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.lxt-title { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.lxt-title b { font-size: 15.5px; font-weight: 700; color: var(--ink); }
+.lxt-title span { font-size: 13px; color: var(--muted); }
+.lxt-count { flex: 0 0 auto; padding: 4px 10px; border-radius: 999px; background: var(--cobalt-soft); color: var(--cobalt); font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+.lxt-list { border-top: 1px solid var(--line); }
+.lxt-row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 56px; padding: 8px 14px 8px 11px; border: 0; border-bottom: 1px solid var(--line);
+  border-left: 4px solid var(--cobalt); background: transparent; color: var(--ink); text-align: left; }
+.lxt-row:last-child { border-bottom: 0; }
+.lxt-row:active { background: var(--cobalt-soft); }
+.lxt-row.st-ok { border-left-color: var(--green); }
+.lxt-row.st-run { border-left-color: var(--amber); }
+.lxt-row.st-wait { border-left-color: var(--muted); }
+.lxt-dir { flex: 0 0 auto; min-width: 42px; padding: 3px 0; border-radius: 6px; background: var(--chip-bg); color: var(--ink); font-size: 12px; font-weight: 700; text-align: center; }
+.lxt-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.lxt-main b { font-size: 14.5px; font-weight: 700; overflow-wrap: anywhere; }
+.lxt-main small { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.lxt-row .lx-pill { flex: 0 0 auto; white-space: nowrap; }
+.lxt-empty { margin: 0; padding: 14px; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--muted); }
+.lxt-err { margin: 0; padding: 8px 14px 10px; border-top: 1px solid var(--line); }

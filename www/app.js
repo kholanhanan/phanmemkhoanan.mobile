@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '3.5 (04/10/2026)';
+  const APP_VERSION = '3.6 (04/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -1940,7 +1940,7 @@
               + `<dt></dt><dd>${hiddenPhieu[p.id]
                 ? `<button type="button" class="btn btn-ghost" data-unhide="${esc(p.id)}" style="min-height:44px;font-size:15px;margin:2px 0 4px">👁 Bỏ ẩn phiếu này</button>`
                 : `<button type="button" class="btn btn-ghost" data-an="${esc(p.id)}" style="min-height:44px;font-size:15px;margin:2px 0 4px">🙈 Ẩn khỏi danh sách (chỉ trên máy này)</button>`}</dd>`}
-          ${(p.items || []).map((it) => `<dt>${esc(fmt(num(it.soLuongXuat)))}</dt><dd>${it.viTri ? '[' + esc(shortPlace(it.viTri)) + '] ' : ''}${esc(noTpc(['M01VT', 'M01VTB'].includes(modOf(String(p.module || '').trim())) ? (it.maHang || it.tenHang) : (it.tenHang || it.maHang)))}${it.soLo && modOf(String(p.module || '').trim()) !== 'M01VT' ? (modOf(String(p.module || '').trim()) === 'M03' ? ' — LSX ' : modOf(String(p.module || '').trim()) === 'M04' ? ' — ' : modOf(String(p.module || '').trim()) === 'M01VTB' ? ' — NSX ' : ' — lô ') + esc(it.soLo) : ''}${it.hopDong ? ' — HĐ ' + esc(it.hopDong) : ''}${it.size !== '' && it.size !== undefined ? ', size ' + esc(it.size) : ''}</dd>`).join('')}
+          ${sortVt(p.items || []).map((it) => `<dt>${esc(fmt(num(it.soLuongXuat)))}</dt><dd>${it.viTri ? '[' + esc(shortPlace(it.viTri)) + '] ' : ''}${esc(noTpc(['M01VT', 'M01VTB'].includes(modOf(String(p.module || '').trim())) ? (it.maHang || it.tenHang) : (it.tenHang || it.maHang)))}${it.soLo && modOf(String(p.module || '').trim()) !== 'M01VT' ? (modOf(String(p.module || '').trim()) === 'M03' ? ' — LSX ' : modOf(String(p.module || '').trim()) === 'M04' ? ' — ' : modOf(String(p.module || '').trim()) === 'M01VTB' ? ' — NSX ' : ' — lô ') + esc(it.soLo) : ''}${it.hopDong ? ' — HĐ ' + esc(it.hopDong) : ''}${it.size !== '' && it.size !== undefined ? ', size ' + esc(it.size) : ''}</dd>`).join('')}
         </dl>` : ''}
       </li>`;
     }).join('');
@@ -2379,7 +2379,7 @@
       ghiChu: state.cart.ghiChu,
       module: state.cart.module,
       lsxXuat: state.cart.module === 'M03' ? (state.cart.lsxXuat || '') : '',
-      items: state.cart.items.map((it) => (state.cart.module === 'M01'
+      items: sortVt(state.cart.items).map((it) => (state.cart.module === 'M01'
         ? { itemKey: it.itemKey, rowIndex: it.rowIndex, maHang: it.maHang, tenHang: it.tenHang, size: it.size, hopDong: it.hopDong, soLuongXuat: num(it.qty) }
         : state.cart.module === 'M02'
           ? { maHang: it.maHang, tenHang: it.tenHang, soLo: it.soLo, size: it.size, phieuNhap: it.phieuNhap, soKien: it.soKien, soLuongXuat: num(it.qty) }
@@ -2506,6 +2506,8 @@
     };
   }
 
+  // Sắp dòng phiếu theo Vị trí A→Z (hàm dùng chung nằm ở export.js); không có export.js thì giữ nguyên thứ tự.
+  const sortVt = (list) => (window.KLExport && window.KLExport.sortByViTri ? window.KLExport.sortByViTri(list, (it) => it.viTri) : (list || []));
   const Cap = (window.Capacitor && window.Capacitor.Plugins) || {};
   const isNativeApp = !!(Cap.Filesystem && window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
   function blobToBase64(blob) {

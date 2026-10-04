@@ -69,8 +69,29 @@
   /* ---------------------------------------------------------------- mô tả bảng của từng nguồn
      Mỗi mẫu trả về { title, meta: [dòng thông tin], cols: [{label, num, dec}], rows: [[...]],
      totals: [...] } — dùng chung cho Excel (kiểu từng module) và HTML (PDF/PNG). */
+  // 04/10/2026: mọi phiếu xuất TỰ SẮP theo Vị trí A→Z (giống vtCmpViTri() trên PC): so từng đoạn cách nhau bởi
+  // "." "-" "/" khoảng trắng; đoạn số so theo GIÁ TRỊ (2 < 10), đoạn chữ không phân biệt hoa/thường; số đứng trước chữ;
+  // vị trí ngắn hơn đứng trước; sort ổn định (cùng vị trí giữ nguyên thứ tự cũ).
+  function cmpViTri(a, b) {
+    const sa = String(a == null ? '' : a).trim().toUpperCase().split(/[.\-\/\s]+/);
+    const sb = String(b == null ? '' : b).trim().toUpperCase().split(/[.\-\/\s]+/);
+    const n = Math.max(sa.length, sb.length);
+    for (let i = 0; i < n; i++) {
+      const x = sa[i], y = sb[i];
+      if (x === undefined) return -1;
+      if (y === undefined) return 1;
+      const nx = /^\d+$/.test(x), ny = /^\d+$/.test(y);
+      if (nx && ny) { const d = parseInt(x, 10) - parseInt(y, 10); if (d) return d; }
+      else if (nx !== ny) return nx ? -1 : 1;
+      else { const c = x.localeCompare(y, 'vi', { numeric: true }); if (c) return c; }
+    }
+    return 0;
+  }
+  function sortByViTri(list, get) {
+    return (list || []).map((v, i) => [v, i]).sort((p, q) => cmpViTri(get(p[0]), get(q[0])) || p[1] - q[1]).map((p) => p[0]);
+  }
   function tableOf(ph) {
-    const items = ph.items || [];
+    const items = sortByViTri(ph.items || [], (it) => it.viTri);
     // Không in dòng "Mã phiếu | Người lập | Ngày lập" ở bất kỳ mẫu phiếu nào nữa (không cần thiết);
     // chỉ giữ lại Ghi chú (và LSX xuất riêng của Module 03) nếu có.
     const note = ph.ghiChu ? ['Ghi chú: ' + ph.ghiChu] : [];
@@ -96,8 +117,7 @@
     }
     if (ph.module === 'M01VTB') {
       let sq = 0;
-      const byVt = new Intl.Collator('vi', { numeric: true, sensitivity: 'base' }).compare;
-      const sorted = items.slice().sort((a, b) => byVt(String(a.viTri || ''), String(b.viTri || '')));
+      const sorted = items; // đã sắp theo Vị trí ở đầu tableOf()
       const rows = sorted.map((it) => {
         const q = num(it.qty); sq += q;
         return [it.maHang || '', it.viTri || '', q];
@@ -422,5 +442,6 @@
       return { blob, name: fileName(ph, format), mime: blob.type };
     },
     tableOf, // để kiểm thử
+    cmpViTri, sortByViTri,
   };
 })();

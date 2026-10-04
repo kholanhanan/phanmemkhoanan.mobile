@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '3.3 (04/10/2026)';
+  const APP_VERSION = '3.4 (04/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -3795,6 +3795,8 @@
   });
   // Quay lại app sau khi để nền: tải lại màn hình đang xem nếu số liệu đã cũ.
   document.addEventListener('visibilitychange', () => { if (!document.hidden) autoRefresh(); });
+  // 3.4: đang mở app trên màn hình thì cứ ~1 phút hỏi lại Web App (lệnh 'toi'): Quản trị tăng / giảm quyền, tắt tài khoản → tự áp dụng, không cần thoát / đăng nhập lại.
+  setInterval(() => { if (!document.hidden) checkUpdates(false).catch(() => {}); }, 60000);
 
   // Giữ ô tìm kiếm dính ngay dưới thanh trên dù thanh trên cao bao nhiêu (tai thỏ, cỡ chữ lớn).
   const topbar = document.querySelector('.topbar');

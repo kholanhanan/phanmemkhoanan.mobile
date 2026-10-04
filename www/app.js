@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '3.2 (04/10/2026)';
+  const APP_VERSION = '3.3 (04/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -2006,7 +2006,7 @@
     const conLay = Math.max(lot.con - daSoan, 0);
     const start = Math.min(1, max);
     const canAdd = canCreate() && !otherKho && max > 0;
-    const why = !canCreate() ? 'Mã truy cập của bạn chỉ được xem tồn kho, không tạo phiếu.' : otherKho ? `Phiếu đang soạn thuộc ${SRC_LABEL[state.cart.module]}. Gửi hoặc hủy phiếu đó (tab Phiếu) trước khi xuất từ ${KHO[src].name}.`
+    const why = !canCreate() ? 'Bạn không được cấp quyền' : otherKho ? `Phiếu đang soạn thuộc ${SRC_LABEL[state.cart.module]}. Gửi hoặc hủy phiếu đó (tab Phiếu) trước khi xuất từ ${KHO[src].name}.`
       : daSoan && max <= 0 ? 'Dòng này đã đưa hết số còn lại vào phiếu đang soạn.' : max <= 0 ? 'Dòng này đã hết hàng để xuất.' : '';
     openSheet(`
       <h2>${esc(noTpc(lot.title))}</h2>

@@ -160,20 +160,20 @@ function doPost(e) {
     user = resolveUser_(req.token, appToken, req.nguoiDung);
     if (!user) return json_({ ok: false, code: 'AUTH', error: 'Tên người dùng hoặc mã truy cập không đúng, hoặc tài khoản đã bị khóa. Liên hệ người quản lý app PC.' });
     var needKho = KHO_OF_ACTION[action];
-    if (needKho && user.kho.indexOf(needKho) < 0) return forbid_('Mã truy cập này không được xem kho ' + needKho + '.');
-    if ((action === 'taoPhieu') && user.quyen !== 'xuat') return forbid_('Mã truy cập này chỉ được XEM tồn kho, không tạo phiếu.');
+    if (needKho && user.kho.indexOf(needKho) < 0) return forbid_('Bạn không được cấp quyền');
+    if ((action === 'taoPhieu') && user.quyen !== 'xuat') return forbid_('Bạn không được cấp quyền');
     // Sửa / xóa phiếu: quản lý = mọi phiếu; tài khoản "Tạo phiếu" = CHỈ phiếu do chính mình tạo, ở kho mình
     // được dùng (phieuVisibleTo_). Phiếu PC đã nhận thì editPhieu_/cancelPhieu_ tự chặn như mọi khi.
     if ((action === 'suaPhieu' || action === 'huyPhieu') && !user.admin) {
-      if (user.quyen !== 'xuat') return forbid_('Tài khoản này chỉ được XEM tồn kho, không sửa / xóa phiếu.');
+      if (user.quyen !== 'xuat') return forbid_('Bạn không được cấp quyền');
       var pid = String(action === 'suaPhieu' ? (req.phieu && req.phieu.id) : req.id || '').trim();
       var own = pid ? findPxRow_(pid) : null;
-      if (own && !user.quanLy && !phieuVisibleTo_(own.cur, user)) return forbid_('Chỉ sửa / xóa được phiếu do chính bạn tạo.'); // Quản lý / Quản trị: mọi phiếu
+      if (own && !user.quanLy && !phieuVisibleTo_(own.cur, user)) return forbid_('Bạn không được cấp quyền'); // Quản lý / Quản trị: mọi phiếu
     }
     if (action.indexOf('pq.') === 0 && !pqAllowed_(user)) return forbid_('Chỉ tài khoản Quản trị, hoặc Quản lý được cấp quyền Tài khoản, mới quản lý được người dùng.');
     if (action === 'taoPhieu' && req.phieu) {
       var mod = MODULES.indexOf(req.phieu.module) >= 0 ? req.phieu.module : 'M02';
-      if (user.kho.indexOf(mod) < 0) return forbid_('Mã truy cập này không được xuất từ kho ' + mod + '.');
+      if (user.kho.indexOf(mod) < 0) return forbid_('Bạn không được cấp quyền');
       if (!user.admin) { req.phieu.nguoiTao = user.hienThi; req.phieu.nguoiDung = user.ten; } // theo tài khoản, không tự gõ
     }
   }

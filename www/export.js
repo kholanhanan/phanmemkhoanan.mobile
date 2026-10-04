@@ -271,8 +271,8 @@
       t.cols.forEach((c, i) => {
         const cell = hr.getCell(i + 1);
         cell.value = c.label; cell.border = GRID;
-        cell.font = blueHeader ? { ...FONT, bold: true, color: { argb: 'FFFFFFFF' } } : { ...FONT, bold: true };
-        if (blueHeader) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E78' } };
+        // 04/10/2026: in máy in trắng đen → tiêu đề cột KHÔNG tô màu nền, chỉ in đậm chữ đen.
+        cell.font = { ...FONT, bold: true, color: { argb: 'FF000000' } };
         cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
       });
       const put = (rowIdx, vals, isTotal) => {
@@ -284,7 +284,7 @@
           cell.border = isTotal && blueHeader ? { ...GRID, top: { style: 'medium', color: { argb: 'FF000000' } } } : GRID;
           cell.alignment = { horizontal: c.num ? 'right' : 'left', vertical: 'middle', wrapText: !c.num };
           if (c.num && typeof v === 'number') cell.numFmt = blueHeader ? '#,##0.00' : (c.dec ? '#,##0.00' : '#,##0.###');
-          if (isTotal && blueHeader) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDDEBF7' } };
+          // (dòng Tổng cũng không tô nền — chỉ in đậm + viền trên đậm)
         });
       };
       t.rows.forEach((r, k) => { put(h + 1 + k, r); if (lay.rowH) ws.getRow(h + 1 + k).height = lay.rowH; });
@@ -327,12 +327,12 @@
     const isM2 = t.style === 'm2';
     const blue = t.style === 'm1';
     const font = "'Times New Roman',Times,'Noto Serif',serif";
-    const th = `padding:8px 10px;border:1px solid ${blue ? '#444' : '#000'};${blue ? 'background:#1F4E78;color:#fff;' : 'background:#fff;color:#111;'}font-weight:700;font-size:${isM2 ? 15 : 13}px;white-space:pre-line;text-align:center;`;
+    const th = `padding:8px 10px;border:1px solid #000;background:#fff;color:#000;font-weight:700;font-size:${isM2 ? 15 : 13}px;white-space:pre-line;text-align:center;`;
     const td = `padding:4px 10px;height:28px;border:1px solid ${blue ? '#999' : '#000'};background:#fff;color:#111;font-size:${isM2 ? 15 : 13}px;`;
     const cell = (v, c, bold, bg) => `<td style="${td}${c.num ? 'text-align:right;white-space:nowrap;' : ''}${bold ? 'font-weight:700;' : ''}${bg ? 'background:' + bg + ';' : ''}">${typeof v === 'number' ? fmt(v, c.dec) : esc(v)}</td>`;
     const body = t.rows.slice(from, to).map((r) => `<tr>${r.map((v, i) => cell(v, t.cols[i])).join('')}</tr>`).join('');
-    // Dòng Tổng mẫu xanh: nền #DDEBF7 + viền trên đậm (giống file Excel)
-    const total = showTotal ? `<tr${blue ? ' style="border-top:2px solid #000"' : ''}>${t.totals.map((v, i) => cell(v, t.cols[i], true, blue ? '#DDEBF7;border-top:2px solid #000' : '')).join('')}</tr>` : '';
+    // Dòng Tổng mẫu M01: không tô nền (in trắng đen), chỉ viền trên đậm (giống file Excel)
+    const total = showTotal ? `<tr${blue ? ' style="border-top:2px solid #000"' : ''}>${t.totals.map((v, i) => cell(v, t.cols[i], true, blue ? '#fff;border-top:2px solid #000' : '')).join('')}</tr>` : '';
     // Mẫu có độ rộng cột cố định (layout.widths, nếu còn dùng ở mẫu khác): PDF/ảnh giữ đúng tỉ lệ cột
     // như file Excel; cột thừa bên phải (chỉ để gộp tiêu đề) làm bảng hẹp lại tương ứng.
     const lw = t.layout && t.layout.widths;

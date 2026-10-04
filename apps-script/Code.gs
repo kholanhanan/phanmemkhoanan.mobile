@@ -41,15 +41,16 @@ var TAB = {
   M08_RADONG: 'M08_RaDong', M08_SIZE: 'M08_SizeLabel', M08_KS: 'M08_KhangSinh', M08_KSXOA: 'M08_KhangSinhXoa',
   META: 'Meta', PX: 'PhieuXuat', PXI: 'PhieuXuatItems', PQ: 'PhanQuyen',
   M01_BAOCAO: 'BaoCao_M01', // file Excel "Báo Cáo Tổng Tồn" + "Bảng Tổng Hợp HLSO" (base64 cắt nhiều ô) do PC dựng
+  LX: 'LichXuat_Cont', LX_THANG: 'LichXuat_Thang', // Lịch xuất container (PC 7.31) — điện thoại chỉ XEM
   M02_BAOCAO: 'BaoCao_M02', // file Excel "Bảng Tổng Hợp" của Module 02 (cùng cách lưu)
   // LƯU TRỮ (pcArchive_): phiếu ĐÃ XONG quá N ngày chuyển khỏi 2 tab chính để tab không phình mãi
   PX_LUUTRU: 'PhieuXuat_LuuTru', PXI_LUUTRU: 'PhieuXuatItems_LuuTru'
 };
 // Kho (mã giống cột "module" của phiếu) mà từng lệnh đọc dữ liệu cần — dùng để chặn token không được xem kho đó.
-var KHO_OF_ACTION = { tonKhoGui: 'M02', tonKho: 'M01', baoCaoM01: 'BC01', baoCaoM02: 'BC02', viTri: 'M01VT', viTriBot: 'M01VTB', tonKhoM03: 'M03', tonKhoM04: 'M04', m08: 'M08', ksSince: 'M08' };
+var KHO_OF_ACTION = { tonKhoGui: 'M02', tonKho: 'M01', baoCaoM01: 'BC01', baoCaoM02: 'BC02', viTri: 'M01VT', viTriBot: 'M01VTB', tonKhoM03: 'M03', tonKhoM04: 'M04', m08: 'M08', ksSince: 'M08', lichXuat: 'LX' };
 // BC01 / BC02 = quyền xem trang "Báo cáo" trên điện thoại (file Excel Module 01 / Module 02) — KHÔNG phải kho hàng,
 // độc lập với quyền xem kho M01 / M02. Khớp PQ_KHO (main.js), KHO (cai-dat.js), REPORT_CFG + PQ_KHO (www/app.js).
-var ALL_KHO = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M08', 'BC01', 'BC02'];
+var ALL_KHO = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M08', 'BC01', 'BC02', 'LX'];
 
 // SHA-256 dạng hex (chữ thường) — GIỐNG crypto.createHash('sha256') trong main.js của app PC.
 function sha256Hex_(text) {
@@ -63,7 +64,7 @@ function sha256Hex_(text) {
 function resolveUser_(token, appToken, nguoiDung) {
   token = String(token || '');
   if (!token) return null;
-  if (appToken && token === appToken) return { admin: true, quanTri: true, ten: '', quyen: 'xuat', kho: ALL_KHO.slice() };
+  if (appToken && token === appToken) return { admin: true, quanTri: true, quanLy: true, vaiTro: 'quantri', ten: '', quyen: 'xuat', kho: ALL_KHO.slice() };
   var t = readTab_(TAB.PQ);
   if (!t.headers.length) return null;
   var h = t.headers, iH = h.indexOf('tokenHash'), iT = h.indexOf('ten'), iQ = h.indexOf('quyen'),
@@ -79,8 +80,11 @@ function resolveUser_(token, appToken, nguoiDung) {
     var kho = String(iK >= 0 ? r[iK] : '').split(',').map(function (x) { return x.trim(); })
       .filter(function (x) { return ALL_KHO.indexOf(x) >= 0; });
     var hienThi = String(iD >= 0 ? r[iD] : '').trim() || ten;
-    var q = String(r[iQ]).trim(); // 'xem' | 'xuat' | 'quantri' (Quản trị = như 'xuat' + quản lý người dùng trên điện thoại)
-    return { admin: false, quanTri: q === 'quantri', ten: ten, hienThi: hienThi, quyen: (q === 'xuat' || q === 'quantri') ? 'xuat' : 'xem', kho: kho };
+    // 10/2026 — 4 VAI TRÒ: 'xem' (Người dùng cấp 1: chỉ xem) | 'xuat' (cấp 2: xem + tạo phiếu, chỉ sửa / xóa phiếu của mình) |
+    // 'quanly' (Quản lý: như cấp 2 nhưng sửa / xóa được MỌI phiếu trong kho được dùng) | 'quantri' (Quản trị: như Quản lý + quản lý người dùng).
+    var q = String(r[iQ]).trim();
+    var vt = (q === 'xuat' || q === 'quanly' || q === 'quantri') ? q : 'xem';
+    return { admin: false, quanTri: vt === 'quantri', quanLy: vt === 'quanly' || vt === 'quantri', vaiTro: vt, ten: ten, hienThi: hienThi, quyen: vt === 'xem' ? 'xem' : 'xuat', kho: kho };
   }
   return null;
 }
@@ -137,7 +141,7 @@ function doPost(e) {
       if (user.quyen !== 'xuat') return forbid_('Tài khoản này chỉ được XEM tồn kho, không sửa / xóa phiếu.');
       var pid = String(action === 'suaPhieu' ? (req.phieu && req.phieu.id) : req.id || '').trim();
       var own = pid ? findPxRow_(pid) : null;
-      if (own && !phieuVisibleTo_(own.cur, user)) return forbid_('Chỉ sửa / xóa được phiếu do chính bạn tạo.');
+      if (own && !user.quanLy && !phieuVisibleTo_(own.cur, user)) return forbid_('Chỉ sửa / xóa được phiếu do chính bạn tạo.'); // Quản lý / Quản trị: mọi phiếu
     }
     if (action.indexOf('pq.') === 0 && !(user.admin || user.quanTri)) return forbid_('Chỉ tài khoản Quản trị được quản lý người dùng.');
     if (action === 'taoPhieu' && req.phieu) {
@@ -151,9 +155,9 @@ function doPost(e) {
     switch (action) {
       case 'ping': return json_({ ok: true, meta: getMeta_() });
       // Điện thoại hỏi "tôi là ai, được làm gì" — để ẩn kho / nút không có quyền.
-      case 'toi': return json_({ ok: true, user: { admin: !!user.admin, quanTri: !!user.quanTri, ten: user.ten, hienThi: user.hienThi || user.ten, quyen: user.quyen, kho: user.kho } });
+      case 'toi': return json_({ ok: true, user: { admin: !!user.admin, quanTri: !!user.quanTri, quanLy: !!user.quanLy, vaiTro: user.vaiTro || (user.admin ? 'quantri' : 'xem'), ten: user.ten, hienThi: user.hienThi || user.ten, quyen: user.quyen, kho: user.kho } });
       // Quản lý người dùng ngay trên điện thoại (chỉ Quản trị / APP_TOKEN chung) — ghi thẳng tab PhanQuyen.
-      case 'pq.list': return json_(pqList_());
+      case 'pq.list': return json_(pqList_(user));
       case 'pq.luu': return json_(pqSave_(user, req.u));
       case 'pq.xoa': return json_(pqDelete_(user, req.ten));
       // Tự đổi mật khẩu của CHÍNH MÌNH (mọi tài khoản riêng, không cần quyền Quản trị) — xem pqSelfPassword_.
@@ -181,6 +185,11 @@ function doPost(e) {
           khangSinh: req.noKs ? { headers: [], rows: [] } : pick(TAB.M08_KS) });
       }
       case 'ksSince': return json_(ksSince_(req.since));
+      // Lịch xuất container (PC 7.31) — chỉ xem: các lịch gần đây + tổng kết từng tháng.
+      case 'lichXuat': {
+        var lx = readTab_(TAB.LX), lt = readTab_(TAB.LX_THANG);
+        return json_({ ok: true, meta: getMeta_(), cont: { headers: lx.headers, rows: lx.rows }, thang: { headers: lt.headers, rows: lt.rows } });
+      }
       case 'baoCaoM01': return json_(getBaoCao_(TAB.M01_BAOCAO));
       case 'baoCaoM02': return json_(getBaoCao_(TAB.M02_BAOCAO));
       case 'phieu': return json_(getPhieu_(user));
@@ -237,37 +246,47 @@ function pqMutate_(fn) {
   if (!lock.tryLock(30000)) throw new Error('Sheet đang bận, thử lại sau.');
   try { var list = pqRead_(); fn(list); pqWrite_(list); } finally { lock.releaseLock(); }
 }
-function pqList_() {
+// Tài khoản "admin" (tài khoản chính của app PC, 10/2026): chỉ sửa / đổi mã / xóa trên máy PC. Điện thoại: người dùng khác
+// (kể cả Quản trị) KHÔNG thấy dòng admin (và mã của nó) trong danh sách, không ai sửa / xóa / đổi mã admin từ điện thoại được.
+function isAdminTen_(ten) { return String(ten || '').trim().toLowerCase() === 'admin'; }
+function pqList_(me) {
+  var seeAdmin = !!(me && (me.admin || isAdminTen_(me.ten)));
   return {
     ok: true,
-    list: pqRead_().map(function (o) {
+    list: pqRead_().filter(function (o) { return seeAdmin || !isAdminTen_(o.ten); }).map(function (o) {
       return {
         ten: o.ten, tenHienThi: o.tenHienThi || o.ten,
-        quyen: (o.quyen === 'xuat' || o.quyen === 'quantri') ? o.quyen : 'xem',
+        quyen: (o.quyen === 'xuat' || o.quyen === 'quanly' || o.quyen === 'quantri') ? o.quyen : 'xem',
         kho: o.kho.split(',').map(function (x) { return x.trim(); }).filter(function (x) { return ALL_KHO.indexOf(x) >= 0; }),
         bat: o.trangThai === 'Bật', token: o.maTruyCap
       };
     })
   };
 }
-// u: { ten, tenHienThi, token, quyen: 'xem'|'xuat'|'quantri', kho: [...], bat }. Tên đã có → sửa, chưa có → thêm.
+// u: { ten, tenHienThi, token, quyen: 'xem'|'xuat'|'quanly'|'quantri', kho: [...], bat }. Tên đã có → sửa, chưa có → thêm.
 // token để trống khi sửa = giữ mã cũ.
 function pqSave_(me, u) {
   u = u || {};
   var ten = String(u.ten || '').trim();
   if (!PQ_USER_OK_.test(ten)) throw new Error('Tên người dùng: chỉ chữ không dấu, số và . _ - (tối đa 40 ký tự, không dấu cách).');
-  var quyen = u.quyen === 'quantri' ? 'quantri' : (u.quyen === 'xuat' ? 'xuat' : 'xem');
+  var quyen = (u.quyen === 'quantri' || u.quyen === 'quanly' || u.quyen === 'xuat') ? u.quyen : 'xem';
   var bat = u.bat !== false;
   var kho = (Array.isArray(u.kho) ? u.kho : []).filter(function (k) { return ALL_KHO.indexOf(k) >= 0; });
   var hienThi = String(u.tenHienThi || '').trim().slice(0, 60) || ten;
   var token = String(u.token || '').trim();
   var props = PropertiesService.getScriptProperties();
+  if (isAdminTen_(ten)) throw new Error('Tài khoản admin là tài khoản chính — chỉ sửa được trên máy PC (Cài đặt › Tài khoản).');
   if (!me.admin && ten.toLowerCase() === String(me.ten || '').toLowerCase() && (!bat || quyen !== 'quantri'))
     throw new Error('Không thể tự khóa hoặc hạ quyền của chính mình.');
+  var meIsAdmin = !!(me.admin || isAdminTen_(me.ten)); // chỉ admin (mã chung APP_TOKEN) được tạo / nâng / sửa tài khoản vai trò QUẢN TRỊ
   pqMutate_(function (list) {
     var idx = -1;
     list.forEach(function (o, i) { if (o.ten.toLowerCase() === ten.toLowerCase()) idx = i; });
     var cur = idx >= 0 ? list[idx] : null;
+    if (!meIsAdmin) {
+      if (quyen === 'quantri' && !(cur && cur.quyen === 'quantri')) throw new Error('Chỉ tài khoản admin mới được tạo / nâng tài khoản lên vai trò Quản trị.');
+      if (cur && cur.quyen === 'quantri' && ten.toLowerCase() !== String(me.ten || '').toLowerCase()) throw new Error('Tài khoản Quản trị chỉ admin mới sửa được.');
+    }
     if (!token) token = cur ? cur.maTruyCap : '';
     if (!token) throw new Error(cur ? 'Tài khoản này chưa lưu mã — bấm \"Tạo mã\" để đặt mã mới.' : 'Chưa có mã truy cập — bấm \"Tạo mã\".');
     if (token.length < 8 || token.length > 64 || !PQ_TOKEN_OK_.test(token)) throw new Error('Mã chỉ gồm chữ không dấu, số và - _ . @ # ! (8–64 ký tự, không dấu cách).');
@@ -280,18 +299,20 @@ function pqSave_(me, u) {
       pcModules: cur ? (cur.pcModules || '') : '' };
     if (idx >= 0) list[idx] = row; else list.push(row);
   });
-  return pqList_();
+  return pqList_(me);
 }
 function pqDelete_(me, ten) {
   ten = String(ten || '').trim().toLowerCase();
   if (!ten) throw new Error('Thiếu tên người dùng.');
+  if (isAdminTen_(ten)) throw new Error('Tài khoản admin là tài khoản chính — không xóa được.');
   if (!me.admin && ten === String(me.ten || '').toLowerCase()) throw new Error('Không thể tự xóa tài khoản của chính mình.');
   pqMutate_(function (list) {
     var n = list.length;
+    if (!(me.admin || isAdminTen_(me.ten))) list.forEach(function (o) { if (o.ten.toLowerCase() === ten && o.quyen === 'quantri') throw new Error('Tài khoản Quản trị chỉ admin mới xóa được.'); });
     for (var i = list.length - 1; i >= 0; i--) if (list[i].ten.toLowerCase() === ten) list.splice(i, 1);
     if (list.length === n) throw new Error('Không tìm thấy người dùng này.');
   });
-  return pqList_();
+  return pqList_(me);
 }
 
 // Tự đổi mật khẩu (mã truy cập) của chính tài khoản đang đăng nhập (10/2026). Người gọi đã được resolveUser_ xác thực bằng
@@ -299,6 +320,7 @@ function pqDelete_(me, ten) {
 // Ghi cả tokenHash + maTruyCap; app PC kéo mã mới về khi mở Cài Đặt → Điện Thoại (mergePermFromSheet: Sheet thắng ở mã).
 function pqSelfPassword_(me, moi) {
   if (me.admin) throw new Error('Đang dùng mã chung của app — không đổi được ở đây. Nhờ người quản lý tạo tài khoản riêng.');
+  if (isAdminTen_(me.ten)) throw new Error('Tài khoản admin chỉ đổi mã được trên máy PC (Cài đặt › Tài khoản).');
   var token = String(moi || '').trim();
   if (token.length < 8 || token.length > 64 || !PQ_TOKEN_OK_.test(token)) throw new Error('Mật khẩu mới chỉ gồm chữ không dấu, số và - _ . @ # ! (8–64 ký tự, không dấu cách).');
   var props = PropertiesService.getScriptProperties();
@@ -895,7 +917,7 @@ function buildItemsVTB_(id, reqItems, pending) {
 // CÁC LỆNH DÀNH RIÊNG CHO APP PC (PC_TOKEN) — xem app/sheets-webapp-client.js
 // ============================================================================================
 var PC_ALLOWED_TABS = [TAB.PQ, TAB.M01, TAB.VITRI, TAB.VITRIBOT, TAB.M02, TAB.M03, TAB.M03_LSX, TAB.M04, TAB.META, TAB.PX, TAB.PXI,
-  TAB.M08_MAHOA, TAB.M08_MADATAO, TAB.M08_TONGHOP, TAB.M08_RADONG, TAB.M08_SIZE, TAB.M08_KS, TAB.M08_KSXOA, TAB.M01_BAOCAO, TAB.M02_BAOCAO, TAB.PX_LUUTRU, TAB.PXI_LUUTRU];
+  TAB.M08_MAHOA, TAB.M08_MADATAO, TAB.M08_TONGHOP, TAB.M08_RADONG, TAB.M08_SIZE, TAB.M08_KS, TAB.M08_KSXOA, TAB.M01_BAOCAO, TAB.M02_BAOCAO, TAB.LX, TAB.LX_THANG, TAB.PX_LUUTRU, TAB.PXI_LUUTRU];
 function assertPcTab_(name) {
   if (PC_ALLOWED_TABS.indexOf(name) < 0) throw new Error('Không được phép thao tác tab "' + name + '".');
 }

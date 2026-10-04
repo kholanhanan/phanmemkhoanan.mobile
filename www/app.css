@@ -744,3 +744,55 @@ body.has-totalbar .multibar { bottom: calc(var(--tabbar-h) + var(--safe-bottom) 
 /* Đường dẫn Web App cài cố định (app-config.js): hiện nhưng làm mờ */
 .field.is-locked input { opacity: .55; }
 .field.is-locked small { opacity: .8; }
+
+
+/* 4 VAI TRÒ — màu chữ: cấp 1 vàng · cấp 2 xanh lá · Quản lý xanh đậm · Quản trị đỏ */
+.role-xem{ color:#facc15; font-weight:700; } .role-xuat{ color:#4ade80; font-weight:700; }
+.role-quanly{ color:#15803d; font-weight:700; } .role-quantri{ color:#ef4444; font-weight:700; }
+
+/* ---------- Lịch xuất container (chỉ xem, bản 2.8) ---------- */
+.lx-pick { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 4px; margin-bottom: 8px; }
+.lx-pick b { font-size: 16px; color: var(--ink); }
+.lx-nav { width: 44px; height: 40px; border: 0; border-radius: 10px; background: var(--cobalt-soft); color: var(--cobalt); font-size: 22px; font-weight: 700; }
+.lx-day { display: flex; gap: 10px; align-items: flex-start; background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; margin-top: 6px; }
+.lx-day.is-we .lx-dl b { color: var(--amber); }
+.lx-day.is-today { border-color: var(--cobalt); box-shadow: 0 0 0 1px var(--cobalt); }
+.lx-dl { min-width: 46px; display: flex; flex-direction: column; font-size: 12px; color: var(--muted); }
+.lx-dl b { font-size: 14px; color: var(--ink); }
+.lx-dc { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; flex: 1; align-items: center; }
+.lx-e { font-size: 12.5px; color: var(--muted); opacity: .6; }
+.lx-chip { min-height: 36px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); border-left: 4px solid var(--cobalt); background: var(--cobalt-soft); color: var(--ink); font-size: 13.5px; font-weight: 700; }
+.lx-chip.st-ok { border-left-color: var(--green); background: var(--green-soft); }
+.lx-chip.st-run { border-left-color: var(--amber); background: var(--amber-soft); }
+.lx-chip.st-wait { border-left-color: var(--muted); background: var(--chip-bg); }
+.lx-pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--cobalt-soft); color: var(--cobalt); }
+.lx-pill.st-ok { background: var(--green-soft); color: var(--green); }
+.lx-pill.st-run { background: var(--amber-soft); color: var(--amber); }
+.lx-pill.st-wait { background: var(--chip-bg); color: var(--muted); }
+.lx-k { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.lx-k > div { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
+.lx-k small { display: block; color: var(--muted); font-size: 12px; }
+.lx-k b { font-size: 20px; color: var(--ink); }
+.lx-k em { font-style: normal; font-size: 12px; font-weight: 500; color: var(--muted); }
+.lx-bar { height: 8px; border-radius: 4px; background: var(--seg-bg); overflow: hidden; margin: 10px 0 8px; }
+.lx-bar i { display: block; height: 100%; background: var(--green); }
+.lx-stt { display: flex; flex-wrap: wrap; gap: 6px; }
+.lx-list { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.lx-list > div, .lx-hrow { display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--line); background: transparent; text-align: left; font-size: 14px; color: var(--ink); }
+.lx-list > :last-child { border-bottom: 0; }
+.lx-list b { font-weight: 600; white-space: nowrap; }
+.lx-hrow.is-on { background: var(--cobalt-soft); }
+.lx-err { color: var(--red); font-size: 13px; margin: 8px 0 0; }
+.lx-dh { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+.lx-dh small { color: var(--muted); font-size: 12px; }
+.lx-dh h3 { margin: 2px 0 0; font-size: 20px; color: var(--ink); overflow-wrap: anywhere; }
+.lx-kv { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.lx-kv span { color: var(--muted); }
+.lx-kv b { font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+.lx-tw { overflow: auto; margin: 10px 0; border: 1px solid var(--line); border-radius: 10px; }
+.lx-tw table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.lx-tw th { text-align: left; font-size: 12px; color: var(--muted); padding: 7px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.lx-tw td { padding: 7px 8px; border-bottom: 1px solid var(--line); }
+.lx-tw tr:last-child td { border-bottom: 0; }
+.lx-tw .r { text-align: right; }
+.lx-none, .lx-note { color: var(--muted); font-size: 13px; text-align: center; margin: 10px 0; }

@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '2.7 (03/10/2026)';
+  const APP_VERSION = '2.8 (04/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -233,7 +233,9 @@
   const canView = (k) => !state.me || (state.me.kho || []).includes(TABLE_OF[k]);
   // Quyền xem trang Báo cáo của từng nguồn (mã BC01 / BC02 trong "Kho được dùng").
   const canReport = (src) => !state.me || (state.me.kho || []).includes(REPORT_CFG[src].perm);
-  const QUYEN_TEXT = { xem: 'Chỉ xem tồn kho', xuat: 'Xem + tạo phiếu xuất' };
+  const QUYEN_TEXT = { xem: 'Người dùng cấp 1 — chỉ xem tồn kho', xuat: 'Người dùng cấp 2 — xem + tạo phiếu xuất', quanly: 'Quản lý', quantri: 'Quản trị' };
+  // 4 vai trò (màu chữ ở app.css: .role-xem vàng · .role-xuat xanh lá · .role-quanly xanh đậm · .role-quantri đỏ)
+  const ROLE_SHORT = { xem: 'Người dùng · cấp 1', xuat: 'Người dùng · cấp 2', quanly: 'Quản lý', quantri: 'Quản trị' };
   // Quản lý người dùng (Cài đặt → Quản lý người dùng): mã APP_TOKEN chung (state.me = null) hoặc tài khoản Quản trị.
   const canManage = () => !state.me || !!state.me.quanTri;
   function applyPerms() {
@@ -252,6 +254,7 @@
     if (myName && state.cfg.name !== myName) { state.cfg.name = myName; save(LS_CFG, state.cfg); }
     const anyReport = REPORT_SRCS.some(canReport);
     REPORT_SRCS.forEach((k) => { if (!canReport(k)) delete repState[k]; }); // mất quyền → bỏ file đã tải
+    if (!canLx() && state.lx) { state.lx = null; store.del('lx'); } // mất quyền lịch xuất → bỏ dữ liệu đã lưu
     if (!canView('m08')) { state.ks = null; store.del('ks'); M8.dataOf = null; } // mất quyền kháng sinh → bỏ dữ liệu đã lưu
     const multi = $('xuatMulti'); if (multi) multi.hidden = !canCreate();
     // Thanh tab chỉ hiện phần tài khoản này thật sự dùng được. Tài khoản KHÔNG có kho nào (VD chỉ được
@@ -262,13 +265,14 @@
   // Tab nào được dùng với quyền hiện tại. Không có tab nào dùng được (chưa cấp quyền gì) → vẫn cho Trang chủ.
   function tabOk(t) {
     const hasKho = SOURCES.length > 0;
-    if (t === 'home' || t === 'xuat') return hasKho || !(canView('m08') || REPORT_SRCS.some(canReport));
+    if (t === 'home' || t === 'xuat') return hasKho || !(canView('m08') || REPORT_SRCS.some(canReport) || canLx());
+    if (t === 'lx') return canLx();
     if (t === 'phieu') return hasKho && canCreate();
     if (t === 'baocao') return REPORT_SRCS.some(canReport);
     if (t === 'm8') return canView('m08');
     return false;
   }
-  const firstTab = () => ['home', 'xuat', 'phieu', 'baocao', 'm8'].find(tabOk) || 'home';
+  const firstTab = () => ['home', 'xuat', 'phieu', 'baocao', 'lx', 'm8'].find(tabOk) || 'home';
   function showTabUi() {
     document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('is-on', b.dataset.tab === state.tab));
     document.querySelectorAll('.view').forEach((v) => { v.hidden = v.dataset.view !== state.tab; });
@@ -287,7 +291,7 @@
   }
 
   // ---- Kho lưu dữ liệu trên máy: IndexedDB (dung lượng lớn), dự phòng localStorage ----
-  const CACHE_KEYS = ['m02', 'vitri', 'vitribot', 'm01', 'm03', 'm04', 'm08', 'phieu', 'ks']; // ks = kháng sinh tải dần (bản 2.0)
+  const CACHE_KEYS = ['m02', 'vitri', 'vitribot', 'm01', 'm03', 'm04', 'm08', 'phieu', 'ks', 'lx']; // ks = kháng sinh tải dần (bản 2.0)
   const store = (() => {
     let dbp = null;
     const open = () => {
@@ -1957,6 +1961,7 @@
     if (state.tab === 'phieu') renderPhieu();
     if (state.tab === 'm8') renderM8();
     if (state.tab === 'baocao') renderBaoCao();
+    if (state.tab === 'lx') renderLx();
     if (state.tab !== 'xuat') updateTotalBar(null);
     renderCartBar();
     renderMultiBar();
@@ -3048,7 +3053,7 @@
       <label class="field"><span>${FIXED_URL ? 'Mật khẩu' : 'Mã truy cập'}</span>
         <input type="password" id="cfgToken" value="${esc(c.token)}" autocomplete="current-password">
       </label>
-      ${state.me && !state.me.admin ? `<div class="me-card"><b>${esc(state.me.hienThi || state.me.ten)}</b> · ${esc(QUYEN_TEXT[state.me.quyen] || state.me.quyen)}${state.me.quanTri ? ' · Quản trị' : ''}</div>` : ''}
+      ${state.me && !state.me.admin ? `<div class="me-card"><b>${esc(state.me.hienThi || state.me.ten)}</b> · <span class="role-${esc(state.me.vaiTro || state.me.quyen)}">${esc(ROLE_SHORT[state.me.vaiTro || state.me.quyen] || QUYEN_TEXT[state.me.quyen] || state.me.quyen)}</span></div>` : ''}
       <div class="notice" id="cfgMsg" hidden></div>
       <button type="button" class="btn btn-primary" id="cfgSave">Lưu và kiểm tra</button>
       ${first || !state.me || state.me.admin ? '' : `<button type="button" class="btn btn-ghost" id="cfgPw">🔑 Đổi mật khẩu</button>`}
@@ -3170,9 +3175,9 @@
 
   // ------------------------------------------------------------------ quản lý người dùng (lệnh pq.* của Web App)
   const PQ_KHO = [['M01', 'Tồn kho An An'], ['M01VT', 'Tồn theo vị trí'], ['M01VTB', 'Vị trí Bột'], ['M02', 'Tồn kho gửi'],
-    ['M08', 'Tra cứu kháng sinh'], ['BC01', 'Báo cáo Tồn kho An An'], ['BC02', 'Báo cáo Tồn kho gửi'],
+    ['M08', 'Tra cứu kháng sinh'], ['BC01', 'Báo cáo Tồn kho An An'], ['BC02', 'Báo cáo Tồn kho gửi'], ['LX', 'Lịch xuất container'],
     ['M03', 'NXT Bột/Sốt'], ['M04', 'NXT TNK/TGC']];
-  const PQ_QUYEN = { xem: 'Chỉ xem', xuat: 'Tạo phiếu', quantri: 'Quản trị' };
+  const PQ_QUYEN = { xem: 'Người dùng cấp 1', xuat: 'Người dùng cấp 2', quanly: 'Quản lý', quantri: 'Quản trị' };
   const pqNewToken = () => { // 16 ký tự, bỏ ký tự dễ nhầm — dạng K7QD-9MXP-2HTW-RZ4C (giống app PC)
     const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789', buf = new Uint32Array(16);
     crypto.getRandomValues(buf);
@@ -3208,7 +3213,7 @@
         <label class="field"><span>Tên người dùng (ID đăng nhập)</span><input type="text" id="uaTen" maxlength="40" value="${esc(d.ten)}" ${isNew ? '' : 'readonly'} autocapitalize="none" spellcheck="false" placeholder="VD: thang"><small>Chữ không dấu, số, . _ - — không đổi được sau khi tạo.</small></label>
         <label class="field"><span>Mã truy cập (như mật khẩu)</span><input type="text" id="uaToken" maxlength="64" value="${esc(d.token)}" autocapitalize="none" spellcheck="false" placeholder="Bấm Tạo mã"><small>Đổi mã thì người này phải nhập mã mới trên điện thoại.</small></label>
         <div class="ua-row"><button type="button" class="btn btn-ghost" data-gen>Tạo mã mới</button><button type="button" class="btn btn-ghost" data-copy>Copy mã</button></div>
-        <label class="field"><span>Quyền</span><select id="uaQuyen" class="ua-select">${Object.keys(PQ_QUYEN).map((k) => `<option value="${k}"${d.quyen === k ? ' selected' : ''}>${{ xem: 'Chỉ xem tồn kho', xuat: 'Xem + tạo phiếu xuất', quantri: 'Quản trị (+ quản lý người dùng)' }[k]}</option>`).join('')}</select></label>
+        <label class="field"><span>Quyền</span><select id="uaQuyen" class="ua-select">${Object.keys(PQ_QUYEN).map((k) => `<option value="${k}"${d.quyen === k ? ' selected' : ''}>${{ xem: 'Người dùng cấp 1 — chỉ xem tồn kho', xuat: 'Người dùng cấp 2 — xem + tạo phiếu xuất', quanly: 'Quản lý — + sửa / xóa mọi phiếu', quantri: 'Quản trị — + quản lý người dùng (chỉ admin tạo được)' }[k]}</option>`).join('')}</select></label>
         <div class="field"><span>Kho được dùng</span><div class="ua-kho">${PQ_KHO.map(([k, l]) => `<label><input type="checkbox" data-kho="${k}"${d.kho.includes(k) ? ' checked' : ''}> ${esc(l)}</label>`).join('')}</div></div>
         <div class="ua-kho ua-bat"><label><input type="checkbox" id="uaBat"${d.bat ? ' checked' : ''}> Đang hoạt động (bỏ tick = khóa)</label></div>
         <div class="notice" id="uaMsg" hidden></div>
@@ -3276,7 +3281,7 @@
     if (tab === 'xuat') return state.xuatSrc === 'tong' ? SOURCES.slice() : [state.xuatSrc]; // Tổng: cần mọi kho
     if (tab === 'ton') return [state.tonMode];
     if (tab === 'm8') return ['m08'];
-    if (tab === 'baocao') return []; // file báo cáo tải riêng (loadReports), không cần bảng kho
+    if (tab === 'baocao' || tab === 'lx') return []; // báo cáo / lịch xuất tải riêng (loadReports / loadLx), không cần bảng kho
     return ['phieu', 'm02'];
   }
 
@@ -3322,6 +3327,7 @@
   function autoRefresh() {
     if (!cfgOk()) return;
     if (state.tab === 'baocao') loadReports(false);
+    if (state.tab === 'lx') loadLx(false);
     const need = neededFor(state.tab).filter((k) => !state[k] || !state[k].data || state.stale.has(k) ||
       (k === 'm08' && !state.ksOff && !(state.ks && state.ks.rows)) ||
       (k === 'phieu' && Date.now() - new Date(state[k].fetchedAt || 0).getTime() > 120000));
@@ -3359,6 +3365,104 @@
     if (now.length) refresh(now);
   }
 
+  // ------------------------------------------------------------------ LỊCH XUẤT CONTAINER (bản 2.8 — CHỈ XEM)
+  // PC (bản 7.31) đẩy tab LichXuat_Cont (lịch của 3 tháng gần nhất trở đi) + LichXuat_Thang (tổng kết MỌI tháng) → lệnh 'lichXuat' của Web App.
+  // Quyền: mã 'LX' trong "Kho được dùng". Dữ liệu lưu trên máy: state.lx (IndexedDB, khóa 'lx'); sửa / xóa lịch làm ở PC.
+  var lxUi = { month: '', seg: 'cal', loading: false, err: '', scrolled: false };
+  const LX_ST = { ok: 'Đã xuất', run: 'Đang đóng hàng', plan: 'Dự kiến', wait: 'Chờ xác nhận' };
+  const LX_DOW = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+  function canLx() { return !state.me || (state.me.kho || []).includes('LX'); }
+  const lxPad = (n) => String(n).padStart(2, '0');
+  const lxKey = (d) => d.getFullYear() + '-' + lxPad(d.getMonth() + 1) + '-' + lxPad(d.getDate());
+  const lxVnM = (m) => 'Tháng ' + m.slice(5) + '/' + m.slice(0, 4);
+  const lxShift = (m, n) => { const d = new Date(+m.slice(0, 4), +m.slice(5) - 1 + n, 1); return d.getFullYear() + '-' + lxPad(d.getMonth() + 1); };
+  const lxTan = (kg) => ((Number(kg) || 0) / 1000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const lxLabel = (v) => /^\s*LSX\b/i.test(String(v || '')) ? String(v).trim() : 'LSX ' + String(v || '').trim();
+  function lxObjs(t) { const h = (t && t.headers) || []; return ((t && t.rows) || []).map((r) => { const o = {}; h.forEach((k, i) => { o[k] = r[i]; }); return o; }); }
+  function lxCont(o) {
+    return { id: String(o.id || ''), ngay: String(o.ngay || '').slice(0, 10), st: LX_ST[o.trangThai] ? o.trangThai : 'wait', lsx: String(o.lsx || '').trim(), khach: String(o.khach || ''),
+      thiTruong: String(o.thiTruong || ''), matHang: String(o.matHang || ''), ton: Number(o.tonKien) || 0, kg: Number(o.kg) || 0, chiTiet: String(o.chiTiet || ''), canXuat: String(o.canXuat || '') };
+  }
+  function lxStats(list) {
+    const by = { ok: 0, run: 0, plan: 0, wait: 0 }; let kg = 0, kd = 0;
+    list.forEach((x) => { by[x.st]++; kg += x.kg; if (x.st === 'ok') kd += x.kg; });
+    return { n: list.length, dn: by.ok, kg, kd, by };
+  }
+  async function loadLx(force) {
+    if (!canLx() || !state.cfg.url || lxUi.loading) return;
+    if (!force && state.lx && Date.now() - (state.lx.at || 0) < 3 * 60 * 1000) return;
+    lxUi.loading = true; lxUi.err = '';
+    if (state.tab === 'lx') renderLx();
+    try {
+      const d = await api('lichXuat');
+      state.lx = {
+        cont: lxObjs(d.cont).map(lxCont).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x.ngay)),
+        thang: lxObjs(d.thang).map((o) => ({ m: String(o.thang || ''), n: Number(o.soLich) || 0, dn: Number(o.daXuat) || 0, kg: Number(o.kg) || 0, kd: Number(o.kgDaXuat) || 0 })).filter((x) => /^\d{4}-\d{2}$/.test(x.m)),
+        meta: d.meta || {}, at: Date.now()
+      };
+      store.set('lx', state.lx);
+    } catch (e) {
+      lxUi.err = e.message;
+      if (e.code === 'FORBIDDEN') fetchMe().then(renderAll).catch(() => {});
+    }
+    lxUi.loading = false;
+    if (state.tab === 'lx') { renderLx(); renderFreshness(); }
+  }
+  function lxLines(x) { // [tên hàng, size, mã hàng, tồn, kg] → gộp theo (tên ngắn, size)
+    let a = []; try { a = JSON.parse(x.chiTiet || '[]'); } catch (e) { a = []; }
+    const clean = (t) => { let s = String(t || '').normalize('NFC').split(' - ')[0].replace(/^\s*t[ôo]m\s+/i, '').replace(/^(TCT|TPC)\s+/i, ''); s = s.split(/\s*[(,]/)[0].replace(/\s+/g, ' ').trim(); return s || String(t || '').trim(); };
+    const m = new Map();
+    (Array.isArray(a) ? a : []).forEach((l) => { const p = clean(l[0]), sz = String(l[1] == null ? '' : l[1]).trim(), k = p + '|' + sz, o = m.get(k) || { p, sz, ton: 0 }; o.ton += Number(l[3]) || 0; m.set(k, o); });
+    return Array.from(m.values()).sort((u, v) => u.p.localeCompare(v.p, 'vi') || u.sz.localeCompare(v.sz, 'vi', { numeric: true }));
+  }
+  function openLxDetail(id) {
+    const x = ((state.lx && state.lx.cont) || []).find((r) => r.id === id); if (!x) return;
+    let need = {}; try { need = JSON.parse(x.canXuat || '{}') || {}; } catch (e) { need = {}; }
+    const L = lxLines(x), kv = (k, v) => `<div class="lx-kv"><span>${k}</span><b>${v ? esc(v) : '—'}</b></div>`;
+    const tbl = L.length ? `<div class="lx-tw"><table><thead><tr><th>Loại hàng</th><th>Size</th><th class="r">Tồn (kiện)</th><th class="r">Cần xuất</th></tr></thead><tbody>${L.map((o) => `<tr><td><b>${esc(o.p || '—')}</b></td><td>${esc(o.sz || '—')}</td><td class="r">${fmt(o.ton)}</td><td class="r">${need[o.p + '|' + o.sz] != null ? fmt(need[o.p + '|' + o.sz]) : '—'}</td></tr>`).join('')}</tbody></table></div>` : '';
+    openSheet(`<div class="sheet-grip"></div>
+      <div class="lx-dh"><div><small>Lịch xuất · ${x.ngay.slice(8)}/${x.ngay.slice(5, 7)}/${x.ngay.slice(0, 4)}</small><h3>${esc(lxLabel(x.lsx))}</h3></div><span class="lx-pill st-${x.st}">${LX_ST[x.st]}</span></div>
+      ${x.khach || x.matHang ? kv('Khách hàng', x.khach) + kv('Thị trường', x.thiTruong) + kv('Tồn · Khối lượng', fmt(x.ton) + ' kiện · ' + lxTan(x.kg) + ' tấn') + tbl : '<p class="lx-none">PC chưa dò được dữ liệu hàng cho LSX này.</p>'}
+      <p class="lx-note">Chỉ xem trên điện thoại — thêm / sửa / xóa lịch ở máy tính.</p>
+      <button type="button" class="btn btn-ghost" id="lxClose">Đóng</button>`);
+    $('sheetBody').onclick = (e) => { if (e.target.closest('#lxClose')) closeSheet(); };
+  }
+  function renderLx() {
+    const box = $('lxBody'); if (!box) return;
+    if (!lxUi.month) lxUi.month = lxKey(new Date()).slice(0, 7);
+    const m = lxUi.month, d = state.lx;
+    if (!d) { box.innerHTML = lxUi.loading ? emptyHtml('Đang tải lịch xuất…', 'Chờ một chút.') : emptyHtml('Chưa có dữ liệu lịch xuất', lxUi.err || 'Bấm ↻ để tải. PC cần bật đẩy "Lịch xuất container" ở Cài Đặt › Điện Thoại.'); return; }
+    const list = d.cont.filter((x) => x.ngay.slice(0, 7) === m), s = lxStats(list), snap = d.thang.find((t) => t.m === m);
+    const head = `<div class="lx-pick"><button type="button" class="lx-nav" data-lxm="-1" aria-label="Tháng trước">‹</button><b>${lxVnM(m)}</b><button type="button" class="lx-nav" data-lxm="1" aria-label="Tháng sau">›</button></div>
+      <div class="segmented"><button type="button" class="seg${lxUi.seg === 'cal' ? ' is-on' : ''}" data-lxseg="cal">Lịch</button><button type="button" class="seg${lxUi.seg === 'sum' ? ' is-on' : ''}" data-lxseg="sum">Tổng kết</button></div>
+      ${lxUi.err ? `<p class="lx-err">${esc(lxUi.err)} — đang xem bản đã lưu trên máy.</p>` : ''}`;
+    let body = '';
+    if (lxUi.seg === 'cal') {
+      const nd = new Date(+m.slice(0, 4), +m.slice(5), 0).getDate(), today = lxKey(new Date());
+      if (!list.length && snap) body = emptyHtml('Chi tiết tháng này không còn trên điện thoại', 'Điện thoại giữ lịch chi tiết 3 tháng gần nhất. Xem số liệu ở mục Tổng kết.');
+      else {
+        for (let i = 1; i <= nd; i++) {
+          const k = m + '-' + lxPad(i), dt = new Date(+m.slice(0, 4), +m.slice(5) - 1, i), its = list.filter((x) => x.ngay === k).sort((a, b) => a.id < b.id ? -1 : 1);
+          body += `<div class="lx-day${k === today ? ' is-today' : ''}${dt.getDay() === 0 || dt.getDay() === 6 ? ' is-we' : ''}"${k === today ? ' id="lxToday"' : ''}><div class="lx-dl"><b>${LX_DOW[dt.getDay()]}</b><span>${lxPad(i)}/${m.slice(5)}</span></div><div class="lx-dc">${its.length ? its.map((x) => `<button type="button" class="lx-chip st-${x.st}" data-lxid="${esc(x.id)}">${esc(lxLabel(x.lsx))}</button>`).join('') : '<span class="lx-e">Chưa có lịch</span>'}</div></div>`;
+        }
+      }
+    } else {
+      const n = list.length ? s.n : (snap ? snap.n : 0), dn = list.length ? s.dn : (snap ? snap.dn : 0), kg = list.length ? s.kg : (snap ? snap.kg : 0), kd = list.length ? s.kd : (snap ? snap.kd : 0);
+      const kh = new Map(); list.forEach((x) => { const k = x.khach || '(chưa dò được khách)', o = kh.get(k) || { n: 0, kg: 0 }; o.n++; o.kg += x.kg; kh.set(k, o); });
+      const top = Array.from(kh.entries()).sort((a, b) => b[1].kg - a[1].kg).slice(0, 10);
+      const g = new Map(); d.cont.forEach((x) => { const k = x.ngay.slice(0, 7); if (!g.has(k)) g.set(k, []); g.get(k).push(x); });
+      const hist = new Map(); d.thang.forEach((t) => hist.set(t.m, t)); g.forEach((l, k) => { const t = lxStats(l); hist.set(k, { m: k, n: t.n, dn: t.dn, kg: t.kg, kd: t.kd }); });
+      const hs = Array.from(hist.values()).sort((a, b) => a.m < b.m ? 1 : -1);
+      body = `<div class="lx-k"><div><small>Tổng lịch</small><b>${n}</b></div><div><small>Tổng khối lượng</small><b>${lxTan(kg)} <em>tấn</em></b></div><div><small>Đã xuất</small><b>${dn} <em>· ${lxTan(kd)} tấn</em></b></div><div><small>Còn phải xuất</small><b>${n - dn} <em>· ${lxTan(kg - kd)} tấn</em></b></div></div>
+        <div class="lx-bar"><i style="width:${n ? dn / n * 100 : 0}%"></i></div>
+        ${list.length ? `<div class="lx-stt">${Object.keys(LX_ST).map((k) => `<span class="lx-pill st-${k}">${LX_ST[k]} · ${s.by[k]}</span>`).join('')}</div>` : ''}
+        ${top.length ? `<h3 class="sec-title">Theo khách hàng</h3><div class="lx-list">${top.map(([k, o]) => `<div><span>${esc(k)}</span><b>${o.n} lịch · ${lxTan(o.kg)} tấn</b></div>`).join('')}</div>` : ''}
+        <h3 class="sec-title">Lịch sử các tháng</h3><div class="lx-list">${hs.length ? hs.map((h) => `<button type="button" class="lx-hrow${h.m === m ? ' is-on' : ''}" data-lxgo="${h.m}"><span>${lxVnM(h.m)}</span><b>${h.n} lịch · ${lxTan(h.kg)} tấn ›</b></button>`).join('') : '<p class="lx-none">Chưa có tháng nào.</p>'}</div>`;
+    }
+    box.innerHTML = head + body;
+    if (lxUi.seg === 'cal' && !lxUi.scrolled && $('lxToday')) { lxUi.scrolled = true; $('lxToday').scrollIntoView({ block: 'center' }); }
+  }
+
   // ------------------------------------------------------------------ sự kiện
   document.querySelector('.tabbar').addEventListener('click', (e) => {
     const b = e.target.closest('.tab');
@@ -3367,7 +3471,14 @@
     if (b.dataset.tab === 'phieu' && state.cart && state.cart.items.length) state.phieuSeg = 'soan';
     switchTab(b.dataset.tab);
   });
-  $('refreshBtn').addEventListener('click', () => { if (state.tab === 'baocao') loadReports(true); else refresh(); });
+  $('refreshBtn').addEventListener('click', () => { if (state.tab === 'baocao') loadReports(true); else if (state.tab === 'lx') loadLx(true); else refresh(); });
+  $('lxBody').addEventListener('click', (e) => {
+    const nv = e.target.closest('[data-lxm]'), sg = e.target.closest('[data-lxseg]'), go = e.target.closest('[data-lxgo]'), ch = e.target.closest('[data-lxid]');
+    if (nv) { lxUi.month = lxShift(lxUi.month, +nv.dataset.lxm); lxUi.scrolled = false; renderLx(); }
+    else if (sg) { lxUi.seg = sg.dataset.lxseg; renderLx(); }
+    else if (go) { lxUi.month = go.dataset.lxgo; renderLx(); }
+    else if (ch) openLxDetail(ch.dataset.lxid);
+  });
   $('bcBody').addEventListener('click', (e) => {
     const b = e.target.closest('[data-rsave],[data-rshare]');
     if (!b) {

@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '3.0 (04/10/2026)';
+  const APP_VERSION = '3.1 (04/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -236,8 +236,9 @@
   const QUYEN_TEXT = { xem: 'Người dùng cấp 1 — chỉ xem tồn kho', xuat: 'Người dùng cấp 2 — xem + tạo phiếu xuất', quanly: 'Quản lý', quantri: 'Quản trị' };
   // 4 vai trò (màu chữ ở app.css: .role-xem vàng · .role-xuat xanh lá · .role-quanly xanh đậm · .role-quantri đỏ)
   const ROLE_SHORT = { xem: 'Người dùng · cấp 1', xuat: 'Người dùng · cấp 2', quanly: 'Quản lý', quantri: 'Quản trị' };
-  // Quản lý người dùng (Cài đặt → Quản lý người dùng): mã APP_TOKEN chung (state.me = null) hoặc tài khoản Quản trị.
-  const canManage = () => !state.me || !!state.me.quanTri;
+  // Quản lý người dùng (Cài đặt → Quản lý người dùng): mã APP_TOKEN chung (state.me = null), tài khoản Quản trị, hoặc Quản lý được cấp quyền Tài khoản
+  // (state.me.canPq do Web App tính — cùng luật với app PC; Quản lý chỉ tạo / sửa / xóa được người dùng cấp 1 & 2).
+  const canManage = () => !state.me || !!state.me.quanTri || !!state.me.canPq;
   function applyPerms() {
     SOURCES = ALL_SOURCES.filter((k) => !HIDDEN_SOURCES.includes(k) && canView(k));
     // Kho không còn quyền: bỏ số liệu đã lưu trên máy (không cho xem bản cũ).
@@ -3178,10 +3179,27 @@
 
 
   // ------------------------------------------------------------------ quản lý người dùng (lệnh pq.* của Web App)
+  // 3.1 (PC 7.43): ĐẦY ĐỦ như app PC — 4 vai trò, kho điện thoại + module PC từng người, cấp bậc (không xem mã / sửa / xóa người cùng cấp hoặc cao hơn),
+  // Quản lý được cấp quyền Tài khoản, Quản trị tự bỏ tick module / kho. Luật kiểm tra thật nằm ở Web App (Code.gs › pqSave_) — nơi này chỉ khóa ô cho dễ dùng.
   const PQ_KHO = [['M01', 'Tồn kho An An'], ['M01VT', 'Tồn theo vị trí'], ['M01VTB', 'Vị trí Bột'], ['M02', 'Tồn kho gửi'],
     ['M08', 'Tra cứu kháng sinh'], ['BC01', 'Báo cáo Tồn kho An An'], ['BC02', 'Báo cáo Tồn kho gửi'], ['LX', 'Lịch xuất nhập hàng'],
     ['M03', 'NXT Bột/Sốt'], ['M04', 'NXT TNK/TGC']];
+  // Module mở được trên app PC + quyền riêng từng mục Cài đặt — GIỐNG PQ_PC (main.js) / PC (tai-khoan.js)
+  const PQ_PC = [['M01', '01 · Tồn An An'], ['M01VT', '01 · Tồn theo vị trí'], ['M01VTB', '01 · Vị trí bột'], ['M02', '02 · Tồn Kho Gửi'],
+    ['M03', '03 · NXT Bột/Sốt'], ['M04', '04 · NXT TNK/TGC'], ['M05', '05 · Đối Chiếu Số Liệu'], ['M06', '06 · In Chứng Từ Kho'],
+    ['M07', '07 · Đối Chiếu Cuối Kỳ'], ['M08', '08 · Tổng Hợp'], ['M09', '09 · Phiếu Xuất Toàn Hệ Thống'],
+    ['CD_SAOLUU', 'Cài đặt › Sao lưu Drive (toàn quyền)'], ['CD_KHOIPHUC', 'Cài đặt › Khôi phục Drive'], ['CD_DONGBO', 'Cài đặt › Đồng bộ điện thoại'],
+    ['TAIKHOAN', 'Cài đặt › Tài khoản (quản lý người dùng)']];
+  const PQ_FIXED_PC = ['CD_SAOLUU', 'CD_KHOIPHUC', 'CD_DONGBO', 'TAIKHOAN']; // Quản trị luôn có — không tự khóa mình khỏi Cài đặt / Tài khoản
+  const PQ_KHO2PC = { M01: 'M01', M01VT: 'M01VT', M01VTB: 'M01VTB', BC01: 'M01', M02: 'M02', BC02: 'M02', M03: 'M03', M04: 'M04', M08: 'M08' };
   const PQ_QUYEN = { xem: 'Người dùng cấp 1', xuat: 'Người dùng cấp 2', quanly: 'Quản lý', quantri: 'Quản trị' };
+  const PQ_ROLE_OPT = { xem: 'Người dùng cấp 1 — chỉ xem', xuat: 'Người dùng cấp 2 — xem + tạo phiếu xuất', quanly: 'Quản lý — + sửa / xóa mọi phiếu', quantri: 'Quản trị — toàn quyền (chỉ admin tạo được)' };
+  const PQ_ROLE_HINT = {
+    xem: 'Cấp 1: chỉ XEM dữ liệu trong kho / module được cấp. Không có mục Cài đặt nào trên PC.',
+    xuat: 'Cấp 2: XEM + tạo / xuất phiếu (sửa, xóa phiếu của chính mình). Không có mục Cài đặt nào trên PC.',
+    quanly: 'Quản lý: sửa / xóa mọi phiếu trong kho được dùng. Trên PC có Cài đặt theo ô được tick; ô "Tài khoản" chỉ Quản trị / admin tick được — khi có, Quản lý tạo / sửa / xóa được người dùng cấp 1 & 2 (kể cả trên điện thoại).',
+    quantri: 'Quản trị: toàn quyền như admin. Được bỏ tick module PC / kho không dùng (tick lại là hiện); các ô Cài đặt (Sao lưu, Khôi phục, Đồng bộ, Tài khoản) luôn bật. Chỉ admin tạo / sửa / xóa Quản trị khác.'
+  };
   const pqNewToken = () => { // 16 ký tự, bỏ ký tự dễ nhầm — dạng K7QD-9MXP-2HTW-RZ4C (giống app PC)
     const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789', buf = new Uint32Array(16);
     crypto.getRandomValues(buf);
@@ -3190,47 +3208,83 @@
   const pqUserId = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').replace(/[^A-Za-z0-9._-]/g, '').toLowerCase().slice(0, 40);
 
   async function openUserAdmin() {
-    let list = [];
+    let list = [], lv = 5; // lv = cấp của người đang đăng nhập: 3 Quản lý · 4 Quản trị · 5 admin (mã chung APP_TOKEN)
     const back = () => openSettings(false);
     const failView = (msg) => {
       openSheet(`<h2>Người dùng &amp; phân quyền</h2><div class="notice err">${esc(msg)}</div><button type="button" class="btn btn-ghost" data-back>Quay lại</button>`);
       $('sheetBody').onclick = (e) => { if (e.target.closest('[data-back]')) back(); };
     };
+    const take = (r) => { list = r.list || []; if (r.me && r.me.lv) lv = r.me.lv; };
     const listView = () => {
       openSheet(`<h2>Người dùng &amp; phân quyền</h2>
-        <p class="lead">Chạm 1 người để sửa quyền / kho / mã. Thay đổi có hiệu lực ngay; app PC tự cập nhật khi mở Cài Đặt → Điện Thoại.</p>
-        ${list.length ? list.map((u, i) => `<button type="button" class="ua-item${u.bat ? '' : ' is-off'}" data-i="${i}"><b>${esc(u.tenHienThi || u.ten)}</b> <span class="ua-id">(${esc(u.ten)})</span><small>${esc(PQ_QUYEN[u.quyen] || u.quyen)} · ${u.kho.length} kho${u.bat ? '' : ' · ĐÃ KHÓA'}</small></button>`).join('') : '<p class="lead">Chưa có người dùng nào.</p>'}
+        <p class="lead">${lv === 3 ? 'Bạn quản lý được người dùng cấp 1 &amp; 2 (chỉ cấp được kho / module bạn có). Dòng mờ 🔒 là cùng cấp hoặc cao hơn — không xem / sửa được.' : 'Chạm 1 người để sửa vai trò / kho / module PC / mã. Dòng 🔒 là cùng cấp hoặc cao hơn bạn. Thay đổi có hiệu lực ngay; app PC tự cập nhật khi mở Cài Đặt → Điện Thoại.'}</p>
+        ${list.length ? list.map((u, i) => `<button type="button" class="ua-item${u.bat ? '' : ' is-off'}${u.khoa ? ' is-lock' : ''}" data-i="${i}"${u.khoa ? ' data-lock="1"' : ''}><b>${esc(u.tenHienThi || u.ten)}</b> <span class="ua-id">(${esc(u.ten)})</span>${u.khoa ? ' 🔒' : ''}<small><span class="role-${esc(u.quyen)}">${esc(PQ_QUYEN[u.quyen] || u.quyen)}</span> · ${u.kho.length} kho · ${(u.pc || []).length} quyền PC${u.bat ? '' : ' · ĐÃ KHÓA'}</small></button>`).join('') : '<p class="lead">Chưa có người dùng nào.</p>'}
         <button type="button" class="btn btn-primary" data-add>➕ Thêm người dùng</button>
         <button type="button" class="btn btn-ghost" data-back>Quay lại</button>`);
       $('sheetBody').onclick = (e) => {
         if (e.target.closest('[data-back]')) { back(); return; }
         if (e.target.closest('[data-add]')) { formView(null); return; }
-        const it = e.target.closest('[data-i]'); if (it) formView(list[Number(it.dataset.i)]);
+        const it = e.target.closest('[data-i]'); if (!it) return;
+        if (it.dataset.lock) { toast('Cùng cấp hoặc cao hơn bạn — không xem / sửa được.', true); return; }
+        formView(list[Number(it.dataset.i)]);
       };
     };
     const formView = (u) => {
       const isNew = !u;
-      const d = u ? { ...u, kho: (u.kho || []).slice() } : { ten: '', tenHienThi: '', token: pqNewToken(), quyen: 'xuat', kho: ['M01', 'M01VT', 'M01VTB', 'M02', 'M08'], bat: true };
-      const self = !!state.me && String(state.me.ten || '').toLowerCase() === String(d.ten).toLowerCase();
-      openSheet(`<h2>${isNew ? 'Thêm người dùng' : esc(d.tenHienThi || d.ten)}</h2>
+      const d = u ? { ...u, kho: (u.kho || []).slice(), pc: (u.pc || []).slice() }
+        : { ten: '', tenHienThi: '', token: pqNewToken(), quyen: 'xuat', kho: ['M01', 'M01VT', 'M01VTB', 'M02', 'M08'], pc: ['M01', 'M01VT', 'M01VTB', 'M02', 'M08'], bat: true };
+      const myName = state.me ? String(state.me.ten || '').toLowerCase() : '';
+      const self = !isNew && !!myName && myName === String(d.ten).toLowerCase();   // Quản trị tự sửa mình: đổi được tên hiển thị, mã, kho, module PC
+      const roles = lv >= 5 ? ['xem', 'xuat', 'quanly', 'quantri'] : (lv === 4 ? ['xem', 'xuat', 'quanly'].concat(self ? ['quantri'] : []) : ['xem', 'xuat']);
+      const myKho = state.me ? (state.me.kho || []) : null, myPc = state.me ? (state.me.pc || []) : null; // Quản lý: chỉ cấp được phần mình có
+      openSheet(`<h2>${isNew ? 'Thêm người dùng' : esc(d.tenHienThi || d.ten)}${self ? ' <small class="ua-id">(tài khoản của bạn)</small>' : ''}</h2>
         <label class="field"><span>Tên hiển thị</span><input type="text" id="uaHien" maxlength="60" value="${esc(d.tenHienThi)}" placeholder="VD: Thắng"></label>
         <label class="field"><span>Tên người dùng (ID đăng nhập)</span><input type="text" id="uaTen" maxlength="40" value="${esc(d.ten)}" ${isNew ? '' : 'readonly'} autocapitalize="none" spellcheck="false" placeholder="VD: thang"><small>Chữ không dấu, số, . _ - — không đổi được sau khi tạo.</small></label>
         <label class="field"><span>Mã truy cập (như mật khẩu)</span><input type="text" id="uaToken" maxlength="64" value="${esc(d.token)}" autocapitalize="none" spellcheck="false" placeholder="Bấm Tạo mã"><small>Đổi mã thì người này phải nhập mã mới trên điện thoại.</small></label>
         <div class="ua-row"><button type="button" class="btn btn-ghost" data-gen>Tạo mã mới</button><button type="button" class="btn btn-ghost" data-copy>Copy mã</button></div>
-        <label class="field"><span>Quyền</span><select id="uaQuyen" class="ua-select">${Object.keys(PQ_QUYEN).map((k) => `<option value="${k}"${d.quyen === k ? ' selected' : ''}>${{ xem: 'Người dùng cấp 1 — chỉ xem tồn kho', xuat: 'Người dùng cấp 2 — xem + tạo phiếu xuất', quanly: 'Quản lý — + sửa / xóa mọi phiếu', quantri: 'Quản trị — + quản lý người dùng (chỉ admin tạo được)' }[k]}</option>`).join('')}</select></label>
-        <div class="field"><span>Kho được dùng</span><div class="ua-kho">${PQ_KHO.map(([k, l]) => `<label><input type="checkbox" data-kho="${k}"${d.kho.includes(k) ? ' checked' : ''}> ${esc(l)}</label>`).join('')}</div></div>
-        <div class="ua-kho ua-bat"><label><input type="checkbox" id="uaBat"${d.bat ? ' checked' : ''}> Đang hoạt động (bỏ tick = khóa)</label></div>
+        <label class="field"><span>Vai trò</span><select id="uaQuyen" class="ua-select"${self ? ' disabled' : ''}>${roles.map((k) => `<option value="${k}"${d.quyen === k ? ' selected' : ''}>${esc(PQ_ROLE_OPT[k])}</option>`).join('')}</select><small id="uaHint"></small></label>
+        <div class="field"><span>Kho điện thoại — được xem / dùng</span><div class="ua-kho">${PQ_KHO.map(([k, l]) => `<label><input type="checkbox" data-kho="${k}"${d.kho.includes(k) ? ' checked' : ''}> ${esc(l)}</label>`).join('')}</div></div>
+        <div class="field"><span>Quyền trên PC — module được mở</span>
+          <div class="ua-row ua-row-tight"><button type="button" class="btn btn-ghost" data-pcfromkho>Lấy theo kho điện thoại</button></div>
+          <div class="ua-kho">${PQ_PC.map(([k, l]) => `<label><input type="checkbox" data-pc="${k}"${d.pc.includes(k) ? ' checked' : ''}> ${esc(l)}</label>`).join('')}</div></div>
+        <div class="ua-kho ua-bat"><label><input type="checkbox" id="uaBat"${d.bat ? ' checked' : ''}${self ? ' disabled' : ''}> Đang hoạt động (bỏ tick = khóa)</label></div>
         <div class="notice" id="uaMsg" hidden></div>
         <button type="button" class="btn btn-primary" data-save>Lưu</button>
         ${isNew || self ? '' : '<button type="button" class="btn btn-danger" data-del>Xóa người dùng</button>'}
         <button type="button" class="btn btn-ghost" data-cancel>Hủy</button>`);
-      let tenTouched = !isNew;
+      let tenTouched = !isNew, lastRole = isNew ? '' : d.quyen;
       const msg = (t) => { const m = $('uaMsg'); m.className = 'notice err'; m.textContent = t; m.hidden = false; };
+      const boxes = (attr) => Array.from($('sheetBody').querySelectorAll(`[data-${attr}]`));
+      // Khóa / tick ô theo vai trò — GIỐNG applyRoleRules() của trang Tài khoản trên PC.
+      const applyRules = () => {
+        const r = $('uaQuyen').value;
+        $('uaHint').textContent = PQ_ROLE_HINT[r] || '';
+        boxes('kho').forEach((c) => {
+          c.disabled = false; c.title = '';
+          if (r === 'quantri' && lastRole !== 'quantri') c.checked = true;
+          if (lv === 3 && myKho && !myKho.includes(c.dataset.kho)) { c.disabled = true; c.title = 'Ngoài quyền của bạn — không cấp được'; }
+        });
+        boxes('pc').forEach((c) => {
+          const k = c.dataset.pc, fixed = PQ_FIXED_PC.includes(k), cd = k !== 'TAIKHOAN' && fixed;
+          c.disabled = false; c.title = '';
+          if (r === 'quantri') {
+            if (fixed) { c.checked = true; c.disabled = true; c.title = 'Quản trị luôn có quyền này (không ẩn được)'; }
+            else if (lastRole !== 'quantri') c.checked = true;
+          } else if (k === 'TAIKHOAN') {
+            if (r === 'quanly' && lv >= 4) c.title = 'Cho phép Quản lý này tạo / sửa / xóa người dùng cấp 1 & 2';
+            else { if (r !== 'quanly') c.checked = false; else c.checked = !!(u && u.quyen === 'quanly' && (u.pc || []).includes('TAIKHOAN')); c.disabled = true; c.title = r === 'quanly' ? 'Chỉ Quản trị / admin chỉ định quyền này' : 'Chỉ vai trò Quản lý hoặc Quản trị'; }
+          } else if (cd && r !== 'quanly') { c.checked = false; c.disabled = true; c.title = 'Cần vai trò Quản lý trở lên'; }
+          if (lv === 3 && !c.disabled && myPc && !myPc.includes(k)) { c.disabled = true; c.title = 'Ngoài quyền của bạn — không cấp được'; }
+        });
+        $('sheetBody').querySelector('[data-pcfromkho]').disabled = false;
+        lastRole = r;
+      };
+      applyRules();
       const run = async (btn, action, extra, okText) => {
         btn.disabled = true;
         try {
           const r = await api(action, extra);
-          list = r.list || [];
+          take(r);
           if (self) { try { await fetchMe(); } catch (e) { /* bỏ qua */ } }
           toast(okText); listView();
         } catch (err) { msg(err.message); btn.disabled = false; }
@@ -3239,11 +3293,17 @@
         if (e.target.id === 'uaTen') tenTouched = true;
         if (e.target.id === 'uaHien' && isNew && !tenTouched) $('uaTen').value = pqUserId(e.target.value);
       };
+      $('sheetBody').onchange = (e) => { if (e.target.id === 'uaQuyen') applyRules(); };
       $('sheetBody').onclick = async (e) => {
         if (e.target.closest('[data-cancel]')) { listView(); return; }
         if (e.target.closest('[data-gen]')) { $('uaToken').value = pqNewToken(); return; }
         if (e.target.closest('[data-copy]')) {
           try { await navigator.clipboard.writeText($('uaToken').value); toast('Đã copy mã.'); } catch (err) { toast('Không copy được — hãy chép tay.', true); }
+          return;
+        }
+        if (e.target.closest('[data-pcfromkho]')) { // module PC theo kho điện thoại đang tick (bỏ qua ô bị khóa)
+          const set = {}; boxes('kho').filter((c) => c.checked).forEach((c) => { if (PQ_KHO2PC[c.dataset.kho]) set[PQ_KHO2PC[c.dataset.kho]] = 1; });
+          boxes('pc').forEach((c) => { if (!c.disabled && !PQ_FIXED_PC.includes(c.dataset.pc)) c.checked = !!set[c.dataset.pc]; });
           return;
         }
         const del = e.target.closest('[data-del]');
@@ -3255,13 +3315,16 @@
         if (!sv) return;
         const ten = $('uaTen').value.trim();
         if (!/^[A-Za-z0-9._-]{1,40}$/.test(ten)) { msg('Tên người dùng: chỉ chữ không dấu, số, . _ - (không dấu cách).'); return; }
-        const kho = Array.from($('sheetBody').querySelectorAll('[data-kho]:checked')).map((c) => c.dataset.kho);
-        if ($('uaBat').checked && !kho.length && !confirm('Chưa chọn kho nào — người này sẽ không xem được gì. Vẫn lưu?')) return;
-        run(sv, 'pq.luu', { u: { ten, tenHienThi: $('uaHien').value.trim(), token: $('uaToken').value.trim(), quyen: $('uaQuyen').value, kho, bat: $('uaBat').checked } }, 'Đã lưu.');
+        const role = $('uaQuyen').value;
+        const kho = boxes('kho').filter((c) => c.checked).map((c) => c.dataset.kho);
+        const pc = boxes('pc').filter((c) => c.checked).map((c) => c.dataset.pc);
+        if (role === 'quantri' && !kho.length) { msg('Tài khoản Quản trị cần giữ ít nhất 1 kho điện thoại.'); return; }
+        if ($('uaBat').checked && role !== 'quantri' && !kho.length && !confirm('Chưa chọn kho nào — người này sẽ không xem được gì trên điện thoại. Vẫn lưu?')) return;
+        run(sv, 'pq.luu', { u: { ten, tenHienThi: $('uaHien').value.trim(), token: $('uaToken').value.trim(), quyen: role, kho, pc, bat: $('uaBat').checked } }, 'Đã lưu.');
       };
     };
     openSheet('<h2>Người dùng &amp; phân quyền</h2><p class="lead">Đang tải…</p>');
-    try { list = (await api('pq.list')).list || []; } catch (err) { failView(err.message); return; }
+    try { take(await api('pq.list')); } catch (err) { failView(err.message); return; }
     listView();
   }
 

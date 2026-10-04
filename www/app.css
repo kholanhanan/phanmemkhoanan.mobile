@@ -681,12 +681,17 @@ body.has-totalbar .multibar { bottom: calc(var(--tabbar-h) + var(--safe-bottom) 
 .ua-item { display: block; width: 100%; margin: 0 0 8px; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--paper); color: var(--ink); text-align: left; font-size: 16px; }
 .ua-item small { display: block; margin-top: 2px; font-size: 13px; color: var(--muted); }
 .ua-item.is-off { opacity: .55; }
+.ua-item.is-lock { opacity: .6; border-style: dashed; }
+.ua-item small .role-xem, .ua-item small .role-xuat, .ua-item small .role-quanly, .ua-item small .role-quantri { font-weight: 600; }
 .ua-id { color: var(--muted); font-size: 14px; }
 .ua-row { display: flex; gap: 8px; margin: -6px 0 14px; }
 .ua-row .btn { flex: 1; margin: 0; }
 .ua-select { width: 100%; min-height: 50px; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--paper); color: var(--ink); font-size: 16px; }
 .ua-kho label { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 16px; }
 .ua-kho input[type=checkbox] { width: 22px; height: 22px; }
+.ua-kho label:has(input:disabled) { opacity: .6; }
+.ua-row-tight { margin: 4px 0 8px; }
+.ua-select + small, #uaHint { display: block; margin-top: 6px; line-height: 1.4; }
 .ua-bat { margin: 0 0 14px; display: block; }
 
 /* Kho › "Tổng" — bảng chi tiết 1 mã (app.js › openTongDetail) */

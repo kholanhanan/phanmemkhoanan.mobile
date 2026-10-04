@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '2.8 (04/10/2026)';
+  const APP_VERSION = '2.9 (04/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -3175,7 +3175,7 @@
 
   // ------------------------------------------------------------------ quản lý người dùng (lệnh pq.* của Web App)
   const PQ_KHO = [['M01', 'Tồn kho An An'], ['M01VT', 'Tồn theo vị trí'], ['M01VTB', 'Vị trí Bột'], ['M02', 'Tồn kho gửi'],
-    ['M08', 'Tra cứu kháng sinh'], ['BC01', 'Báo cáo Tồn kho An An'], ['BC02', 'Báo cáo Tồn kho gửi'], ['LX', 'Lịch xuất container'],
+    ['M08', 'Tra cứu kháng sinh'], ['BC01', 'Báo cáo Tồn kho An An'], ['BC02', 'Báo cáo Tồn kho gửi'], ['LX', 'Lịch xuất nhập hàng'],
     ['M03', 'NXT Bột/Sốt'], ['M04', 'NXT TNK/TGC']];
   const PQ_QUYEN = { xem: 'Người dùng cấp 1', xuat: 'Người dùng cấp 2', quanly: 'Quản lý', quantri: 'Quản trị' };
   const pqNewToken = () => { // 16 ký tự, bỏ ký tự dễ nhầm — dạng K7QD-9MXP-2HTW-RZ4C (giống app PC)
@@ -3365,11 +3365,15 @@
     if (now.length) refresh(now);
   }
 
-  // ------------------------------------------------------------------ LỊCH XUẤT CONTAINER (bản 2.8 — CHỈ XEM)
+  // ------------------------------------------------------------------ LỊCH XUẤT NHẬP HÀNG (bản 2.8 — CHỈ XEM; 2.9: thêm lịch NHẬP)
   // PC (bản 7.31) đẩy tab LichXuat_Cont (lịch của 3 tháng gần nhất trở đi) + LichXuat_Thang (tổng kết MỌI tháng) → lệnh 'lichXuat' của Web App.
   // Quyền: mã 'LX' trong "Kho được dùng". Dữ liệu lưu trên máy: state.lx (IndexedDB, khóa 'lx'); sửa / xóa lịch làm ở PC.
   var lxUi = { month: '', seg: 'cal', loading: false, err: '', scrolled: false };
   const LX_ST = { ok: 'Đã xuất', run: 'Đang đóng hàng', plan: 'Dự kiến', wait: 'Chờ xác nhận' };
+  const LX_STN = { ok: 'Đã nhập', run: 'Đang nhập hàng', plan: 'Dự kiến', wait: 'Chờ xác nhận' }; // lịch NHẬP (PC 7.35)
+  const lxIn = (x) => !!x && x.loai === 'nhap';
+  const lxStl = (x) => (lxIn(x) ? LX_STN : LX_ST)[x.st];
+  const lxRef = (x) => lxIn(x) ? String(x.lsx || '') : lxLabel(x.lsx);
   const LX_DOW = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
   function canLx() { return !state.me || (state.me.kho || []).includes('LX'); }
   const lxPad = (n) => String(n).padStart(2, '0');
@@ -3380,7 +3384,7 @@
   const lxLabel = (v) => /^\s*LSX\b/i.test(String(v || '')) ? String(v).trim() : 'LSX ' + String(v || '').trim();
   function lxObjs(t) { const h = (t && t.headers) || []; return ((t && t.rows) || []).map((r) => { const o = {}; h.forEach((k, i) => { o[k] = r[i]; }); return o; }); }
   function lxCont(o) {
-    return { id: String(o.id || ''), ngay: String(o.ngay || '').slice(0, 10), st: LX_ST[o.trangThai] ? o.trangThai : 'wait', lsx: String(o.lsx || '').trim(), khach: String(o.khach || ''),
+    return { id: String(o.id || ''), loai: o.loai === 'nhap' ? 'nhap' : 'xuat', ngay: String(o.ngay || '').slice(0, 10), st: LX_ST[o.trangThai] ? o.trangThai : 'wait', lsx: String(o.lsx || '').trim(), khach: String(o.khach || ''),
       thiTruong: String(o.thiTruong || ''), matHang: String(o.matHang || ''), ton: Number(o.tonKien) || 0, kg: Number(o.kg) || 0, chiTiet: String(o.chiTiet || ''), canXuat: String(o.canXuat || '') };
   }
   function lxStats(list) {
@@ -3397,7 +3401,7 @@
       const d = await api('lichXuat');
       state.lx = {
         cont: lxObjs(d.cont).map(lxCont).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x.ngay)),
-        thang: lxObjs(d.thang).map((o) => ({ m: String(o.thang || ''), n: Number(o.soLich) || 0, dn: Number(o.daXuat) || 0, kg: Number(o.kg) || 0, kd: Number(o.kgDaXuat) || 0 })).filter((x) => /^\d{4}-\d{2}$/.test(x.m)),
+        thang: lxObjs(d.thang).map((o) => ({ m: String(o.thang || ''), n: Number(o.soLich) || 0, dn: Number(o.daXuat) || 0, kg: Number(o.kg) || 0, kd: Number(o.kgDaXuat) || 0, ni: Number(o.soNhap) || 0, ki: Number(o.kgNhap) || 0 })).filter((x) => /^\d{4}-\d{2}$/.test(x.m)),
         meta: d.meta || {}, at: Date.now()
       };
       store.set('lx', state.lx);
@@ -3419,6 +3423,15 @@
     const x = ((state.lx && state.lx.cont) || []).find((r) => r.id === id); if (!x) return;
     let need = {}; try { need = JSON.parse(x.canXuat || '{}') || {}; } catch (e) { need = {}; }
     const L = lxLines(x), kv = (k, v) => `<div class="lx-kv"><span>${k}</span><b>${v ? esc(v) : '—'}</b></div>`;
+    if (lxIn(x)) { // PC 7.35: lịch nhập — thông tin do PC nhập tay
+      openSheet(`<div class="sheet-grip"></div>
+      <div class="lx-dh"><div><small>Lịch nhập · ${x.ngay.slice(8)}/${x.ngay.slice(5, 7)}/${x.ngay.slice(0, 4)}</small><h3>${esc(lxRef(x) || '—')}</h3></div><span class="lx-pill st-${x.st}">${lxStl(x)}</span></div>
+      ${kv('Nhà cung cấp', x.khach) + kv('Mặt hàng', x.matHang) + kv('Số kiện · Khối lượng', fmt(x.ton) + ' kiện · ' + lxTan(x.kg) + ' tấn')}
+      <p class="lx-note">Chỉ xem trên điện thoại — thêm / sửa / xóa lịch ở máy tính.</p>
+      <button type="button" class="btn btn-ghost" id="lxClose">Đóng</button>`);
+      $('sheetBody').onclick = (e) => { if (e.target.closest('#lxClose')) closeSheet(); };
+      return;
+    }
     const tbl = L.length ? `<div class="lx-tw"><table><thead><tr><th>Loại hàng</th><th>Size</th><th class="r">Tồn (kiện)</th><th class="r">Cần xuất</th></tr></thead><tbody>${L.map((o) => `<tr><td><b>${esc(o.p || '—')}</b></td><td>${esc(o.sz || '—')}</td><td class="r">${fmt(o.ton)}</td><td class="r">${need[o.p + '|' + o.sz] != null ? fmt(need[o.p + '|' + o.sz]) : '—'}</td></tr>`).join('')}</tbody></table></div>` : '';
     openSheet(`<div class="sheet-grip"></div>
       <div class="lx-dh"><div><small>Lịch xuất · ${x.ngay.slice(8)}/${x.ngay.slice(5, 7)}/${x.ngay.slice(0, 4)}</small><h3>${esc(lxLabel(x.lsx))}</h3></div><span class="lx-pill st-${x.st}">${LX_ST[x.st]}</span></div>
@@ -3431,8 +3444,8 @@
     const box = $('lxBody'); if (!box) return;
     if (!lxUi.month) lxUi.month = lxKey(new Date()).slice(0, 7);
     const m = lxUi.month, d = state.lx;
-    if (!d) { box.innerHTML = lxUi.loading ? emptyHtml('Đang tải lịch xuất…', 'Chờ một chút.') : emptyHtml('Chưa có dữ liệu lịch xuất', lxUi.err || 'Bấm ↻ để tải. PC cần bật đẩy "Lịch xuất container" ở Cài Đặt › Điện Thoại.'); return; }
-    const list = d.cont.filter((x) => x.ngay.slice(0, 7) === m), s = lxStats(list), snap = d.thang.find((t) => t.m === m);
+    if (!d) { box.innerHTML = lxUi.loading ? emptyHtml('Đang tải lịch xuất…', 'Chờ một chút.') : emptyHtml('Chưa có dữ liệu lịch xuất', lxUi.err || 'Bấm ↻ để tải. PC cần bật đẩy "Lịch xuất nhập hàng" ở Cài Đặt › Điện Thoại.'); return; }
+    const list = d.cont.filter((x) => x.ngay.slice(0, 7) === m), s = lxStats(list.filter((x) => !lxIn(x))), si = lxStats(list.filter(lxIn)), snap = d.thang.find((t) => t.m === m);
     const head = `<div class="lx-pick"><button type="button" class="lx-nav" data-lxm="-1" aria-label="Tháng trước">‹</button><b>${lxVnM(m)}</b><button type="button" class="lx-nav" data-lxm="1" aria-label="Tháng sau">›</button></div>
       <div class="segmented"><button type="button" class="seg${lxUi.seg === 'cal' ? ' is-on' : ''}" data-lxseg="cal">Lịch</button><button type="button" class="seg${lxUi.seg === 'sum' ? ' is-on' : ''}" data-lxseg="sum">Tổng kết</button></div>
       ${lxUi.err ? `<p class="lx-err">${esc(lxUi.err)} — đang xem bản đã lưu trên máy.</p>` : ''}`;
@@ -3442,22 +3455,23 @@
       if (!list.length && snap) body = emptyHtml('Chi tiết tháng này không còn trên điện thoại', 'Điện thoại giữ lịch chi tiết 3 tháng gần nhất. Xem số liệu ở mục Tổng kết.');
       else {
         for (let i = 1; i <= nd; i++) {
-          const k = m + '-' + lxPad(i), dt = new Date(+m.slice(0, 4), +m.slice(5) - 1, i), its = list.filter((x) => x.ngay === k).sort((a, b) => a.id < b.id ? -1 : 1);
-          body += `<div class="lx-day${k === today ? ' is-today' : ''}${dt.getDay() === 0 || dt.getDay() === 6 ? ' is-we' : ''}"${k === today ? ' id="lxToday"' : ''}><div class="lx-dl"><b>${LX_DOW[dt.getDay()]}</b><span>${lxPad(i)}/${m.slice(5)}</span></div><div class="lx-dc">${its.length ? its.map((x) => `<button type="button" class="lx-chip st-${x.st}" data-lxid="${esc(x.id)}">${esc(lxLabel(x.lsx))}</button>`).join('') : '<span class="lx-e">Chưa có lịch</span>'}</div></div>`;
+          const k = m + '-' + lxPad(i), dt = new Date(+m.slice(0, 4), +m.slice(5) - 1, i), its = list.filter((x) => x.ngay === k).sort((a, b) => (lxIn(a) - lxIn(b)) || (a.id < b.id ? -1 : 1));
+          body += `<div class="lx-day${k === today ? ' is-today' : ''}${dt.getDay() === 0 || dt.getDay() === 6 ? ' is-we' : ''}"${k === today ? ' id="lxToday"' : ''}><div class="lx-dl"><b>${LX_DOW[dt.getDay()]}</b><span>${lxPad(i)}/${m.slice(5)}</span></div><div class="lx-dc">${its.length ? its.map((x) => `<button type="button" class="lx-chip st-${x.st}${lxIn(x) ? ' is-in' : ''}" data-lxid="${esc(x.id)}">${lxIn(x) ? '<i class="lx-tp">NHẬP</i>' : ''}${esc(lxRef(x))}</button>`).join('') : '<span class="lx-e">Chưa có lịch</span>'}</div></div>`;
         }
       }
     } else {
       const n = list.length ? s.n : (snap ? snap.n : 0), dn = list.length ? s.dn : (snap ? snap.dn : 0), kg = list.length ? s.kg : (snap ? snap.kg : 0), kd = list.length ? s.kd : (snap ? snap.kd : 0);
-      const kh = new Map(); list.forEach((x) => { const k = x.khach || '(chưa dò được khách)', o = kh.get(k) || { n: 0, kg: 0 }; o.n++; o.kg += x.kg; kh.set(k, o); });
-      const top = Array.from(kh.entries()).sort((a, b) => b[1].kg - a[1].kg).slice(0, 10);
+      const kh = new Map(); list.forEach((x) => { const nm = x.khach || (lxIn(x) ? '(chưa ghi nhà cung cấp)' : '(chưa dò được khách)'), k = (lxIn(x) ? 'N|' : 'X|') + nm, o = kh.get(k) || { n: 0, kg: 0, nm, inn: lxIn(x) }; o.n++; o.kg += x.kg; kh.set(k, o); });
+      const top = Array.from(kh.values()).sort((a, b) => (a.inn - b.inn) || b.kg - a.kg).slice(0, 12);
       const g = new Map(); d.cont.forEach((x) => { const k = x.ngay.slice(0, 7); if (!g.has(k)) g.set(k, []); g.get(k).push(x); });
-      const hist = new Map(); d.thang.forEach((t) => hist.set(t.m, t)); g.forEach((l, k) => { const t = lxStats(l); hist.set(k, { m: k, n: t.n, dn: t.dn, kg: t.kg, kd: t.kd }); });
+      const hist = new Map(); d.thang.forEach((t) => hist.set(t.m, t)); g.forEach((l, k) => { const t = lxStats(l.filter((x) => !lxIn(x))), u = lxStats(l.filter(lxIn)); hist.set(k, { m: k, n: t.n, dn: t.dn, kg: t.kg, kd: t.kd, ni: u.n, ki: u.kg }); });
       const hs = Array.from(hist.values()).sort((a, b) => a.m < b.m ? 1 : -1);
-      body = `<div class="lx-k"><div><small>Tổng lịch</small><b>${n}</b></div><div><small>Tổng khối lượng</small><b>${lxTan(kg)} <em>tấn</em></b></div><div><small>Đã xuất</small><b>${dn} <em>· ${lxTan(kd)} tấn</em></b></div><div><small>Còn phải xuất</small><b>${n - dn} <em>· ${lxTan(kg - kd)} tấn</em></b></div></div>
+      body = `<div class="lx-k"><div><small>Lịch xuất</small><b>${n}</b></div><div><small>Khối lượng xuất</small><b>${lxTan(kg)} <em>tấn</em></b></div><div><small>Đã xuất</small><b>${dn} <em>· ${lxTan(kd)} tấn</em></b></div><div><small>Còn phải xuất</small><b>${n - dn} <em>· ${lxTan(kg - kd)} tấn</em></b></div></div>
+        ${si.n ? `<div class="lx-k"><div><small>Lịch nhập</small><b>${si.n}</b></div><div><small>Khối lượng nhập</small><b>${lxTan(si.kg)} <em>tấn</em></b></div><div><small>Đã nhập</small><b>${si.dn} <em>· ${lxTan(si.kd)} tấn</em></b></div><div><small>Còn phải nhập</small><b>${si.n - si.dn} <em>· ${lxTan(si.kg - si.kd)} tấn</em></b></div></div>` : ''}
         <div class="lx-bar"><i style="width:${n ? dn / n * 100 : 0}%"></i></div>
         ${list.length ? `<div class="lx-stt">${Object.keys(LX_ST).map((k) => `<span class="lx-pill st-${k}">${LX_ST[k]} · ${s.by[k]}</span>`).join('')}</div>` : ''}
-        ${top.length ? `<h3 class="sec-title">Theo khách hàng</h3><div class="lx-list">${top.map(([k, o]) => `<div><span>${esc(k)}</span><b>${o.n} lịch · ${lxTan(o.kg)} tấn</b></div>`).join('')}</div>` : ''}
-        <h3 class="sec-title">Lịch sử các tháng</h3><div class="lx-list">${hs.length ? hs.map((h) => `<button type="button" class="lx-hrow${h.m === m ? ' is-on' : ''}" data-lxgo="${h.m}"><span>${lxVnM(h.m)}</span><b>${h.n} lịch · ${lxTan(h.kg)} tấn ›</b></button>`).join('') : '<p class="lx-none">Chưa có tháng nào.</p>'}</div>`;
+        ${top.length ? `<h3 class="sec-title">Theo khách hàng / nhà cung cấp</h3><div class="lx-list">${top.map((o) => `<div><span>${o.inn ? '<i class="lx-tp">NHẬP</i> ' : ''}${esc(o.nm)}</span><b>${o.n} lịch · ${lxTan(o.kg)} tấn</b></div>`).join('')}</div>` : ''}
+        <h3 class="sec-title">Lịch sử các tháng</h3><div class="lx-list">${hs.length ? hs.map((h) => `<button type="button" class="lx-hrow${h.m === m ? ' is-on' : ''}" data-lxgo="${h.m}"><span>${lxVnM(h.m)}</span><b>${h.n} xuất · ${lxTan(h.kg)} tấn${h.ni ? ` · ${h.ni} nhập · ${lxTan(h.ki)} tấn` : ''} ›</b></button>`).join('') : '<p class="lx-none">Chưa có tháng nào.</p>'}</div>`;
     }
     box.innerHTML = head + body;
     if (lxUi.seg === 'cal' && !lxUi.scrolled && $('lxToday')) { lxUi.scrolled = true; $('lxToday').scrollIntoView({ block: 'center' }); }

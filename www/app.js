@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '3.7 (05/10/2026)';
+  const APP_VERSION = '3.8 (05/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -1580,6 +1580,14 @@
     const body = $('m8Body');
     const D = ksData();
     const src = M8.fromPc ? '' : `<p class="ks-note">Đang dùng bảng quy định mặc định (${fmt(D.rules.length)} trường hợp). Quy định thêm/sửa trên PC sẽ hiện ở đây sau khi PC đồng bộ “Tổng hợp (M08)”.</p>`;
+    // CHỐNG NGẮT KHI GÕ: dữ liệu tự cập nhật gọi lại renderM8 → trước đây dựng lại cả ô nhập (mất focus, tụt bàn phím, đứt dấu Telex).
+    // Khung đã dựng đúng chế độ → chỉ làm mới danh sách / kết quả / ghi chú, giữ nguyên ô đang gõ.
+    if (body.dataset.built === M8.ks && body.firstElementChild) {
+      const sn = $('ksSrc'); if (sn) sn.innerHTML = src;
+      if (M8.ks === 'lookup') renderKsResult(); else if (M8.ks === 'rules') renderKsRules(); else renderKsHist();
+      return;
+    }
+    body.dataset.built = M8.ks;
     if (M8.ks === 'lookup') {
       body.innerHTML = `<div class="ks-card">
           <div class="ks-head"><b>Nhập kết quả kiểm</b><button type="button" class="linkbtn" id="ksClear">Xóa hết</button></div>
@@ -1587,14 +1595,14 @@
           <div class="ks-grid">${KS_FIELDS.map((f) => `<label class="ks-in"><span>${f.label}</span>
             <input type="text" inputmode="decimal" data-ksf="${f.key}" value="${esc(M8.inp[f.key] || '')}" placeholder="ND" autocomplete="off"></label>`).join('')}</div>
         </div>
-        <div id="ksResult"></div>${src}`;
+        <div id="ksResult"></div><div id="ksSrc">${src}</div>`;
       renderKsResult();
       return;
     }
     if (M8.ks === 'rules') {
       body.innerHTML = `<div class="search-row"><input type="search" class="search" id="ksRuleQ" placeholder="Tìm ký hiệu, thị trường, mô tả (VD 63, EU, Sul<10)" value="${esc(M8.q)}" autocomplete="off"></div>
         <div class="ks-chips">${['', ...KS_MARKETS, 'KĐ'].map((m) => `<button type="button" data-ksmk="${m}" class="${M8.mk === m ? 'is-on' : ''}">${m === '' ? 'Tất cả' : m === 'KĐ' ? 'Không đạt' : m}</button>`).join('')}</div>
-        <div id="ksList"></div>${src}`;
+        <div id="ksList"></div><div id="ksSrc">${src}</div>`;
       renderKsRules();
       return;
     }
@@ -3790,7 +3798,7 @@
     M8.ks = b.dataset.ks; save('klanan.ksTab', M8.ks); M8.limit = PAGE; renderM8();
   });
   $('m8Body').addEventListener('click', (e) => {
-    if (e.target.id === 'ksClear') { M8.inp = {}; save('klanan.ksInput', M8.inp); renderM8(); return; }
+    if (e.target.id === 'ksClear') { M8.inp = {}; save('klanan.ksInput', M8.inp); $('m8Body').dataset.built = ''; renderM8(); return; }
     if (e.target.id === 'ksMore') { M8.limit += PAGE; M8.ks === 'rules' ? renderKsRules() : renderKsHist(); return; }
     const mk = e.target.closest('[data-ksmk]');
     if (mk) { M8.mk = mk.dataset.ksmk; M8.limit = PAGE; document.querySelectorAll('[data-ksmk]').forEach((b) => b.classList.toggle('is-on', b === mk)); renderKsRules(); }

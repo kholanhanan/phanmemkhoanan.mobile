@@ -428,15 +428,6 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .home-search svg { flex: 0 0 auto; width: 20px; height: 20px; }
 .hsec { margin: 22px 2px 10px; font-size: 15px; font-weight: 700; color: var(--ink); display: flex; justify-content: space-between; align-items: baseline; }
 .hsec small { font-weight: 500; font-size: 12.5px; color: var(--muted); }
-.todo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: var(--paper); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
-.todo { border: 0; border-right: 1px solid var(--line); background: transparent; padding: 12px 14px; text-align: left; display: flex; flex-direction: column; gap: 3px; min-height: 76px; color: var(--ink); }
-.todo:last-child { border-right: 0; }
-.todo:active { background: var(--cobalt-soft); }
-.todo b { font-size: 26px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.todo span { font-size: 12.5px; line-height: 1.3; font-weight: 600; color: var(--muted); }
-.todo.t-soan b { color: var(--cobalt); }
-.todo.t-cho b { color: var(--amber); }
-.todo.t-nhan b { color: var(--green); }
 .kho-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .kho-tile { border: 1px solid var(--line); background: var(--paper); border-radius: 14px; padding: 12px 14px; text-align: left;
   display: flex; flex-direction: column; gap: 3px; min-height: 96px; color: var(--ink); }
@@ -447,10 +438,6 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .kho-tile .kt-num small { font-size: 12px; font-weight: 500; color: var(--muted); }
 .kho-tile .kt-sub { font-size: 12.5px; color: var(--muted); }
 .kho-tile.is-empty .kt-num { font-size: 14px; font-weight: 600; color: var(--muted); }
-.kho-tile.kt-tracuu { grid-column: 1 / -1; display: grid; grid-template-columns: 40px 1fr; grid-template-rows: auto auto; column-gap: 12px; row-gap: 1px;
-  align-items: center; min-height: 0; padding: 12px 14px; }
-.kho-tile.kt-tracuu svg { grid-row: 1 / 3; width: 40px; height: 40px; padding: 9px; box-sizing: border-box; border-radius: 10px; background: var(--cobalt-soft); color: var(--cobalt); }
-.kho-tile.kt-tracuu b { font-size: 15px; }
 .pill { align-self: flex-start; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
 .pill.wait { color: var(--amber); background: var(--amber-soft); }
 .pill.soan { color: var(--cobalt); background: var(--cobalt-soft); }
@@ -810,5 +797,15 @@ body.has-totalbar .multibar { bottom: calc(var(--tabbar-h) + var(--safe-bottom) 
 .lxt-main b { font-size: 14.5px; font-weight: 700; overflow-wrap: anywhere; }
 .lxt-main small { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
 .lxt-row .lx-pill { flex: 0 0 auto; white-space: nowrap; }
+.lxt-nav { display: flex; align-items: center; gap: 8px; padding: 0 14px 12px; }
+.lxt-step { flex: 0 0 auto; width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); color: var(--ink); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.lxt-step svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.lxt-step:active { background: var(--cobalt-soft); }
+.lxt-pick { position: relative; flex: 1 1 auto; min-width: 0; height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--chip-bg); color: var(--ink); font-size: 14px; font-weight: 600; overflow: hidden; cursor: pointer; }
+.lxt-pick svg { width: 18px; height: 18px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; color: var(--cobalt); }
+.lxt-pick span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lxt-pick input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; margin: 0; font-size: 16px; }
+.lxt-today { flex: 0 0 auto; height: 44px; padding: 0 14px; border: 0; border-radius: 12px; background: var(--cobalt); color: var(--on-cobalt); font-size: 14px; font-weight: 700; cursor: pointer; }
+.lxt-today:active { opacity: .85; }
 .lxt-empty { margin: 0; padding: 14px; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--muted); }
 .lxt-err { margin: 0; padding: 8px 14px 10px; border-top: 1px solid var(--line); }

@@ -33,7 +33,7 @@
   </header>
 
   <main id="main">
-    <!-- TRANG CHỦ: tìm mã trong mọi kho, việc cần làm, các kho (kho ẩn/hiện theo phân quyền — xem HIDDEN_SOURCES, applyPerms trong app.js) -->
+    <!-- TRANG CHỦ: tìm mã trong mọi kho, lịch xuất nhập, các kho (kho ẩn/hiện theo phân quyền — xem HIDDEN_SOURCES, applyPerms trong app.js) -->
     <section class="view" id="view-home" data-view="home" hidden>
       <div class="search-row" id="homeSearchRow">
         <label class="home-search">
@@ -43,10 +43,8 @@
       </div>
       <div id="homeResults"></div>
       <div id="homeMain">
-        <!-- Thứ tự (bản 3.0): lịch xuất nhập HÔM NAY → việc cần làm (phiếu) → các kho. renderHome() / renderHomeLx() trong app.js. -->
+        <!-- Thứ tự (bản 3.7): lịch xuất nhập (mặc định HÔM NAY, chọn được ngày khác) → các kho. (Việc cần làm / Tra cứu kháng sinh đã có tab riêng nên không còn ở Trang chủ.) renderHome() / renderHomeLx() trong app.js. -->
         <div id="homeLx" hidden></div>
-        <h3 class="hsec" id="homeTodoTitle">Việc cần làm</h3>
-        <div class="todo-grid" id="homeTodo"></div>
         <h3 class="hsec" id="homeKhoTitle">Kho <small>chạm để xem &amp; xuất</small></h3>
         <div class="kho-grid" id="homeKho"></div>
       </div>

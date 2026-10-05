@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '3.6 (04/10/2026)';
+  const APP_VERSION = '3.7 (05/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -2200,17 +2200,10 @@
     return `<span class="kt-age ${tone}" title="${esc(tip)}"><i></i>${esc(m[1].padStart(2, '0') + '/' + m[2].padStart(2, '0'))} · ${esc(ago)}</span>`;
   }
   function renderHome() {
-    const g = phieuGroups();
     renderHomeLx();
     const hasKho = SOURCES.length > 0;
     $('homeSearchRow').hidden = !hasKho; // chỉ có quyền Lịch xuất / Tra cứu: không có kho để tìm mã
     $('homeKhoTitle').hidden = !hasKho;
-    const soan = state.cart && state.cart.items.length ? state.cart.items.length : 0;
-    $('homeTodoTitle').hidden = $('homeTodo').hidden = !(hasKho && canCreate()); // token chỉ xem: không có việc phiếu
-    $('homeTodo').innerHTML = `
-      <button type="button" class="todo t-soan" data-goseg="soan"><b>${fmt(soan)}</b><span>${soan ? 'dòng đang soạn' : 'Phiếu đang soạn'}</span></button>
-      <button type="button" class="todo t-cho" data-goseg="cho"><b>${fmt(g.cho.length)}</b><span>Chờ PC nhận</span></button>
-      <button type="button" class="todo t-nhan" data-goseg="nhan"><b>${fmt(g.nhanHomNay)}</b><span>PC nhận hôm nay</span></button>`;
     $('homeKho').innerHTML = SOURCES.map((k) => {
       const m = khoSummary(k);
       return `<button type="button" class="kho-tile${m.loaded ? '' : ' is-empty'}" data-kho="${k}">
@@ -2220,9 +2213,7 @@
           : '<span class="kt-num">Chưa tải</span><span class="kt-sub">chạm để mở kho</span>'}
         ${m.cho ? `<span class="pill wait">${fmt(m.cho)} dòng chờ PC</span>` : ''}
       </button>`;
-    }).join('') + `<button type="button" class="kho-tile kt-tracuu" data-gotab="m8"${canView('m08') ? '' : ' hidden'}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-        <b>Tra cứu kháng sinh</b><span class="kt-sub">Kiểm tra kết quả · Quy định · Lô đã kiểm</span></button>`;
+    }).join('');
     renderHomeSearch();
   }
   // Tổng số lượng + KL của 1 tập dòng [kho, dòng] (Trang chủ › tìm, Kho › Tổng):
@@ -3434,12 +3425,12 @@
     if (now.length) refresh(now);
   }
 
-  // ------------------------------------------------------------------ LỊCH XUẤT NHẬP HÀNG (bản 2.8 — CHỈ XEM; 2.9: thêm lịch NHẬP; 3.0: CHỈ HIỆN HÔM NAY ở Trang chủ)
+  // ------------------------------------------------------------------ LỊCH XUẤT NHẬP HÀNG (bản 2.8 — CHỈ XEM; 2.9: thêm lịch NHẬP; 3.0: hiện HÔM NAY ở Trang chủ; 3.7: chọn được ngày khác)
   // PC (bản 7.31) đẩy tab LichXuat_Cont (lịch của 3 tháng gần nhất trở đi) + LichXuat_Thang → lệnh 'lichXuat' của Web App.
   // Bản 3.0: bỏ tab "Lịch xuất" (lịch tháng / tổng kết / lịch sử) — điện thoại chỉ cần lịch của NGÀY HIỆN TẠI, vẽ ở thẻ "Hôm nay"
   // đầu Trang chủ (renderHomeLx → #homeLx). Muốn xem tháng / tổng kết thì dùng PC.
   // Quyền: mã 'LX' trong "Kho được dùng". Dữ liệu lưu trên máy: state.lx (IndexedDB, khóa 'lx'); sửa / xóa lịch làm ở PC.
-  var lxUi = { loading: false, err: '', day: '' }; // day = ngày (yyyy-mm-dd) của lần vẽ thẻ "Hôm nay" gần nhất — để tự đổi ngày khi qua 0 giờ
+  var lxUi = { loading: false, err: '', day: '', sel: '' }; // day = ngày (yyyy-mm-dd) của lần vẽ thẻ "Hôm nay" gần nhất — để tự đổi ngày khi qua 0 giờ
   const LX_ST = { ok: 'Đã xuất', run: 'Đang đóng hàng', plan: 'Dự kiến', wait: 'Chờ xác nhận' };
   const LX_STN = { ok: 'Đã nhập', run: 'Đang nhập hàng', plan: 'Dự kiến', wait: 'Chờ xác nhận' }; // lịch NHẬP (PC 7.35)
   const lxIn = (x) => !!x && x.loai === 'nhap';
@@ -3503,12 +3494,22 @@
       <button type="button" class="btn btn-ghost" id="lxClose">Đóng</button>`);
     $('sheetBody').onclick = (e) => { if (e.target.closest('#lxClose')) closeSheet(); };
   }
-  // Thẻ "Lịch xuất nhập hôm nay" ở đầu Trang chủ — CHỈ ngày hiện tại (giờ máy), không có điều hướng sang ngày / tháng khác.
+  // Thẻ "Lịch xuất nhập" ở đầu Trang chủ — mặc định ngày HÔM NAY (giờ máy). Bản 3.7: chọn được ngày khác
+  // (nút ‹ › đổi từng ngày, chạm ô ngày để chọn trên lịch, nút "Hôm nay" quay về). lxUi.sel = '' nghĩa là đang xem hôm nay.
+  function lxParse(k) { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(k || ''); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(); }
+  function lxGo(key) { // key rỗng / trùng hôm nay → về "Hôm nay"
+    lxUi.sel = (/^\d{4}-\d{2}-\d{2}$/.test(key) && key !== lxKey(new Date())) ? key : '';
+    renderHomeLx();
+  }
+  function lxShift(n) { const t = lxParse(lxUi.sel || lxKey(new Date())); t.setDate(t.getDate() + n); lxGo(lxKey(t)); }
   function renderHomeLx() {
     const box = $('homeLx'); if (!box) return;
     if (!canLx()) { box.hidden = true; box.innerHTML = ''; return; }
-    const now = new Date(), key = lxKey(now), d = state.lx;
-    lxUi.day = key; box.hidden = false;
+    const todayKey = lxKey(new Date()), d = state.lx;
+    if (lxUi.sel === todayKey) lxUi.sel = ''; // qua 0 giờ đúng vào ngày đang xem → tự về "Hôm nay"
+    const key = lxUi.sel || todayKey, isToday = key === todayKey, now = lxParse(key);
+    const dmy = lxPad(now.getDate()) + '/' + lxPad(now.getMonth() + 1) + '/' + now.getFullYear();
+    lxUi.day = todayKey; box.hidden = false;
     const its = d ? d.cont.filter((x) => x.ngay === key).sort((a, b) => (lxIn(a) - lxIn(b)) || (a.id < b.id ? -1 : 1)) : [];
     const row = (x) => {
       const sub = [x.khach, x.kg ? lxTan(x.kg) + ' tấn' : ''].filter(Boolean).join(' · ');
@@ -3519,13 +3520,23 @@
     };
     let body;
     if (its.length) body = `<div class="lxt-list">${its.map(row).join('')}</div>`;
-    else if (d) body = '<p class="lxt-empty">Hôm nay chưa có lịch xuất hoặc nhập.</p>';
+    else if (d) body = `<p class="lxt-empty">${isToday ? 'Hôm nay' : 'Ngày ' + dmy} chưa có lịch xuất hoặc nhập.</p>`;
     else body = `<p class="lxt-empty">${lxUi.loading ? 'Đang tải lịch…' : esc(lxUi.err || 'Chưa có dữ liệu lịch — bấm ↻ để tải.')}</p>`;
-    box.innerHTML = `<section class="lxt" aria-label="Lịch xuất nhập hôm nay">
+    box.innerHTML = `<section class="lxt" aria-label="Lịch xuất nhập ${isToday ? 'hôm nay' : 'ngày ' + dmy}">
       <div class="lxt-head">
         <div class="lxt-leaf" aria-hidden="true"><i>Th${now.getMonth() + 1}</i><b>${lxPad(now.getDate())}</b></div>
-        <div class="lxt-title"><b>Lịch xuất nhập hôm nay</b><span>${LX_THU[now.getDay()]}, ${lxPad(now.getDate())}/${lxPad(now.getMonth() + 1)}/${now.getFullYear()}</span></div>
+        <div class="lxt-title"><b>${isToday ? 'Lịch xuất nhập hôm nay' : 'Lịch xuất nhập'}</b><span>${LX_THU[now.getDay()]}, ${dmy}</span></div>
         ${its.length ? `<span class="lxt-count">${its.length} lịch</span>` : ''}
+      </div>
+      <div class="lxt-nav">
+        <button type="button" class="lxt-step" data-lxgo="-1" aria-label="Ngày trước"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <label class="lxt-pick" title="Chọn ngày xem lịch">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+          <span>${isToday ? 'Chọn ngày khác' : 'Đổi ngày'}</span>
+          <input type="date" id="lxPickDate" value="${key}" aria-label="Chọn ngày xem lịch xuất nhập">
+        </label>
+        <button type="button" class="lxt-step" data-lxgo="1" aria-label="Ngày sau"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+        ${isToday ? '' : '<button type="button" class="lxt-today" data-lxgo="today">Hôm nay</button>'}
       </div>
       ${body}
       ${d && lxUi.err ? '<p class="lx-err lxt-err">Không tải được bản mới — đang xem bản đã lưu trên máy.</p>' : ''}
@@ -3549,9 +3560,12 @@
   });
   $('refreshBtn').addEventListener('click', () => { if (state.tab === 'baocao') loadReports(true); else { if (state.tab === 'home') loadLx(true); refresh(); } });
   $('homeLx').addEventListener('click', (e) => {
+    const go = e.target.closest('[data-lxgo]');
+    if (go) { go.dataset.lxgo === 'today' ? lxGo('') : lxShift(+go.dataset.lxgo); return; }
     const ch = e.target.closest('[data-lxid]');
     if (ch) openLxDetail(ch.dataset.lxid);
   });
+  $('homeLx').addEventListener('change', (e) => { if (e.target.id === 'lxPickDate') lxGo(e.target.value); });
   $('bcBody').addEventListener('click', (e) => {
     const b = e.target.closest('[data-rsave],[data-rshare]');
     if (!b) {
@@ -3714,14 +3728,7 @@
   $('khoPicker').addEventListener('click', openKhoPicker);
   $('homeKho').addEventListener('click', (e) => {
     const k = e.target.closest('[data-kho]');
-    if (k) { selectKho(k.dataset.kho); return; }
-    if (e.target.closest('[data-gotab]')) switchTab('m8');
-  });
-  $('homeTodo').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-goseg]');
-    if (!b) return;
-    state.phieuSeg = b.dataset.goseg;
-    switchTab('phieu');
+    if (k) selectKho(k.dataset.kho);
   });
   $('phieuSeg').addEventListener('click', (e) => {
     const b = e.target.closest('[data-pseg]');

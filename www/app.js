@@ -1575,6 +1575,17 @@
     return ksFail(row) ? '<span class="ks-badge fail">KHÔNG ĐẠT</span>' : '<span class="ks-badge pass">ĐẠT</span>';
   }
 
+  // Ký hiệu ĐẶC TÍNH (số 1–83 đứng đầu, vd "63.N-AS-H") hiện NỔI BẬT thay cho chữ "ĐẠT…" ở kết quả lần 1 / lần 2 (ĐT 4.2).
+  // Không có số 1–83 ở đầu thì giữ nguyên huy hiệu cũ. KHÔNG ĐẠT vẫn luôn hiện thêm huy hiệu đỏ để không bị che.
+  function ksDtCode(ky) {
+    const t = String(ky || '').trim(); const m = /^(\d{1,2})(?!\d)/.exec(t);
+    return m && +m[1] >= 1 && +m[1] <= 83 ? t : '';
+  }
+  function ksCodeBadge(ky, fail, datText) {
+    const c = ksDtCode(ky); if (!c) return '';
+    return `<span class="ks-dtcode ${fail ? 'fail' : 'pass'}">${esc(c)}</span>` + (fail ? `<span class="ks-badge fail">${esc(datText || 'KHÔNG ĐẠT')}</span>` : '');
+  }
+
   function renderM8() {
     document.querySelectorAll('#m8KsSeg .seg').forEach((b) => b.classList.toggle('is-on', b.dataset.ks === M8.ks));
     const body = $('m8Body');
@@ -1764,7 +1775,7 @@
     const days = Array.from(new Set(list.map((x) => x.date || ''))).sort();
     const lan = days.indexOf(l.date || '') + 2;
     const fail = /KHÔNG\s*ĐẠT/i.test(String(l.dat || ''));
-    return `<div class="ks-lan2"><div class="ks-lan2-top"><span class="ks-lan2-tag">Lần ${lan}</span><span class="ks-badge ${fail ? 'fail' : 'pass'}">${esc(l.dat || '—')}</span>${l.kyhieu ? '<b>' + esc(l.kyhieu) + '</b>' : ''}</div>`
+    return `<div class="ks-lan2"><div class="ks-lan2-top"><span class="ks-lan2-tag">Lần ${lan}</span>${ksDtCode(l.kyhieu) ? ksCodeBadge(l.kyhieu, fail, l.dat) : `<span class="ks-badge ${fail ? 'fail' : 'pass'}">${esc(l.dat || '—')}</span>${l.kyhieu ? '<b>' + esc(l.kyhieu) + '</b>' : ''}`}</div>`
       + `<div class="ks-rule-dat">Kiểm ${esc(ksDmy(l.date))}${l.ghichu ? ' · ' + esc(l.ghichu) : ''}${l.so ? ' · Phiếu ' + esc(l.so) + (l.stt ? ' mẫu ' + esc(l.stt) : '') : ''}</div>`
       + (days.length > 1 ? `<div class="ks-rule-dat">Đã kiểm lại ${days.length} lần: ${list.map((x) => 'Lần ' + (days.indexOf(x.date || '') + 2) + ' ' + esc(ksDmy(x.date)) + ' ' + esc(x.dat || '')).join(' · ')}</div>` : '')
       + `</div>`;
@@ -1794,8 +1805,8 @@
       : (a, b) => byDate(b, a) || byLo(a, b);
     const rows = D.hist.filter(hit).sort(cmp);
     box.innerHTML = rows.length ? `<p class="list-meta">${fmt(rows.length)} lô</p><ul class="ks-rules">${rows.slice(0, M8.limit).map((r) => `<li class="ks-rule ${ksFail(r) ? 'fail' : ''}">
-        <div class="ks-rule-top"><b>${ksBatchLabel(r.batch)}</b>${r.dat ? ksVerdict(r) : ''}</div>
-        <div class="ks-rule-dat">${esc(ksDmy(r.date))}${r.kyhieu ? ' · ' + esc(r.kyhieu) : ''}${r.note ? ' · ' + esc(r.note) : ''}</div>
+        <div class="ks-rule-top"><b>${ksBatchLabel(r.batch)}</b><span class="ks-top-r">${ksCodeBadge(r.kyhieu, ksFail(r), 'KHÔNG ĐẠT') || (r.dat ? ksVerdict(r) : '')}</span></div>
+        <div class="ks-rule-dat">${esc(ksDmy(r.date))}${r.kyhieu && !ksDtCode(r.kyhieu) ? ' · ' + esc(r.kyhieu) : ''}${r.note ? ' · ' + esc(r.note) : ''}</div>
         ${r.inputs && Object.keys(r.inputs).length ? ksPills(Object.fromEntries(KS_FIELDS.map((f) => [f.key, ksBlank(r.inputs[f.key]) ? 'ND' : r.inputs[f.key]]))) : ''}
         ${ksLan2Html(r, hit.pick ? hit.pick(r) : null)}
       </li>`).join('')}</ul>${rows.length > M8.limit ? `<button type="button" class="more-btn" id="ksMore">Xem thêm (${fmt(rows.length - M8.limit)})</button>` : ''}`

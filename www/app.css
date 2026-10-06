@@ -618,6 +618,10 @@ body.has-totalbar .multibar { bottom: calc(var(--tabbar-h) + var(--safe-bottom) 
 .ks-rule.fail { border-left-color: var(--ks-fail); }
 .ks-rule-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .ks-rule-top b { font-size: 17px; }
+.ks-top-r { display: inline-flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.ks-dtcode { display: inline-flex; align-items: center; min-height: 34px; padding: 3px 14px; border-radius: 999px; font-size: 20px; font-weight: 800; letter-spacing: .01em; color: #fff; word-break: break-word; }
+.ks-dtcode.pass { background: var(--ks-pass); }
+.ks-dtcode.fail { background: var(--ks-fail); }
 .ks-rule-dat { font-size: 13px; color: var(--muted); margin-top: 3px; }
 
 /* Phân quyền theo token: tab / nút bị ẩn phải ẩn thật (các class trên đặt display riêng) */

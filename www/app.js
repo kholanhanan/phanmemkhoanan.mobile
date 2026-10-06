@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '3.8 (05/10/2026)';
+  const APP_VERSION = '3.9 (06/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -1982,6 +1982,7 @@
   function openSheet(html, onClose) {
     $('sheetBody').onclick = null;
     $('sheetBody').onchange = null;
+    $('sheetBody').oninput = null;
     $('sheetBody').innerHTML = html;
     $('scrim').hidden = false;
     $('sheet').hidden = false;
@@ -3433,7 +3434,7 @@
     if (now.length) refresh(now);
   }
 
-  // ------------------------------------------------------------------ LỊCH XUẤT NHẬP HÀNG (bản 2.8 — CHỈ XEM; 2.9: thêm lịch NHẬP; 3.0: hiện HÔM NAY ở Trang chủ; 3.7: chọn được ngày khác)
+  // ------------------------------------------------------------------ LỊCH XUẤT NHẬP HÀNG (bản 3.9: tài khoản QUẢN LÝ trở lên THÊM NHANH (dán "Ngày dd/mm: … LSX …") + CHUYỂN NGÀY lịch — gửi yêu cầu lên tab LichXuat_YeuCau, PC xử lý rồi đẩy lại; còn lại CHỈ XEM. Bản 2.8 —; 2.9: thêm lịch NHẬP; 3.0: hiện HÔM NAY ở Trang chủ; 3.7: chọn được ngày khác)
   // PC (bản 7.31) đẩy tab LichXuat_Cont (lịch của 3 tháng gần nhất trở đi) + LichXuat_Thang → lệnh 'lichXuat' của Web App.
   // Bản 3.0: bỏ tab "Lịch xuất" (lịch tháng / tổng kết / lịch sử) — điện thoại chỉ cần lịch của NGÀY HIỆN TẠI, vẽ ở thẻ "Hôm nay"
   // đầu Trang chủ (renderHomeLx → #homeLx). Muốn xem tháng / tổng kết thì dùng PC.
@@ -3446,6 +3447,8 @@
   const lxRef = (x) => lxIn(x) ? String(x.lsx || '') : lxLabel(x.lsx);
   const LX_THU = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
   function canLx() { return !state.me || (state.me.kho || []).includes('LX'); }
+  // Bản 3.9: thêm nhanh / chuyển ngày lịch — chỉ Quản lý, Quản trị (hoặc mã APP_TOKEN chung / state.me = null). Máy chủ (Code.gs lichXuatGui) mới là nơi chặn thật.
+  function canLxEdit() { return canLx() && !!state.cfg.url && (!state.me || !!state.me.admin || !!state.me.quanLy || ['quanly', 'quantri'].includes(state.me.vaiTro)); }
   const lxPad = (n) => String(n).padStart(2, '0');
   const lxKey = (d) => d.getFullYear() + '-' + lxPad(d.getMonth() + 1) + '-' + lxPad(d.getDate());
   const lxTan = (kg) => ((Number(kg) || 0) / 1000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -3454,6 +3457,19 @@
   function lxCont(o) {
     return { id: String(o.id || ''), loai: o.loai === 'nhap' ? 'nhap' : 'xuat', ngay: String(o.ngay || '').slice(0, 10), st: LX_ST[o.trangThai] ? o.trangThai : 'wait', lsx: String(o.lsx || '').trim(), khach: String(o.khach || ''),
       thiTruong: String(o.thiTruong || ''), matHang: String(o.matHang || ''), ton: Number(o.tonKien) || 0, kg: Number(o.kg) || 0, chiTiet: String(o.chiTiet || ''), canXuat: String(o.canXuat || '') };
+  }
+  function lxYcRec(o) { // 1 dòng hộp thư yêu cầu (tab LichXuat_YeuCau): chưa có kết quả (kq trống) = đang chờ PC
+    return { id: String(o.id || ''), op: o.hanhDong === 'move' ? 'move' : 'add', loai: o.loai === 'nhap' ? 'nhap' : 'xuat', targetId: String(o.targetId || ''), ngay: String(o.ngay || '').slice(0, 10),
+      lsx: String(o.lsx || '').trim(), st: String(o.trangThaiLich || ''), kq: String(o.trangThai || '').trim() };
+  }
+  // Danh sách lịch "hiệu lực" = lịch PC đã đẩy + yêu cầu đang chờ PC (thêm → hiện thẻ tạm; chuyển → hiện ở ngày mới). Có cờ cho = 'add' | 'move'.
+  function lxEff() {
+    const d = state.lx; if (!d) return [];
+    const yc = (d.yc || []).filter((r) => r.id && !r.kq && /^\d{4}-\d{2}-\d{2}$/.test(r.ngay)), mv = {};
+    yc.filter((r) => r.op === 'move').forEach((r) => { mv[r.targetId] = r; });
+    const out = d.cont.map((x) => (mv[x.id] ? Object.assign({}, x, { ngay: mv[x.id].ngay, cho: 'move', tuNgay: x.ngay }) : x));
+    yc.filter((r) => r.op === 'add' && r.lsx).forEach((r) => out.push({ id: 'yc' + r.id, loai: r.loai, ngay: r.ngay, st: LX_ST[r.st] ? r.st : 'plan', lsx: r.lsx, khach: '', thiTruong: '', matHang: '', ton: 0, kg: 0, chiTiet: '', canXuat: '', cho: 'add' }));
+    return out;
   }
   async function loadLx(force) {
     if (!canLx() || !state.cfg.url || lxUi.loading) return;
@@ -3464,7 +3480,7 @@
       const d = await api('lichXuat');
       state.lx = {
         cont: lxObjs(d.cont).map(lxCont).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x.ngay)),
-        meta: d.meta || {}, at: Date.now()
+        yc: lxObjs(d.yc).map(lxYcRec).filter((r) => r.id), meta: d.meta || {}, at: Date.now()
       };
       store.set('lx', state.lx);
     } catch (e) {
@@ -3481,26 +3497,170 @@
     (Array.isArray(a) ? a : []).forEach((l) => { const p = clean(l[0]), sz = String(l[1] == null ? '' : l[1]).trim(), k = p + '|' + sz, o = m.get(k) || { p, sz, ton: 0 }; o.ton += Number(l[3]) || 0; m.set(k, o); });
     return Array.from(m.values()).sort((u, v) => u.p.localeCompare(v.p, 'vi') || u.sz.localeCompare(v.sz, 'vi', { numeric: true }));
   }
+  function lxDmy(k) { return String(k).slice(8) + '/' + String(k).slice(5, 7) + '/' + String(k).slice(0, 4); }
+  function lxNote(x) {
+    if (x.cho === 'add') return '<p class="lx-note">Yêu cầu thêm lịch đã gửi — đang chờ PC xử lý (PC đang bật và đồng bộ sẽ cập nhật trong ít phút).</p>';
+    if (x.cho === 'move') return `<p class="lx-note">Đã gửi yêu cầu chuyển lịch từ ngày ${lxDmy(x.tuNgay)} — đang chờ PC xử lý.</p>`;
+    return `<p class="lx-note">${canLxEdit() ? 'Sửa / xóa lịch làm ở máy tính.' : 'Chỉ xem trên điện thoại — thêm / sửa / xóa lịch ở máy tính.'}</p>`;
+  }
+  function lxBtns(x) {
+    return `${canLxEdit() && !x.cho ? '<button type="button" class="btn btn-primary" id="lxMove" style="margin-bottom:8px">📅 Chuyển sang ngày khác</button>' : ''}<button type="button" class="btn btn-ghost" id="lxClose">Đóng</button>`;
+  }
+  function lxSheetClick(x) {
+    $('sheetBody').onclick = (e) => { if (e.target.closest('#lxClose')) closeSheet(); else if (e.target.closest('#lxMove')) openLxMove(x); };
+  }
   function openLxDetail(id) {
-    const x = ((state.lx && state.lx.cont) || []).find((r) => r.id === id); if (!x) return;
+    const x = lxEff().find((r) => r.id === id); if (!x) return;
     let need = {}; try { need = JSON.parse(x.canXuat || '{}') || {}; } catch (e) { need = {}; }
     const L = lxLines(x), kv = (k, v) => `<div class="lx-kv"><span>${k}</span><b>${v ? esc(v) : '—'}</b></div>`;
     if (lxIn(x)) { // PC 7.35: lịch nhập — thông tin do PC nhập tay
       openSheet(`<div class="sheet-grip"></div>
-      <div class="lx-dh"><div><small>Lịch nhập · ${x.ngay.slice(8)}/${x.ngay.slice(5, 7)}/${x.ngay.slice(0, 4)}</small><h3>${esc(lxRef(x) || '—')}</h3></div><span class="lx-pill st-${x.st}">${lxStl(x)}</span></div>
+      <div class="lx-dh"><div><small>Lịch nhập · ${lxDmy(x.ngay)}</small><h3>${esc(lxRef(x) || '—')}</h3></div><span class="lx-pill st-${x.st}">${lxStl(x)}</span></div>
       ${kv('Nhà cung cấp', x.khach) + kv('Mặt hàng', x.matHang) + kv('Số kiện · Khối lượng', fmt(x.ton) + ' kiện · ' + lxTan(x.kg) + ' tấn')}
-      <p class="lx-note">Chỉ xem trên điện thoại — thêm / sửa / xóa lịch ở máy tính.</p>
-      <button type="button" class="btn btn-ghost" id="lxClose">Đóng</button>`);
-      $('sheetBody').onclick = (e) => { if (e.target.closest('#lxClose')) closeSheet(); };
+      ${lxNote(x)}${lxBtns(x)}`);
+      lxSheetClick(x);
       return;
     }
     const tbl = L.length ? `<div class="lx-tw"><table><thead><tr><th>Loại hàng</th><th>Size</th><th class="r">Tồn (kiện)</th><th class="r">Cần xuất</th></tr></thead><tbody>${L.map((o) => `<tr><td><b>${esc(o.p || '—')}</b></td><td>${esc(o.sz || '—')}</td><td class="r">${fmt(o.ton)}</td><td class="r">${need[o.p + '|' + o.sz] != null ? fmt(need[o.p + '|' + o.sz]) : '—'}</td></tr>`).join('')}</tbody></table></div>` : '';
     openSheet(`<div class="sheet-grip"></div>
-      <div class="lx-dh"><div><small>Lịch xuất · ${x.ngay.slice(8)}/${x.ngay.slice(5, 7)}/${x.ngay.slice(0, 4)}</small><h3>${esc(lxLabel(x.lsx))}</h3></div><span class="lx-pill st-${x.st}">${LX_ST[x.st]}</span></div>
-      ${x.khach || x.matHang ? kv('Khách hàng', x.khach) + kv('Thị trường', x.thiTruong) + kv('Tồn · Khối lượng', fmt(x.ton) + ' kiện · ' + lxTan(x.kg) + ' tấn') + tbl : '<p class="lx-none">PC chưa dò được dữ liệu hàng cho LSX này.</p>'}
-      <p class="lx-note">Chỉ xem trên điện thoại — thêm / sửa / xóa lịch ở máy tính.</p>
-      <button type="button" class="btn btn-ghost" id="lxClose">Đóng</button>`);
-    $('sheetBody').onclick = (e) => { if (e.target.closest('#lxClose')) closeSheet(); };
+      <div class="lx-dh"><div><small>Lịch xuất · ${lxDmy(x.ngay)}</small><h3>${esc(lxLabel(x.lsx))}</h3></div><span class="lx-pill st-${x.st}">${LX_ST[x.st]}</span></div>
+      ${x.khach || x.matHang ? kv('Khách hàng', x.khach) + kv('Thị trường', x.thiTruong) + kv('Tồn · Khối lượng', fmt(x.ton) + ' kiện · ' + lxTan(x.kg) + ' tấn') + tbl : `<p class="lx-none">${x.cho === 'add' ? 'PC sẽ tự dò khách hàng, mặt hàng, tồn khi nhận lịch này.' : 'PC chưa dò được dữ liệu hàng cho LSX này.'}</p>`}
+      ${lxNote(x)}${lxBtns(x)}`);
+    lxSheetClick(x);
+  }
+  // Gửi yêu cầu (thêm / chuyển) lên Web App → PC kéo về xử lý. Trả true nếu gửi được.
+  function lxNewIds(n) { const b = Date.now(), r = Math.random().toString(36).slice(2, 6); return Array.from({ length: n }, (_, i) => (b + i).toString(36) + r); }
+  async function lxSend(ops, btn, okMsg, goDay) {
+    const ids = lxNewIds(ops.length), send = ops.map((o, i) => Object.assign({ id: ids[i] }, o));
+    if (btn) { btn.disabled = true; btn.dataset.t = btn.textContent; btn.textContent = 'Đang gửi…'; }
+    try {
+      await api('lichXuatGui', { ops: send });
+      closeSheet(); toast(okMsg);
+      if (goDay) lxGo(goDay);
+      loadLx(true);
+      return true;
+    } catch (e) {
+      if (btn) { btn.disabled = false; btn.textContent = btn.dataset.t || 'Gửi'; }
+      const er = $('lxMvErr') || $('lxqErr'); if (er) { er.textContent = e.message; er.hidden = false; } else toast(e.message, true);
+      if (e.code === 'FORBIDDEN') fetchMe().then(renderAll).catch(() => {});
+      return false;
+    }
+  }
+  function openLxMove(x) {
+    const d0 = lxParse(x.ngay), q = [['+1 ngày', 1], ['+2 ngày', 2], ['+1 tuần', 7], ['−1 ngày', -1]].map(([l, n]) => { const t = new Date(d0); t.setDate(t.getDate() + n); return [l, lxKey(t)]; });
+    openSheet(`<div class="sheet-grip"></div>
+      <div class="lx-dh"><div><small>Chuyển lịch ${lxIn(x) ? 'nhập' : 'xuất'} · đang ở ngày ${lxDmy(x.ngay)}</small><h3>${esc(lxRef(x) || '—')}</h3></div></div>
+      <label class="field"><span>Chuyển sang ngày</span><input type="date" id="lxMvDate" value="${q[0][1]}"></label>
+      <div class="lx-mvq">${q.map(([l, k]) => `<button type="button" class="btn btn-ghost" data-mv="${k}">${l}</button>`).join('')}</div>
+      <p class="lx-err" id="lxMvErr" hidden></p>
+      <button type="button" class="btn btn-primary" id="lxMvOk">Gửi yêu cầu chuyển lịch</button>
+      <button type="button" class="btn btn-ghost" id="lxClose" style="margin-top:8px">Hủy</button>`);
+    $('sheetBody').onclick = (e) => {
+      if (e.target.closest('#lxClose')) return closeSheet();
+      const m = e.target.closest('[data-mv]'); if (m) { $('lxMvDate').value = m.dataset.mv; return; }
+      if (e.target.closest('#lxMvOk')) {
+        const v = $('lxMvDate').value, er = $('lxMvErr');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) { er.textContent = 'Chọn ngày muốn chuyển sang.'; er.hidden = false; return; }
+        if (v === x.ngay) { er.textContent = 'Đang ở ngày này rồi — chọn một ngày khác.'; er.hidden = false; return; }
+        lxSend([{ hanhDong: 'move', loai: x.loai, targetId: x.id, ngay: v }], $('lxMvOk'), 'Đã gửi yêu cầu chuyển lịch — PC sẽ cập nhật ở lần đồng bộ kế tiếp.', v);
+      }
+    };
+  }
+
+  // ---- THÊM NHANH (dán "Ngày dd/mm: … LSX …" như trên PC; phân tích ngay trên máy, không dùng AI) ----
+  const LXQ_DATE = '(\\d{1,2}\\s*[\\/.\\-]\\s*\\d{1,2}(?:\\s*[\\/.\\-]\\s*\\d{2,4})?)';
+  const LXQ_LSX = /\d{2}\.\d{2}\.\d{2,3}(?:[A-Za-z]+|\s[A-Z](?![A-Za-z]))?(?:-\d{1,2}\/\d{1,2}|(?:-[A-Za-z0-9]{1,3})+)?/g; // giống LSX_RE bên PC
+  const LXQ_SAMPLE = {
+    xuat: 'Ngày 06/10: TOKYO TRADING LSX 26.08.046\nNgày 07/10: MATSUOKA LSX 26.10.055, dự kiến có thêm 1 Load\nNgày 08/10: MATSUOKA LSX 26.10.054, MITSUBISHI LSX 26.07.051-B-02 + 26.08.033-01',
+    nhap: 'Ngày 06/10: Nhập gửi kho\nNgày 07/10: PO-2610-015, Nhập gửi kho'
+  };
+  var lxq = { loai: 'xuat', text: '', rows: [], notes: [] };
+  function lxParseNgay(v) {
+    const t = String(v == null ? '' : v).trim(); let y = 0, mo = 0, d = 0, m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (m) { y = +m[1]; mo = +m[2]; d = +m[3]; } else {
+      m = t.match(/(\d{1,2})\s*[\/.\-]\s*(\d{1,2})(?:\s*[\/.\-]\s*(\d{2,4}))?/); if (!m) return '';
+      d = +m[1]; mo = +m[2]; y = m[3] ? +m[3] : 0; if (y && y < 100) y += 2000;
+      if (!y) { // không ghi năm → năm sao cho ngày GẦN hôm nay nhất
+        const n = new Date(), c = [n.getFullYear() - 1, n.getFullYear(), n.getFullYear() + 1].map((yy) => new Date(yy, mo - 1, d));
+        c.sort((a, b) => Math.abs(a - n) - Math.abs(b - n)); y = c[0].getFullYear();
+      }
+    }
+    const dt = new Date(y, mo - 1, d); if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return '';
+    return lxKey(dt);
+  }
+  function lxqSplit(text) {
+    const t = String(text || '').replace(/\r/g, '');
+    let ms = Array.from(t.matchAll(new RegExp('Ngày\\s*' + LXQ_DATE + '\\s*[:\\-–]?', 'gi')));
+    if (!ms.length) ms = Array.from(t.matchAll(new RegExp('^[ \\t]*' + LXQ_DATE + '[ \\t]*[:\\-–]', 'gm')));
+    if (!ms.length) return [{ date: '', body: t }];
+    return ms.map((m, i) => ({ date: m[1], body: t.slice(m.index + m[0].length, i + 1 < ms.length ? ms[i + 1].index : t.length) }));
+  }
+  function lxqParse(text, loai) {
+    const today = lxKey(new Date()), out = [], notes = [], seen = new Set();
+    const push = (r) => { const k = r.ngay + '|' + r.lsx.replace(/\s+/g, '').toUpperCase(); if (!seen.has(k)) { seen.add(k); out.push(r); } };
+    const days = lxqSplit(text);
+    if (days.length === 1 && !days[0].date && days[0].body.trim()) notes.push('Không thấy "Ngày dd/mm" trong nội dung → tạm ghi vào ngày hôm nay.');
+    days.forEach((d) => {
+      const ngay = d.date ? lxParseNgay(d.date) : today, lab = d.date ? 'Ngày ' + d.date.replace(/\s+/g, '') : 'Nội dung';
+      if (d.date && !ngay) { notes.push('Không đọc được ngày "' + d.date + '".'); return; }
+      const body = d.body.trim(); if (!body) return;
+      const st = ngay < today ? 'ok' : 'plan';
+      if (loai === 'xuat') {
+        const codes = (body.match(LXQ_LSX) || []).map((c) => 'LSX ' + c.replace(/\s+/g, '').toUpperCase());
+        codes.forEach((c) => push({ ngay, lsx: c, st }));
+        const more = body.match(/thêm\s*(\d+)\s*load/i);
+        if (more) notes.push(lab + ': "có thêm ' + more[1] + ' Load" chưa có mã LSX → chưa tạo thẻ.');
+        else if (!codes.length) notes.push(lab + ': không có LSX nào.');
+      } else {
+        const items = body.split(/[\n;,]+|\s\+\s/).map((x) => x.trim().replace(/^\d+\s*[.)]\s*/, '').replace(/^[-•*]\s*/, '').trim()).filter(Boolean);
+        let n = 0;
+        items.forEach((it) => {
+          if (/^(dự kiến\s*)?(có thêm|không|chưa)\b/i.test(it)) { notes.push(lab + ': bỏ qua "' + it + '".'); return; }
+          n++; push({ ngay, lsx: it, st });
+        });
+        if (!n) notes.push(lab + ': không có lịch nhập nào.');
+      }
+    });
+    return { rows: out, notes };
+  }
+  function lxqPaint() {
+    const box = $('lxqPrev'); if (!box) return;
+    const inn = lxq.loai === 'nhap', L = inn ? LX_STN : LX_ST;
+    box.innerHTML = (lxq.notes.length ? `<div class="lxq-notes">${lxq.notes.map((n) => `<div>• ${esc(n)}</div>`).join('')}</div>` : '')
+      + (lxq.rows.length ? `<div class="lxq-list">${lxq.rows.map((r, i) => `<div class="lxq-row"><span class="lxt-dir">${inn ? 'Nhập' : 'Xuất'}</span><span class="lxt-main"><b>${esc(r.lsx)}</b><small>${lxDmy(r.ngay)} · ${esc(L[r.st])}</small></span><button type="button" class="lxq-del" data-lxqdel="${i}" aria-label="Bỏ dòng này">×</button></div>`).join('')}</div>`
+        : '<p class="lx-none">Chưa có dòng nào — dán nội dung vào khung trên.</p>');
+    const ok = $('lxqOk'); if (ok && !ok.disabled) { ok.textContent = lxq.rows.length ? `Gửi ${lxq.rows.length} lịch về PC` : 'Gửi về PC'; }
+  }
+  function openLxQuick(loai) {
+    lxq.loai = loai === 'nhap' ? 'nhap' : 'xuat'; const inn = lxq.loai === 'nhap';
+    openSheet(`<div class="sheet-grip"></div>
+      <div class="lx-dh"><div><small>Tài khoản Quản lý trở lên · gửi về PC xử lý</small><h3>Thêm nhanh lịch</h3></div></div>
+      <div class="lxq-tabs"><button type="button" class="btn ${inn ? 'btn-ghost' : 'btn-primary'}" data-lxqtab="xuat">Xuất hàng</button><button type="button" class="btn ${inn ? 'btn-primary' : 'btn-ghost'}" data-lxqtab="nhap">Nhập hàng</button></div>
+      <label class="field"><span>Dán nội dung theo mẫu</span><textarea id="lxqText" rows="6" placeholder="${esc(LXQ_SAMPLE[lxq.loai])}">${esc(lxq.text)}</textarea><small>Mỗi ngày bắt đầu bằng "Ngày dd/mm:". ${inn ? 'Lịch nhập: mỗi mục cách nhau bằng dấu phẩy hoặc xuống dòng.' : 'Mỗi mã LSX thành 1 lịch; PC tự dò khách hàng, mặt hàng, tồn.'}</small></label>
+      <div class="lxq-tools"><button type="button" class="btn btn-ghost" id="lxqSample">Chèn mẫu</button><button type="button" class="btn btn-ghost" id="lxqClear">Xóa hết</button></div>
+      <div id="lxqPrev"></div>
+      <p class="lx-err" id="lxqErr" hidden></p>
+      <button type="button" class="btn btn-primary" id="lxqOk">Gửi về PC</button>
+      <button type="button" class="btn btn-ghost" id="lxClose" style="margin-top:8px">Đóng</button>`);
+    const reparse = () => { const p = lxqParse(lxq.text, lxq.loai); lxq.rows = p.rows; lxq.notes = p.notes; lxqPaint(); };
+    let tm = 0;
+    $('sheetBody').oninput = (e) => { if (e.target.id !== 'lxqText') return; lxq.text = e.target.value; clearTimeout(tm); tm = setTimeout(reparse, 200); };
+    $('sheetBody').onclick = (e) => {
+      if (e.target.closest('#lxClose')) return closeSheet();
+      const tab = e.target.closest('[data-lxqtab]'); if (tab) { if (tab.dataset.lxqtab !== lxq.loai) { lxq.loai = tab.dataset.lxqtab; openLxQuick(lxq.loai); } return; }
+      if (e.target.closest('#lxqSample')) { lxq.text = LXQ_SAMPLE[lxq.loai]; $('lxqText').value = lxq.text; reparse(); return; }
+      if (e.target.closest('#lxqClear')) { lxq.text = ''; $('lxqText').value = ''; reparse(); return; }
+      const del = e.target.closest('[data-lxqdel]'); if (del) { lxq.rows.splice(+del.dataset.lxqdel, 1); lxqPaint(); return; }
+      if (e.target.closest('#lxqOk')) {
+        const er = $('lxqErr'); er.hidden = true;
+        if (!lxq.rows.length) { er.textContent = 'Chưa có dòng nào để gửi.'; er.hidden = false; return; }
+        if (lxq.rows.length > 60) { er.textContent = 'Mỗi lần gửi tối đa 60 dòng — chia làm nhiều lần.'; er.hidden = false; return; }
+        const first = lxq.rows.map((r) => r.ngay).sort()[0];
+        lxSend(lxq.rows.map((r) => ({ hanhDong: 'add', loai: lxq.loai, ngay: r.ngay, lsx: r.lsx, trangThaiLich: r.st })), $('lxqOk'),
+          `Đã gửi ${lxq.rows.length} lịch — PC sẽ thêm ở lần đồng bộ kế tiếp.`, first).then((ok) => { if (ok) { lxq.text = ''; lxq.rows = []; lxq.notes = []; } });
+      }
+    };
+    reparse();
   }
   // Thẻ "Lịch xuất nhập" ở đầu Trang chủ — mặc định ngày HÔM NAY (giờ máy). Bản 3.7: chọn được ngày khác
   // (nút ‹ › đổi từng ngày, chạm ô ngày để chọn trên lịch, nút "Hôm nay" quay về). lxUi.sel = '' nghĩa là đang xem hôm nay.
@@ -3518,9 +3678,9 @@
     const key = lxUi.sel || todayKey, isToday = key === todayKey, now = lxParse(key);
     const dmy = lxPad(now.getDate()) + '/' + lxPad(now.getMonth() + 1) + '/' + now.getFullYear();
     lxUi.day = todayKey; box.hidden = false;
-    const its = d ? d.cont.filter((x) => x.ngay === key).sort((a, b) => (lxIn(a) - lxIn(b)) || (a.id < b.id ? -1 : 1)) : [];
+    const its = d ? lxEff().filter((x) => x.ngay === key).sort((a, b) => (lxIn(a) - lxIn(b)) || (a.id < b.id ? -1 : 1)) : [];
     const row = (x) => {
-      const sub = [x.khach, x.kg ? lxTan(x.kg) + ' tấn' : ''].filter(Boolean).join(' · ');
+      const sub = [x.cho ? '⏳ Chờ PC' + (x.cho === 'move' ? ' · chuyển từ ' + lxDmy(x.tuNgay).slice(0, 5) : '') : '', x.khach, x.kg ? lxTan(x.kg) + ' tấn' : ''].filter(Boolean).join(' · ');
       return `<button type="button" class="lxt-row st-${x.st}" data-lxid="${esc(x.id)}">
         <span class="lxt-dir">${lxIn(x) ? 'Nhập' : 'Xuất'}</span>
         <span class="lxt-main"><b>${esc(lxRef(x) || '—')}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</span>
@@ -3546,7 +3706,9 @@
         <button type="button" class="lxt-step" data-lxgo="1" aria-label="Ngày sau"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
         ${isToday ? '' : '<button type="button" class="lxt-today" data-lxgo="today">Hôm nay</button>'}
       </div>
+      ${canLxEdit() ? '<div class="lxt-edit"><button type="button" class="lxt-add" data-lxadd="1">＋ Thêm nhanh lịch</button></div>' : ''}
       ${body}
+      ${canLxEdit() && d && (d.yc || []).some((r) => /^Lỗi/.test(r.kq)) ? `<div class="lxt-bad">⚠ PC không nhận được ${(d.yc || []).filter((r) => /^Lỗi/.test(r.kq)).length} yêu cầu gần đây: ${esc((d.yc || []).filter((r) => /^Lỗi/.test(r.kq)).slice(-2).map((r) => (r.lsx || 'chuyển lịch') + ' — ' + r.kq.replace(/^Lỗi\s*-\s*/, '')).join(' · '))}</div>` : ''}
       ${d && lxUi.err ? '<p class="lx-err lxt-err">Không tải được bản mới — đang xem bản đã lưu trên máy.</p>' : ''}
     </section>`;
   }
@@ -3568,6 +3730,7 @@
   });
   $('refreshBtn').addEventListener('click', () => { if (state.tab === 'baocao') loadReports(true); else { if (state.tab === 'home') loadLx(true); refresh(); } });
   $('homeLx').addEventListener('click', (e) => {
+    if (e.target.closest('[data-lxadd]')) { openLxQuick(lxq.loai); return; }
     const go = e.target.closest('[data-lxgo]');
     if (go) { go.dataset.lxgo === 'today' ? lxGo('') : lxShift(+go.dataset.lxgo); return; }
     const ch = e.target.closest('[data-lxid]');

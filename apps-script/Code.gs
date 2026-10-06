@@ -41,13 +41,14 @@ var TAB = {
   M08_RADONG: 'M08_RaDong', M08_SIZE: 'M08_SizeLabel', M08_KS: 'M08_KhangSinh', M08_KSXOA: 'M08_KhangSinhXoa',
   META: 'Meta', PX: 'PhieuXuat', PXI: 'PhieuXuatItems', PQ: 'PhanQuyen',
   M01_BAOCAO: 'BaoCao_M01', // file Excel "Báo Cáo Tổng Tồn" + "Bảng Tổng Hợp HLSO" (base64 cắt nhiều ô) do PC dựng
-  LX: 'LichXuat_Cont', LX_THANG: 'LichXuat_Thang', // Lịch xuất container (PC 7.31) — điện thoại chỉ XEM
+  LX: 'LichXuat_Cont', LX_THANG: 'LichXuat_Thang', // Lịch xuất nhập hàng (PC 7.31) — điện thoại XEM
+  LX_YC: 'LichXuat_YeuCau', // (PC 7.63) hộp thư yêu cầu THÊM / CHUYỂN lịch từ điện thoại của Quản lý trở lên — PC kéo về xử lý (xem lxGui_)
   M02_BAOCAO: 'BaoCao_M02', // file Excel "Bảng Tổng Hợp" của Module 02 (cùng cách lưu)
   // LƯU TRỮ (pcArchive_): phiếu ĐÃ XONG quá N ngày chuyển khỏi 2 tab chính để tab không phình mãi
   PX_LUUTRU: 'PhieuXuat_LuuTru', PXI_LUUTRU: 'PhieuXuatItems_LuuTru'
 };
 // Kho (mã giống cột "module" của phiếu) mà từng lệnh đọc dữ liệu cần — dùng để chặn token không được xem kho đó.
-var KHO_OF_ACTION = { tonKhoGui: 'M02', tonKho: 'M01', baoCaoM01: 'BC01', baoCaoM02: 'BC02', viTri: 'M01VT', viTriBot: 'M01VTB', tonKhoM03: 'M03', tonKhoM04: 'M04', m08: 'M08', ksSince: 'M08', lichXuat: 'LX' };
+var KHO_OF_ACTION = { tonKhoGui: 'M02', tonKho: 'M01', baoCaoM01: 'BC01', baoCaoM02: 'BC02', viTri: 'M01VT', viTriBot: 'M01VTB', tonKhoM03: 'M03', tonKhoM04: 'M04', m08: 'M08', ksSince: 'M08', lichXuat: 'LX', lichXuatGui: 'LX' };
 // BC01 / BC02 = quyền xem trang "Báo cáo" trên điện thoại (file Excel Module 01 / Module 02) — KHÔNG phải kho hàng,
 // độc lập với quyền xem kho M01 / M02. Khớp PQ_KHO (main.js), KHO (cai-dat.js), REPORT_CFG + PQ_KHO (www/app.js).
 var ALL_KHO = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M08', 'BC01', 'BC02', 'LX'];
@@ -170,6 +171,8 @@ function doPost(e) {
       var own = pid ? findPxRow_(pid) : null;
       if (own && !user.quanLy && !phieuVisibleTo_(own.cur, user)) return forbid_('Bạn không được cấp quyền'); // Quản lý / Quản trị: mọi phiếu
     }
+    // Thêm nhanh / chuyển ngày Lịch xuất nhập hàng từ điện thoại: CHỈ Quản lý trở lên (và phải có quyền xem lịch 'LX').
+    if (action === 'lichXuatGui' && !user.quanLy) return forbid_('Chỉ tài khoản Quản lý trở lên mới thêm / chuyển được lịch xuất nhập hàng.');
     if (action.indexOf('pq.') === 0 && !pqAllowed_(user)) return forbid_('Chỉ tài khoản Quản trị, hoặc Quản lý được cấp quyền Tài khoản, mới quản lý được người dùng.');
     if (action === 'taoPhieu' && req.phieu) {
       var mod = MODULES.indexOf(req.phieu.module) >= 0 ? req.phieu.module : 'M02';
@@ -215,8 +218,10 @@ function doPost(e) {
       // Lịch xuất container (PC 7.31) — chỉ xem: các lịch gần đây + tổng kết từng tháng.
       case 'lichXuat': {
         var lx = readTab_(TAB.LX), lt = readTab_(TAB.LX_THANG);
-        return json_({ ok: true, meta: getMeta_(), cont: { headers: lx.headers, rows: lx.rows }, thang: { headers: lt.headers, rows: lt.rows } });
+        return json_({ ok: true, meta: getMeta_(), cont: { headers: lx.headers, rows: lx.rows }, thang: { headers: lt.headers, rows: lt.rows }, yc: lxYcList_() });
       }
+      // (PC 7.63) Quản lý trở lên gửi yêu cầu THÊM NHANH / CHUYỂN NGÀY lịch — ghi vào tab LichXuat_YeuCau, PC kéo về xử lý.
+      case 'lichXuatGui': return json_(lxGui_(user, req.ops));
       case 'baoCaoM01': return json_(getBaoCao_(TAB.M01_BAOCAO));
       case 'baoCaoM02': return json_(getBaoCao_(TAB.M02_BAOCAO));
       case 'phieu': return json_(getPhieu_(user));
@@ -246,6 +251,70 @@ function doPost(e) {
 var PQ_COLS = ['tokenHash', 'ten', 'tenHienThi', 'quyen', 'kho', 'trangThai', 'capNhat', 'maTruyCap', 'pcModules'];
 var PQ_USER_OK_ = /^[A-Za-z0-9._-]{1,40}$/;
 var PQ_TOKEN_OK_ = /^[A-Za-z0-9\-_.@#!]+$/;
+
+// ---------------------------------------------------------------------------------------------
+// YÊU CẦU LỊCH XUẤT NHẬP HÀNG TỪ ĐIỆN THOẠI (PC 7.63) — điện thoại của Quản lý trở lên không ghi thẳng vào LichXuat_Cont (tab này do PC ghi đè
+// toàn bộ mỗi lần đẩy), mà thêm dòng vào tab LichXuat_YeuCau. PC kéo các dòng chưa xử lý (trangThai trống) về, ghi vào lịch, đánh dấu
+// 'Đã xử lý' / 'Lỗi - …' rồi đẩy lại LichXuat_Cont. Dòng đã xử lý quá 7 ngày được dọn bớt. Cột PHẢI khớp LX_YC_HEADERS (sheets-webapp-client.js).
+//   hanhDong 'add'  : loai xuat|nhap, ngay yyyy-mm-dd, lsx (mã LSX / số chứng từ), trangThaiLich ok|run|plan|wait (tuỳ chọn)
+//   hanhDong 'move' : targetId (id lịch trên PC), ngay = ngày mới
+// ---------------------------------------------------------------------------------------------
+var LX_YC_COLS = ['id', 'hanhDong', 'loai', 'targetId', 'ngay', 'lsx', 'trangThaiLich', 'nguoiTao', 'nguoiDung', 'taoLuc', 'trangThai', 'xuLyLuc'];
+function lxGui_(user, ops) {
+  if (!Array.isArray(ops) || !ops.length) throw new Error('Không có yêu cầu nào để gửi.');
+  if (ops.length > 60) throw new Error('Mỗi lần gửi tối đa 60 dòng.');
+  var reDay = /^\d{4}-\d{2}-\d{2}$/, now = new Date().toISOString(), clean = [];
+  ops.forEach(function (o) {
+    o = o || {};
+    var id = String(o.id || '').trim();
+    if (!/^[a-z0-9]{6,40}$/.test(id)) throw new Error('Mã yêu cầu không hợp lệ.');
+    var hd = o.hanhDong === 'move' ? 'move' : 'add', ngay = String(o.ngay || '').trim();
+    if (!reDay.test(ngay)) throw new Error('Ngày không hợp lệ: ' + ngay);
+    var rec = { id: id, hanhDong: hd, loai: o.loai === 'nhap' ? 'nhap' : 'xuat', targetId: String(o.targetId || '').trim().slice(0, 60), ngay: ngay,
+      lsx: String(o.lsx || '').trim().slice(0, 120), trangThaiLich: ['ok', 'run', 'plan', 'wait'].indexOf(o.trangThaiLich) >= 0 ? o.trangThaiLich : '',
+      nguoiTao: user.hienThi || user.ten || 'Quản trị', nguoiDung: user.ten || '', taoLuc: now, trangThai: '', xuLyLuc: '' };
+    if (hd === 'add' && !rec.lsx) throw new Error('Có dòng chưa có LSX / số chứng từ.');
+    if (hd === 'move' && !rec.targetId) throw new Error('Thiếu lịch cần chuyển.');
+    clean.push(rec);
+  });
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error('Sheet đang bận, thử lại sau.');
+  try {
+    var info = ensureTab_(TAB.LX_YC, LX_YC_COLS), sh = info.sheet, have = {}, last = sh.getLastRow(), cId = info.headers.indexOf('id');
+    if (last >= 2) sh.getRange(2, cId + 1, last - 1, 1).getValues().forEach(function (v) { have[String(v[0]).trim()] = true; });
+    var fresh = clean.filter(function (r) { return !have[r.id]; }); // gửi lặp (mạng chập chờn) không tạo trùng
+    appendObjects_(info, fresh);
+    // dọn dòng đã xử lý (Đã xử lý / Lỗi) quá 7 ngày
+    var iS = info.headers.indexOf('trangThai'), iX = info.headers.indexOf('xuLyLuc'), iT = info.headers.indexOf('taoLuc');
+    if (iS >= 0 && last >= 2) {
+      var vals = sh.getRange(2, 1, last - 1, info.headers.length).getValues(), cut = Date.now() - 7 * 86400000, del = [];
+      vals.forEach(function (r, i) {
+        if (!String(r[iS]).trim()) return;
+        var t = new Date(String(r[iX] || r[iT] || '')).getTime();
+        if (t && t < cut) del.push(i + 2);
+      });
+      if (del.length) deleteRows_(sh, del);
+    }
+    SpreadsheetApp.flush();
+    return { ok: true, daGui: fresh.length, boQua: clean.length - fresh.length };
+  } finally {
+    lock.releaseLock();
+  }
+}
+// Yêu cầu đang chờ PC (trangThai trống) + yêu cầu lỗi trong 3 ngày gần đây → điện thoại hiện "Chờ PC" / báo lỗi.
+function lxYcList_() {
+  var t = readTab_(TAB.LX_YC);
+  if (!t.headers.length) return { headers: [], rows: [] };
+  var iS = t.headers.indexOf('trangThai'), iT = t.headers.indexOf('taoLuc'), cut = Date.now() - 3 * 86400000;
+  var rows = t.rows.filter(function (r) {
+    var st = String(iS >= 0 ? r[iS] : '').trim();
+    if (!st) return true;
+    if (st.indexOf('Lỗi') !== 0) return false;
+    var c = new Date(String(iT >= 0 ? r[iT] : '')).getTime();
+    return !c || c > cut;
+  }).slice(-200);
+  return { headers: t.headers, rows: rows };
+}
 
 function pqRead_() {
   var t = readTab_(TAB.PQ), h = t.headers, out = [];
@@ -978,7 +1047,7 @@ function buildItemsVTB_(id, reqItems, pending) {
 // CÁC LỆNH DÀNH RIÊNG CHO APP PC (PC_TOKEN) — xem app/sheets-webapp-client.js
 // ============================================================================================
 var PC_ALLOWED_TABS = [TAB.PQ, TAB.M01, TAB.VITRI, TAB.VITRIBOT, TAB.M02, TAB.M03, TAB.M03_LSX, TAB.M04, TAB.META, TAB.PX, TAB.PXI,
-  TAB.M08_MAHOA, TAB.M08_MADATAO, TAB.M08_TONGHOP, TAB.M08_RADONG, TAB.M08_SIZE, TAB.M08_KS, TAB.M08_KSXOA, TAB.M01_BAOCAO, TAB.M02_BAOCAO, TAB.LX, TAB.LX_THANG, TAB.PX_LUUTRU, TAB.PXI_LUUTRU];
+  TAB.M08_MAHOA, TAB.M08_MADATAO, TAB.M08_TONGHOP, TAB.M08_RADONG, TAB.M08_SIZE, TAB.M08_KS, TAB.M08_KSXOA, TAB.M01_BAOCAO, TAB.M02_BAOCAO, TAB.LX, TAB.LX_THANG, TAB.LX_YC, TAB.PX_LUUTRU, TAB.PXI_LUUTRU];
 function assertPcTab_(name) {
   if (PC_ALLOWED_TABS.indexOf(name) < 0) throw new Error('Không được phép thao tác tab "' + name + '".');
 }

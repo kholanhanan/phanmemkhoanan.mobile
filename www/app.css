@@ -618,8 +618,10 @@ body.has-totalbar .multibar { bottom: calc(var(--tabbar-h) + var(--safe-bottom) 
 .ks-rule.fail { border-left-color: var(--ks-fail); }
 .ks-rule-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .ks-rule-top b { font-size: 17px; }
-.ks-top-r { display: inline-flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; min-width: 0; }
-.ks-dtcode { display: inline-flex; align-items: center; min-height: 34px; padding: 3px 14px; border-radius: 999px; font-size: 20px; font-weight: 800; letter-spacing: .01em; color: #fff; word-break: break-word; }
+.ks-rule-top { flex-wrap: wrap; }
+.ks-rule-top b { flex: 1 1 auto; min-width: 0; }
+.ks-top-r { display: inline-flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; max-width: 100%; margin-left: auto; }
+.ks-dtcode { display: inline-block; max-width: 100%; padding: 4px 10px; border-radius: 8px; font-size: 15px; line-height: 1.25; font-weight: 800; color: #fff; white-space: nowrap; overflow-wrap: anywhere; }
 .ks-dtcode.pass { background: var(--ks-pass); }
 .ks-dtcode.fail { background: var(--ks-fail); }
 .ks-rule-dat { font-size: 13px; color: var(--muted); margin-top: 3px; }

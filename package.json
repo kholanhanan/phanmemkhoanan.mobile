@@ -1,6 +1,6 @@
 {
   "name": "kho-lanh-an-an-dien-thoai",
-  "version": "4.2.0",
+  "version": "4.3.0",
   "private": true,
   "description": "Bản điện thoại Kho Lạnh An An — xem tồn kho, gửi phiếu xuất về PC qua Google Sheet",
   "scripts": {

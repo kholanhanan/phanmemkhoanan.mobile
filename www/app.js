@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '4.0 (06/10/2026)';
+  const APP_VERSION = '4.1 (06/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -3696,15 +3696,23 @@
     const its = d ? lxEff().filter((x) => x.ngay === key).sort((a, b) => (lxIn(a) - lxIn(b)) || (a.id < b.id ? -1 : 1)) : [];
     const lxOne = (x) => x.ngay + '|' + ((!lxIn(x) && x.cont) ? x.cont : x.id), nCont = new Set(its.map(lxOne)).size; // ĐT 4.0: LSX chung container chỉ tính 1
     const lxMate = (x) => (!lxIn(x) && x.cont) ? its.filter((z) => z.id !== x.id && !lxIn(z) && z.cont === x.cont) : [];
-    const row = (x) => {
-      const sub = [lxMate(x).length ? 'Chung cont' : '', x.cho ? '⏳ Chờ PC' + (x.cho === 'move' ? ' · chuyển từ ' + lxDmy(x.tuNgay).slice(0, 5) : '') : '', x.khach, x.kg ? lxTan(x.kg) + ' tấn' : ''].filter(Boolean).join(' · ');
-      return `<button type="button" class="lxt-row st-${x.st}" data-lxid="${esc(x.id)}">
-        <span class="lxt-dir">${lxIn(x) ? 'Nhập' : 'Xuất'}</span>
+    const row = (x, inGrp) => {
+      const sub = [!inGrp && lxMate(x).length ? 'Chung cont' : '', x.cho ? '⏳ Chờ PC' + (x.cho === 'move' ? ' · chuyển từ ' + lxDmy(x.tuNgay).slice(0, 5) : '') : '', x.khach, x.kg ? lxTan(x.kg) + ' tấn' : ''].filter(Boolean).join(' · ');
+      return `<button type="button" class="lxt-row st-${x.st}${inGrp ? ' in-grp' : ''}" data-lxid="${esc(x.id)}">
+        ${inGrp ? '' : `<span class="lxt-dir">${lxIn(x) ? 'Nhập' : 'Xuất'}</span>`}
         <span class="lxt-main"><b>${esc(lxRef(x) || '—')}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</span>
         <span class="lx-pill st-${x.st}">${esc(lxStl(x))}</span></button>`;
     };
+    // ĐT 4.x: các LSX XUẤT chung 1 container gộp thành 1 thẻ (mỗi LSX vẫn bấm riêng để xem chi tiết)
+    const lxGroups = [], lxSeen = new Map();
+    its.forEach((x) => { const k = lxOne(x); if (!lxSeen.has(k)) { const g = []; lxSeen.set(k, g); lxGroups.push(g); } lxSeen.get(k).push(x); });
+    const grpCard = (g) => {
+      if (g.length < 2) return row(g[0]);
+      const st = g.every((z) => z.st === 'ok') ? 'ok' : g.some((z) => z.st === 'run') ? 'run' : g[0].st;
+      return `<div class="lxt-grp st-${st}"><div class="lxt-gh"><span class="lxt-dir">Xuất</span><b>Chung cont · ${g.length} LSX</b><span class="lxt-gt">${lxTan(g.reduce((a, z) => a + (Number(z.kg) || 0), 0))} tấn</span></div>${g.map((z) => row(z, true)).join('')}</div>`;
+    };
     let body;
-    if (its.length) body = `<div class="lxt-list">${its.map(row).join('')}</div>`;
+    if (its.length) body = `<div class="lxt-list">${lxGroups.map(grpCard).join('')}</div>`;
     else if (d) body = `<p class="lxt-empty">${isToday ? 'Hôm nay' : 'Ngày ' + dmy} chưa có lịch xuất hoặc nhập.</p>`;
     else body = `<p class="lxt-empty">${lxUi.loading ? 'Đang tải lịch…' : esc(lxUi.err || 'Chưa có dữ liệu lịch — bấm ↻ để tải.')}</p>`;
     box.innerHTML = `<section class="lxt" aria-label="Lịch xuất nhập ${isToday ? 'hôm nay' : 'ngày ' + dmy}">

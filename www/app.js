@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '4.5 (06/10/2026)';
+  const APP_VERSION = '4.6 (07/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -1543,16 +1543,34 @@
     if (c.type === '>') return { ok: v > c.val, implicit: false };
     return { ok: false, implicit: false };
   }
+  // CHỌN TRƯỜNG HỢP (ĐT 4.6) — nhiều quy định cùng thoả (ô để trống = ND mặc nhiên đạt mọi ngưỡng "<X"). Thứ tự ưu tiên:
+  //   1) Ngưỡng CHẶT NHẤT ở các cột CÓ SỐ ĐO, xét lần lượt theo thứ tự cột (Enro → Cipro → Oxy → Doxy → Sulfo → AOZ → CAP)
+  //      — VD Oxy 10: Oxy<25 thắng Oxy<90 (người dùng: "ưu tiên dò cột Oxy trước, <25 là đủ điều kiện").
+  //   2) Ưu tiên trường hợp KHÔNG thuộc bộ cũ AS1/AS2 (ASC-B / ASC-A,B — TH 1–62) so với bộ ASC mới (TH 63–83).
+  //   3) Ít ngưỡng phải "ngầm hiểu" nhất (cột để trống mà quy định có "<X") — nhờ vậy tất cả ND → 23.MKS.
+  //   4) Số thứ tự lớn hơn.
+  // Khớp 7/7 mẫu: tất cả ND→23.MKS · Cipro 4.83→63.N-AS-H · Cipro 3.65→63.N-AS-H · Doxy 3.11→66.N-AS-M-H ·
+  // Cipro 3.70+Sul 6.61→65.N-AS-H · Cipro 2.84+Sul 6.82→65.N-AS-H · Oxy 10→83.EU-H-M (quy tắc cũ chỉ đúng 1/7).
+  const ksOldAsc = (row) => /(^|[.\-])AS[12](?=-|$)/i.test(String(row && row.kyhieu || ''));
+  function ksRankKey(row, inputs, imp) {
+    const key = [];
+    KS_FIELDS.forEach((f) => { if (!ksBlank(inputs[f.key])) { const c = ksParseCond(row[f.key]); key.push(c.type === '<' ? c.val : Infinity); } });
+    key.push(ksOldAsc(row) ? 1 : 0, imp, -(Number(row.stt) || 0));
+    return key;
+  }
+  const ksKeyLess = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] < b[i]; return false; };
   function ksFindMatch(rules, inputs) {
-    let best = null, bestScore = Infinity;
+    let best = null, bestKey = null;
     for (const row of rules) {
-      let ok = true, score = 0;
+      let ok = true, imp = 0;
       for (const f of KS_FIELDS) {
         const dt = ksMatchField(inputs[f.key], row[f.key]);
         if (!dt.ok) { ok = false; break; }
-        if (dt.implicit) score++;
+        if (dt.implicit) imp++;
       }
-      if (ok && score < bestScore) { best = row; bestScore = score; if (!score) break; }
+      if (!ok) continue;
+      const key = ksRankKey(row, inputs, imp);
+      if (!bestKey || ksKeyLess(key, bestKey)) { best = row; bestKey = key; }
     }
     return best;
   }

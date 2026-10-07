@@ -767,27 +767,23 @@ function matchesField(raw, cond){
 }
 
 function findMatch(inputs){
-  // Có thể nhiều quy định cùng thoả input (vd: để trống/ND cho tất cả chỉ tiêu
-  // thì mọi quy định chỉ có ngưỡng "<X" cũng mặc nhiên "khớp"). Trong số các
-  // quy định cùng thoả, ưu tiên quy định khớp ĐÚNG nhất — tức càng ít dựa vào
-  // việc để trống/ND mặc nhiên đạt ngưỡng "<X" càng tốt. Nhờ vậy khi tất cả
-  // chỉ tiêu đều ND, quy định "Các chỉ tiêu ND" (khớp tuyệt đối, điểm 0) sẽ
-  // được chọn thay vì một quy định "<X" nào đó chỉ tình cờ được thoả.
-  let best = null;
-  let bestScore = Infinity;
+  // ĐT 4.6 — cùng quy tắc với app.js › ksFindMatch: (1) ngưỡng chặt nhất ở các cột có số đo (theo thứ tự cột),
+  // (2) ưu tiên không thuộc bộ cũ AS1/AS2, (3) ít ngưỡng "ngầm hiểu" nhất, (4) số thứ tự lớn hơn.
+  const oldAsc = (row) => /(^|[.\-])AS[12](?=-|$)/i.test(String(row && row.kyhieu || ''));
+  const less = (a, b) => { for(let i = 0; i < a.length; i++) if(a[i] !== b[i]) return a[i] < b[i]; return false; };
+  let best = null, bestKey = null;
   for(const row of DATA){
-    let ok = true;
-    let score = 0;
+    let ok = true, imp = 0;
     for(const f of FIELDS){
       const detail = matchFieldDetail(inputs[f.key], row[f.key]);
       if(!detail.ok){ ok = false; break; }
-      if(detail.implicit) score++;
+      if(detail.implicit) imp++;
     }
-    if(ok && score < bestScore){
-      best = row;
-      bestScore = score;
-      if(bestScore === 0) break; // không thể tốt hơn khớp tuyệt đối 100%
-    }
+    if(!ok) continue;
+    const key = [];
+    FIELDS.forEach(f => { if(!isBlankOrND(inputs[f.key])){ const c = parseCond(row[f.key]); key.push(c.type === '<' ? c.val : Infinity); } });
+    key.push(oldAsc(row) ? 1 : 0, imp, -(Number(row.stt) || 0));
+    if(!bestKey || less(key, bestKey)){ best = row; bestKey = key; }
   }
   return best;
 }

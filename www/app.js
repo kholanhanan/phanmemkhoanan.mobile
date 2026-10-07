@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '4.7 (07/10/2026)';
+  const APP_VERSION = '4.8 (07/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -3692,12 +3692,50 @@
     });
     return { rows: out, notes };
   }
+  // ĐT 4.8 — KIỂM TRA LSX TRÙNG / KẾ HOẠCH THAY ĐỔI trước khi gửi (giống PC 7.92). So với lịch "hiệu lực" (lxEff: lịch PC + yêu cầu đang chờ).
+  //   Mới · Trùng (cùng ngày, cùng trạng thái → không gửi) · Cùng ngày khác trạng thái (Cập nhật trạng thái = gửi yêu cầu 'move' cùng ngày kèm trạng thái / Bỏ qua)
+  //   · Kế hoạch thay đổi? (đã có ở ngày khác: Chuyển lịch cũ = yêu cầu 'move' / Thêm lịch mới / Bỏ qua). Dòng nhiều LSX (chung container) chỉ chọn Thêm / Bỏ qua.
+  const lxSq = (v) => String(v == null ? '' : v).replace(/\s+/g, '').toUpperCase().replace(/^LSX[:\-]?/, '');
+  const lxCodes = (v) => String(v || '').split('+').map(lxSq).filter(Boolean);
+  function lxqCheck(i) {
+    const r = lxq.rows[i]; if (!r || !String(r.lsx || '').trim()) return { kind: 'empty' };
+    const codes = lxCodes(r.lsx), inn = r.loai === 'nhap';
+    const ex = lxEff().filter((x) => lxIn(x) === inn && lxCodes(x.lsx).some((c) => codes.includes(c))).sort((u, v) => (u.ngay < v.ngay ? 1 : -1));
+    if (!ex.length) return { kind: 'new' };
+    if (codes.length > 1) return { kind: 'group', ex };
+    const same = ex.find((x) => x.ngay === r.ngay);
+    if (same) return same.st === r.st ? { kind: 'dup', ex: [same] } : { kind: 'status', ex: [same] };
+    return { kind: 'moved', ex };
+  }
+  function lxqChk(i) {
+    const r = lxq.rows[i], c = lxqCheck(i), stl = (x) => (lxIn(x) ? LX_STN : LX_ST)[x.st] || x.st;
+    const when = (x) => lxDmy(x.ngay) + ' (' + stl(x) + (String(x.id).startsWith('yc') ? ', đang chờ PC' : '') + ')';
+    const sel = (opts) => `<select class="lxq-act" data-lxqact="${i}">${opts.map((o) => `<option value="${o[0]}"${r.act === o[0] ? ' selected' : ''}>${o[1]}</option>`).join('')}</select>`;
+    if (c.kind === 'empty') return '';
+    if (c.kind === 'new') return '<span class="lxq-ck new">Mới</span>';
+    if (c.kind === 'dup') return `<span class="lxq-ck dup">Trùng — đã có lịch ${esc(when(c.ex[0]))}, sẽ không gửi</span>`;
+    if (c.kind === 'status') {
+      if (r.act !== 'update' && r.act !== 'skip') r.act = String(c.ex[0].id).startsWith('yc') ? 'skip' : 'update';
+      const can = !String(c.ex[0].id).startsWith('yc');
+      return `<span class="lxq-ck chg">Đã có cùng ngày, trạng thái "${esc(stl(c.ex[0]))}"</span>` + sel((can ? [['update', 'Cập nhật trạng thái']] : []).concat([['skip', 'Bỏ qua']]));
+    }
+    if (c.kind === 'group') {
+      if (r.act !== 'add' && r.act !== 'skip') r.act = 'add';
+      return `<span class="lxq-ck chg">Có LSX đã có lịch ${esc(c.ex.map((x) => lxRef(x) + ' ' + when(x)).join(', '))}</span>` + sel([['add', 'Vẫn gửi thêm'], ['skip', 'Bỏ qua dòng này']]);
+    }
+    const mv = c.ex.find((x) => x.st !== 'ok' && !String(x.id).startsWith('yc'));
+    if (r.act !== 'move' && r.act !== 'add' && r.act !== 'skip') r.act = mv ? 'move' : 'add';
+    if (r.act === 'move' && !mv) r.act = 'add';
+    return `<span class="lxq-ck chg">Kế hoạch thay đổi? Đã có lịch ${esc(c.ex.map(when).join(', '))}</span>`
+      + sel((mv ? [['move', 'Chuyển lịch cũ sang ' + lxDmy(r.ngay).slice(0, 5)]] : []).concat([['add', 'Thêm lịch mới (giữ lịch cũ)'], ['skip', 'Bỏ qua dòng này']]));
+  }
   function lxqPaint() {
     const box = $('lxqPrev'); if (!box) return;
     box.innerHTML = (lxq.notes.length ? `<div class="lxq-notes">${lxq.notes.map((n) => `<div>• ${esc(n)}</div>`).join('')}</div>` : '')
-      + (lxq.rows.length ? `<div class="lxq-list">${lxq.rows.map((r, i) => `<div class="lxq-row"><span class="lxt-dir">${r.loai === 'nhap' ? 'Nhập' : 'Xuất'}</span><span class="lxt-main"><b>${esc(r.lsx)}</b><small>${lxDmy(r.ngay)} · ${esc((r.loai === 'nhap' ? LX_STN : LX_ST)[r.st])}${r.n > 1 ? ' · chung 1 container' : ''}</small></span><button type="button" class="lxq-del" data-lxqdel="${i}" aria-label="Bỏ dòng này">×</button></div>`).join('')}</div>`
+      + (lxq.rows.length ? `<div class="lxq-list">${lxq.rows.map((r, i) => `<div class="lxq-row"><span class="lxt-dir">${r.loai === 'nhap' ? 'Nhập' : 'Xuất'}</span><span class="lxt-main"><b>${esc(r.lsx)}</b><small>${lxDmy(r.ngay)} · ${esc((r.loai === 'nhap' ? LX_STN : LX_ST)[r.st])}${r.n > 1 ? ' · chung 1 container' : ''}</small><span class="lxq-chk">${lxqChk(i)}</span></span><button type="button" class="lxq-del" data-lxqdel="${i}" aria-label="Bỏ dòng này">×</button></div>`).join('')}</div>`
         : '<p class="lx-none">Chưa có dòng nào — dán nội dung vào khung trên.</p>');
-    const ok = $('lxqOk'); if (ok && !ok.disabled) { ok.textContent = lxq.rows.length ? `Gửi ${lxq.rows.length} lịch về PC` : 'Gửi về PC'; }
+    const n = lxq.rows.filter((r, i) => { const k = lxqCheck(i).kind; return k !== 'empty' && k !== 'dup' && r.act !== 'skip'; }).length;
+    const ok = $('lxqOk'); if (ok && !ok.disabled) { ok.textContent = n ? `Gửi ${n} yêu cầu về PC` : 'Gửi về PC'; }
   }
   function openLxQuick(loai) {
     lxq.loai = loai === 'nhap' ? 'nhap' : 'xuat'; const inn = lxq.loai === 'nhap';
@@ -3713,6 +3751,7 @@
     const reparse = () => { const p = lxqParse(lxq.text, lxq.loai); lxq.rows = p.rows; lxq.notes = p.notes; lxqPaint(); };
     let tm = 0;
     $('sheetBody').oninput = (e) => { if (e.target.id !== 'lxqText') return; lxq.text = e.target.value; clearTimeout(tm); tm = setTimeout(reparse, 200); };
+    $('sheetBody').onchange = (e) => { const s = e.target.closest('[data-lxqact]'); if (!s) return; const r = lxq.rows[+s.dataset.lxqact]; if (r) { r.act = s.value; lxqPaint(); } };
     $('sheetBody').onclick = (e) => {
       if (e.target.closest('#lxClose')) return closeSheet();
       const tab = e.target.closest('[data-lxqtab]'); if (tab) { if (tab.dataset.lxqtab !== lxq.loai) { lxq.loai = tab.dataset.lxqtab; openLxQuick(lxq.loai); } return; }
@@ -3724,9 +3763,19 @@
         if (!lxq.rows.length) { er.textContent = 'Chưa có dòng nào để gửi.'; er.hidden = false; return; }
         if (lxq.rows.length > 60) { er.textContent = 'Mỗi lần gửi tối đa 60 dòng — chia làm nhiều lần.'; er.hidden = false; return; }
         if (lxq.rows.some((r) => r.lsx.length > 120)) { er.textContent = 'Có container ghép quá nhiều LSX (tối đa 120 ký tự) — tách bớt.'; er.hidden = false; return; }
-        const first = lxq.rows.map((r) => r.ngay).sort()[0];
-        lxSend(lxq.rows.map((r) => ({ hanhDong: 'add', loai: r.loai, ngay: r.ngay, lsx: r.lsx, trangThaiLich: r.st })), $('lxqOk'),
-          `Đã gửi ${lxq.rows.length} lịch — PC sẽ thêm ở lần đồng bộ kế tiếp.`, first).then((ok) => { if (ok) { lxq.text = ''; lxq.rows = []; lxq.notes = []; } });
+        // ĐT 4.8: phân loại theo kiểm tra trùng / kế hoạch thay đổi
+        const ops = [], cnt = { add: 0, move: 0, up: 0, skip: 0 };
+        lxq.rows.forEach((r, i) => { const c = lxqCheck(i);
+          if (c.kind === 'empty') return;
+          if (c.kind === 'dup' || r.act === 'skip') { cnt.skip++; return; }
+          if (c.kind === 'status' && r.act === 'update') { cnt.up++; ops.push({ hanhDong: 'move', loai: r.loai, targetId: c.ex[0].id, ngay: r.ngay, trangThaiLich: r.st }); return; }
+          if (c.kind === 'moved' && r.act === 'move') { const mv = c.ex.find((x) => x.st !== 'ok' && !String(x.id).startsWith('yc')); if (mv) { cnt.move++; ops.push({ hanhDong: 'move', loai: r.loai, targetId: mv.id, ngay: r.ngay, trangThaiLich: r.st }); return; } }
+          cnt.add++; ops.push({ hanhDong: 'add', loai: r.loai, ngay: r.ngay, lsx: r.lsx, trangThaiLich: r.st }); });
+        if (!ops.length) { er.textContent = 'Tất cả các dòng đều trùng với lịch đã có (hoặc chọn Bỏ qua) — không có gì để gửi.'; er.hidden = false; return; }
+        const first = ops.map((o) => o.ngay).sort()[0];
+        const msg = 'Đã gửi về PC: ' + [cnt.add ? cnt.add + ' lịch mới' : '', cnt.move ? cnt.move + ' chuyển ngày (kế hoạch thay đổi)' : '', cnt.up ? cnt.up + ' cập nhật trạng thái' : ''].filter(Boolean).join(', ')
+          + (cnt.skip ? ' · bỏ qua ' + cnt.skip + ' dòng trùng' : '') + ' — PC xử lý ở lần đồng bộ kế tiếp.';
+        lxSend(ops, $('lxqOk'), msg, first).then((ok) => { if (ok) { lxq.text = ''; lxq.rows = []; lxq.notes = []; } });
       }
     };
     reparse();

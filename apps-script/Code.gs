@@ -56,7 +56,7 @@ var ALL_KHO = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M08', 'BC01', 'BC
 // Module mở được trên PC + quyền riêng từng mục Cài đặt. Cấp 1 / 2: không có CD_* và TAIKHOAN; Quản lý: có CD_*, TAIKHOAN chỉ khi Quản trị / admin cấp;
 // Quản trị: luôn có CD_* + TAIKHOAN, chỉ module M* là bỏ tick được (danh sách trống = bản cũ → đủ).
 var PQ_CD_ = ['CD_SAOLUU', 'CD_KHOIPHUC', 'CD_DONGBO'];
-var PQ_PC_ = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M05', 'M06', 'M07', 'M08', 'M09'].concat(PQ_CD_, ['TAIKHOAN']);
+var PQ_PC_ = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M05', 'M06', 'M07', 'M08', 'M09', 'M12', 'M13'].concat(PQ_CD_, ['TAIKHOAN']);
 var PQ_FIXED_PC_ = ['TAIKHOAN'].concat(PQ_CD_);
 function pcClean_(v) { // chuỗi "M01,M02" hoặc mảng → mảng mã hợp lệ, không trùng
   var a = Array.isArray(v) ? v.slice() : String(v || '').split(',');

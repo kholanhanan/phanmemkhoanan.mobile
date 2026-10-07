@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '4.6 (07/10/2026)';
+  const APP_VERSION = '4.7 (07/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -1543,37 +1543,62 @@
     if (c.type === '>') return { ok: v > c.val, implicit: false };
     return { ok: false, implicit: false };
   }
-  // CHỌN TRƯỜNG HỢP (ĐT 4.6) — nhiều quy định cùng thoả (ô để trống = ND mặc nhiên đạt mọi ngưỡng "<X"). Thứ tự ưu tiên:
-  //   1) Ngưỡng CHẶT NHẤT ở các cột CÓ SỐ ĐO, xét lần lượt theo thứ tự cột (Enro → Cipro → Oxy → Doxy → Sulfo → AOZ → CAP)
-  //      — VD Oxy 10: Oxy<25 thắng Oxy<90 (người dùng: "ưu tiên dò cột Oxy trước, <25 là đủ điều kiện").
-  //   2) Ưu tiên trường hợp KHÔNG thuộc bộ cũ AS1/AS2 (ASC-B / ASC-A,B — TH 1–62) so với bộ ASC mới (TH 63–83).
-  //   3) Ít ngưỡng phải "ngầm hiểu" nhất (cột để trống mà quy định có "<X") — nhờ vậy tất cả ND → 23.MKS.
-  //   4) Số thứ tự lớn hơn.
-  // Khớp 7/7 mẫu: tất cả ND→23.MKS · Cipro 4.83→63.N-AS-H · Cipro 3.65→63.N-AS-H · Doxy 3.11→66.N-AS-M-H ·
-  // Cipro 3.70+Sul 6.61→65.N-AS-H · Cipro 2.84+Sul 6.82→65.N-AS-H · Oxy 10→83.EU-H-M (quy tắc cũ chỉ đúng 1/7).
-  const ksOldAsc = (row) => /(^|[.\-])AS[12](?=-|$)/i.test(String(row && row.kyhieu || ''));
-  function ksRankKey(row, inputs, imp) {
-    const key = [];
-    KS_FIELDS.forEach((f) => { if (!ksBlank(inputs[f.key])) { const c = ksParseCond(row[f.key]); key.push(c.type === '<' ? c.val : Infinity); } });
-    key.push(ksOldAsc(row) ? 1 : 0, imp, -(Number(row.stt) || 0));
-    return key;
-  }
-  const ksKeyLess = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] < b[i]; return false; };
-  function ksFindMatch(rules, inputs) {
+  // ==== CHỌN TRƯỜNG HỢP KHÁNG SINH "PHÙ HỢP NHẤT" (PC 7.91 / ĐT 4.7) — BẢN DÙNG CHUNG, chép NGUYÊN VĂN ở 3 nơi:
+  // điện thoại www/app.js, www/khangsinh.html và PC html/tong-hop.html (khung kháng sinh nhúng base64). Sửa 1 nơi → sửa cả 3.
+  // Quy tắc người dùng (07/10/2026): mỗi chỉ tiêu tìm NGƯỠNG PHÙ HỢP của riêng nó, rồi KẾT HỢP chọn trường hợp gần nhất
+  // (không có kết quả đúng 100%). VD Oxy 10 → Oxy<25 → 45.AS1-H-M; Cipro 4.83 → Cipro<10 → 01.N-AS2-H; cả hai → 41.AS1-H.
+  //  1) KHÔNG ĐẠT xét trước: chỉ cần 1 chỉ tiêu vượt ngưỡng ">X" của 1 trường hợp KĐ. Chỉ tiêu quyết định = AOZ/CAP trước, rồi
+  //     chỉ tiêu có GIÁ TRỊ CAO NHẤT; chọn trường hợp KĐ ít điều kiện nhất có chứa chỉ tiêu đó (Oxy 95 → 52.KĐ dù có Enro/Cipro).
+  //  2) Ngưỡng lý tưởng mỗi chỉ tiêu có số đo = ngưỡng "<X" NHỎ NHẤT trong bảng mà số đo vẫn đạt.
+  //  3) Trong các trường hợp ĐẠT khớp đủ điều kiện: tổng số BẬC ngưỡng bị nới so với lý tưởng nhỏ nhất → hoà thì xét bậc từng
+  //     chỉ tiêu theo thứ tự ưu tiên (AOZ, CAP, rồi số đo lớn → nhỏ) → ít ngưỡng "ngầm hiểu" (ô trống) nhất → số thứ tự nhỏ hơn.
+  function ksPickBest(rules, inputs, fields, parseCond, isBlank) {
+    const num = (raw) => parseFloat(String(raw).trim().replace(',', '.'));
+    const isFail = (row) => String(row && row.dat || '').toUpperCase().includes('KHÔNG ĐẠT');
+    const meas = fields.filter((f) => !isBlank(inputs[f.key]) && !isNaN(num(inputs[f.key])))
+      .map((f) => ({ key: f.key, v: num(inputs[f.key]), top: (f.key === 'aoz' || f.key === 'cap') ? 1 : 0 }))
+      .sort((a, b) => (b.top - a.top) || (b.v - a.v));
+    // 1) KHÔNG ĐẠT
+    for (const m of meas) {
+      let best = null, bestN = Infinity;
+      for (const row of rules) {
+        if (!isFail(row)) continue;
+        const c = parseCond(row[m.key]);
+        if (c.type !== '>' || !(m.v > c.val)) continue;
+        const n = fields.filter((f) => parseCond(row[f.key]).type === '>').length;
+        if (n < bestN || (n === bestN && Number(row.stt) < Number(best.stt))) { best = row; bestN = n; }
+      }
+      if (best) return best;
+    }
+    // 2) ngưỡng "<X" có trong bảng của từng chỉ tiêu (tăng dần) + bậc lý tưởng
+    const levels = {};
+    meas.forEach((m) => {
+      const s = new Set();
+      rules.forEach((row) => { const c = parseCond(row[m.key]); if (c.type === '<' && isFinite(c.val)) s.add(c.val); });
+      levels[m.key] = Array.from(s).sort((a, b) => a - b);
+      m.ideal = levels[m.key].findIndex((x) => m.v < x);
+    });
+    // 3) trường hợp ĐẠT khớp đủ điều kiện → điểm lệch
     let best = null, bestKey = null;
+    const less = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] < b[i]; return false; };
     for (const row of rules) {
+      if (isFail(row)) continue;
       let ok = true, imp = 0;
-      for (const f of KS_FIELDS) {
-        const dt = ksMatchField(inputs[f.key], row[f.key]);
-        if (!dt.ok) { ok = false; break; }
-        if (dt.implicit) imp++;
+      for (const f of fields) {
+        const c = parseCond(row[f.key]), raw = inputs[f.key];
+        if (c.type === 'ND') { if (!isBlank(raw)) { ok = false; break; } continue; }
+        if (isBlank(raw)) { if (c.type === '<') { imp++; continue; } ok = false; break; }
+        const v = num(raw);
+        if (isNaN(v) || !(c.type === '<' ? v < c.val : v > c.val)) { ok = false; break; }
       }
       if (!ok) continue;
-      const key = ksRankKey(row, inputs, imp);
-      if (!bestKey || ksKeyLess(key, bestKey)) { best = row; bestKey = key; }
+      const steps = meas.map((m) => { const c = parseCond(row[m.key]); const i = levels[m.key].indexOf(c.val); return (i < 0 || m.ideal < 0) ? 99 : i - m.ideal; });
+      const key = [steps.reduce((s, x) => s + x, 0), ...steps, imp, Number(row.stt) || 0];
+      if (!bestKey || less(key, bestKey)) { best = row; bestKey = key; }
     }
     return best;
   }
+  function ksFindMatch(rules, inputs) { return ksPickBest(rules, inputs, KS_FIELDS, ksParseCond, ksBlank); }
   const ksFail = (row) => String(row && row.dat || '').toUpperCase().includes('KHÔNG ĐẠT');
   function ksMarkets(row) {
     const t = String(row && row.dat || '').toUpperCase().replace(/^ĐẠT\s*/, '');

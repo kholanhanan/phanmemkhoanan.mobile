@@ -766,26 +766,64 @@ function matchesField(raw, cond){
   return matchFieldDetail(raw, cond).ok;
 }
 
-function findMatch(inputs){
-  // ĐT 4.6 — cùng quy tắc với app.js › ksFindMatch: (1) ngưỡng chặt nhất ở các cột có số đo (theo thứ tự cột),
-  // (2) ưu tiên không thuộc bộ cũ AS1/AS2, (3) ít ngưỡng "ngầm hiểu" nhất, (4) số thứ tự lớn hơn.
-  const oldAsc = (row) => /(^|[.\-])AS[12](?=-|$)/i.test(String(row && row.kyhieu || ''));
-  const less = (a, b) => { for(let i = 0; i < a.length; i++) if(a[i] !== b[i]) return a[i] < b[i]; return false; };
-  let best = null, bestKey = null;
-  for(const row of DATA){
-    let ok = true, imp = 0;
-    for(const f of FIELDS){
-      const detail = matchFieldDetail(inputs[f.key], row[f.key]);
-      if(!detail.ok){ ok = false; break; }
-      if(detail.implicit) imp++;
+// ==== CHỌN TRƯỜNG HỢP KHÁNG SINH "PHÙ HỢP NHẤT" (PC 7.91 / ĐT 4.7) — BẢN DÙNG CHUNG, chép NGUYÊN VĂN ở 3 nơi:
+// điện thoại www/app.js, www/khangsinh.html và PC html/tong-hop.html (khung kháng sinh nhúng base64). Sửa 1 nơi → sửa cả 3.
+// Quy tắc người dùng (07/10/2026): mỗi chỉ tiêu tìm NGƯỠNG PHÙ HỢP của riêng nó, rồi KẾT HỢP chọn trường hợp gần nhất
+// (không có kết quả đúng 100%). VD Oxy 10 → Oxy<25 → 45.AS1-H-M; Cipro 4.83 → Cipro<10 → 01.N-AS2-H; cả hai → 41.AS1-H.
+//  1) KHÔNG ĐẠT xét trước: chỉ cần 1 chỉ tiêu vượt ngưỡng ">X" của 1 trường hợp KĐ. Chỉ tiêu quyết định = AOZ/CAP trước, rồi
+//     chỉ tiêu có GIÁ TRỊ CAO NHẤT; chọn trường hợp KĐ ít điều kiện nhất có chứa chỉ tiêu đó (Oxy 95 → 52.KĐ dù có Enro/Cipro).
+//  2) Ngưỡng lý tưởng mỗi chỉ tiêu có số đo = ngưỡng "<X" NHỎ NHẤT trong bảng mà số đo vẫn đạt.
+//  3) Trong các trường hợp ĐẠT khớp đủ điều kiện: tổng số BẬC ngưỡng bị nới so với lý tưởng nhỏ nhất → hoà thì xét bậc từng
+//     chỉ tiêu theo thứ tự ưu tiên (AOZ, CAP, rồi số đo lớn → nhỏ) → ít ngưỡng "ngầm hiểu" (ô trống) nhất → số thứ tự nhỏ hơn.
+function ksPickBest(rules, inputs, fields, parseCond, isBlank) {
+  const num = (raw) => parseFloat(String(raw).trim().replace(',', '.'));
+  const isFail = (row) => String(row && row.dat || '').toUpperCase().includes('KHÔNG ĐẠT');
+  const meas = fields.filter((f) => !isBlank(inputs[f.key]) && !isNaN(num(inputs[f.key])))
+    .map((f) => ({ key: f.key, v: num(inputs[f.key]), top: (f.key === 'aoz' || f.key === 'cap') ? 1 : 0 }))
+    .sort((a, b) => (b.top - a.top) || (b.v - a.v));
+  // 1) KHÔNG ĐẠT
+  for (const m of meas) {
+    let best = null, bestN = Infinity;
+    for (const row of rules) {
+      if (!isFail(row)) continue;
+      const c = parseCond(row[m.key]);
+      if (c.type !== '>' || !(m.v > c.val)) continue;
+      const n = fields.filter((f) => parseCond(row[f.key]).type === '>').length;
+      if (n < bestN || (n === bestN && Number(row.stt) < Number(best.stt))) { best = row; bestN = n; }
     }
-    if(!ok) continue;
-    const key = [];
-    FIELDS.forEach(f => { if(!isBlankOrND(inputs[f.key])){ const c = parseCond(row[f.key]); key.push(c.type === '<' ? c.val : Infinity); } });
-    key.push(oldAsc(row) ? 1 : 0, imp, -(Number(row.stt) || 0));
-    if(!bestKey || less(key, bestKey)){ best = row; bestKey = key; }
+    if (best) return best;
+  }
+  // 2) ngưỡng "<X" có trong bảng của từng chỉ tiêu (tăng dần) + bậc lý tưởng
+  const levels = {};
+  meas.forEach((m) => {
+    const s = new Set();
+    rules.forEach((row) => { const c = parseCond(row[m.key]); if (c.type === '<' && isFinite(c.val)) s.add(c.val); });
+    levels[m.key] = Array.from(s).sort((a, b) => a - b);
+    m.ideal = levels[m.key].findIndex((x) => m.v < x);
+  });
+  // 3) trường hợp ĐẠT khớp đủ điều kiện → điểm lệch
+  let best = null, bestKey = null;
+  const less = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] < b[i]; return false; };
+  for (const row of rules) {
+    if (isFail(row)) continue;
+    let ok = true, imp = 0;
+    for (const f of fields) {
+      const c = parseCond(row[f.key]), raw = inputs[f.key];
+      if (c.type === 'ND') { if (!isBlank(raw)) { ok = false; break; } continue; }
+      if (isBlank(raw)) { if (c.type === '<') { imp++; continue; } ok = false; break; }
+      const v = num(raw);
+      if (isNaN(v) || !(c.type === '<' ? v < c.val : v > c.val)) { ok = false; break; }
+    }
+    if (!ok) continue;
+    const steps = meas.map((m) => { const c = parseCond(row[m.key]); const i = levels[m.key].indexOf(c.val); return (i < 0 || m.ideal < 0) ? 99 : i - m.ideal; });
+    const key = [steps.reduce((s, x) => s + x, 0), ...steps, imp, Number(row.stt) || 0];
+    if (!bestKey || less(key, bestKey)) { best = row; bestKey = key; }
   }
   return best;
+}
+
+function findMatch(inputs){
+  return ksPickBest(DATA, inputs, FIELDS, parseCond, isBlankOrND);
 }
 
 function buildAutoPassNotes(row, inputs){

@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '4.10 (09/10/2026)';
+  const APP_VERSION = '4.11 (09/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -3836,9 +3836,24 @@
       </div>
       ${canLxEdit() ? '<div class="lxt-edit"><button type="button" class="lxt-add" data-lxadd="1">＋ Thêm nhanh lịch</button></div>' : ''}
       ${body}
-      ${canLxEdit() && d && (d.yc || []).some((r) => /^Lỗi/.test(r.kq)) ? `<div class="lxt-bad">⚠ PC không nhận được ${(d.yc || []).filter((r) => /^Lỗi/.test(r.kq)).length} yêu cầu gần đây: ${esc((d.yc || []).filter((r) => /^Lỗi/.test(r.kq)).slice(-2).map((r) => (r.lsx || 'chuyển lịch') + ' — ' + r.kq.replace(/^Lỗi\s*-\s*/, '')).join(' · '))}</div>` : ''}
+      ${lxBadHtml(d)}
       ${d && lxUi.err ? '<p class="lx-err lxt-err">Không tải được bản mới — đang xem bản đã lưu trên máy.</p>' : ''}
     </section>`;
+  }
+  // PC 8.52 / phone 4.11: cảnh báo "PC không nhận được yêu cầu" có nút × để ẨN trên máy này (nhớ theo mã yêu cầu trong localStorage; lỗi MỚI vẫn hiện lại).
+  const LX_DIS_KEY = 'kla_lx_bad_dismissed';
+  function lxDisSet() { try { return new Set(JSON.parse(localStorage.getItem(LX_DIS_KEY) || '[]')); } catch (e) { return new Set(); } }
+  function lxBadList(d) { const dis = lxDisSet(); return ((d && d.yc) || []).filter((r) => /^Lỗi/.test(r.kq) && !dis.has(r.id)); }
+  function lxBadHtml(d) {
+    if (!canLxEdit() || !d) return '';
+    const bad = lxBadList(d); if (!bad.length) return '';
+    const what = bad.slice(-2).map((r) => (r.lsx || 'chuyển lịch') + ' — ' + r.kq.replace(/^Lỗi\s*-\s*/, '')).join(' · ');
+    return `<div class="lxt-bad"><span>⚠ PC không nhận được ${bad.length} yêu cầu gần đây: ${esc(what)}</span><button type="button" class="lxt-bad-x" data-lxbadx="1" aria-label="Ẩn cảnh báo" title="Ẩn cảnh báo này">×</button></div>`;
+  }
+  function lxBadDismiss() {
+    const ids = lxBadList(state.lx).map((r) => r.id), all = Array.from(lxDisSet()).concat(ids).slice(-200);
+    try { localStorage.setItem(LX_DIS_KEY, JSON.stringify(all)); } catch (e) { /* bỏ qua */ }
+    renderHomeLx();
   }
   // Máy để qua đêm / quay lại app sau nhiều giờ: sang ngày mới thì tự vẽ lại thẻ "Hôm nay" và tải lịch mới.
   function lxCheckDay() {
@@ -3858,6 +3873,7 @@
   });
   $('refreshBtn').addEventListener('click', () => { if (state.tab === 'baocao') loadReports(true); else { if (state.tab === 'home') loadLx(true); refresh(); } });
   $('homeLx').addEventListener('click', (e) => {
+    if (e.target.closest('[data-lxbadx]')) { lxBadDismiss(); return; }
     if (e.target.closest('[data-lxadd]')) { openLxQuick(lxq.loai); return; }
     const go = e.target.closest('[data-lxgo]');
     if (go) { go.dataset.lxgo === 'today' ? lxGo('') : lxShift(+go.dataset.lxgo); return; }

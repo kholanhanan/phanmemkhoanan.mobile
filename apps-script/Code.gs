@@ -42,6 +42,7 @@ var TAB = {
   META: 'Meta', PX: 'PhieuXuat', PXI: 'PhieuXuatItems', PQ: 'PhanQuyen',
   M01_BAOCAO: 'BaoCao_M01', // file Excel "Báo Cáo Tổng Tồn" + "Bảng Tổng Hợp HLSO" (base64 cắt nhiều ô) do PC dựng
   LX: 'LichXuat_Cont', LX_THANG: 'LichXuat_Thang', // Lịch xuất nhập hàng (PC 7.31) — điện thoại XEM
+  LX_EM: 'LichXuat_Email', // (PC 8.22) hộp chờ duyệt: email (Gmail) → đề xuất thêm / đổi / hủy lịch xuất — PC duyệt rồi mới áp vào lịch
   LX_YC: 'LichXuat_YeuCau', // (PC 7.63) hộp thư yêu cầu THÊM / CHUYỂN lịch từ điện thoại của Quản lý trở lên — PC kéo về xử lý (xem lxGui_)
   M02_BAOCAO: 'BaoCao_M02', // file Excel "Bảng Tổng Hợp" của Module 02 (cùng cách lưu)
   // LƯU TRỮ (pcArchive_): phiếu ĐÃ XONG quá N ngày chuyển khỏi 2 tab chính để tab không phình mãi
@@ -56,8 +57,8 @@ var ALL_KHO = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M08', 'BC01', 'BC
 // Module mở được trên PC + quyền riêng từng mục Cài đặt. Cấp 1 / 2: không có CD_* và TAIKHOAN; Quản lý: có CD_*, TAIKHOAN chỉ khi Quản trị / admin cấp;
 // Quản trị: luôn có CD_* + TAIKHOAN, chỉ module M* là bỏ tick được (danh sách trống = bản cũ → đủ).
 var PQ_CD_ = ['CD_SAOLUU', 'CD_KHOIPHUC', 'CD_DONGBO'];
-var PQ_PC_ = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M05', 'M06', 'M07', 'M08', 'M09', 'M12', 'M13'].concat(PQ_CD_, ['TAIKHOAN']);
-var PQ_FIXED_PC_ = ['TAIKHOAN'].concat(PQ_CD_);
+var PQ_PC_ = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M05', 'M06', 'M07', 'M08', 'M09', 'M12', 'M13', 'LX_EMAIL'].concat(PQ_CD_, ['TAIKHOAN']); // PC 8.34: LX_EMAIL = duyệt email Lịch xuất
+var PQ_FIXED_PC_ = ['TAIKHOAN', 'LX_EMAIL'].concat(PQ_CD_);
 function pcClean_(v) { // chuỗi "M01,M02" hoặc mảng → mảng mã hợp lệ, không trùng
   var a = Array.isArray(v) ? v.slice() : String(v || '').split(',');
   a = a.map(function (x) { return String(x).trim(); });
@@ -234,6 +235,7 @@ function doPost(e) {
       case 'pc.writeTable': return json_(pcWriteTable_(req.name, req.columns, req.rows));
       case 'pc.readTable': return json_(pcReadTable_(req.name));
       case 'pc.markRows': return json_(pcMarkRows_(req.name, req.updates));
+      case 'pc.emailQuet': return json_(emailQuet_());
       case 'pc.archive': return json_(pcArchive_(req.days));
       case 'pc.ksUpsert': return json_(pcKsUpsert_(req.rows, req.dels, req.full));
       default: return json_({ ok: false, error: 'Không có chức năng "' + action + '".' });
@@ -314,6 +316,155 @@ function lxYcList_() {
     return !c || c > cut;
   }).slice(-200);
   return { headers: t.headers, rows: rows };
+}
+
+// ---------------------------------------------------------------------------------------------
+// EMAIL → LỊCH XUẤT (PC 8.22) — Apps Script đọc Gmail của CHÍNH tài khoản chạy Web App này (CHỈ ĐỌC: không gửi, không xóa, không gắn nhãn),
+// phân tích từng thư rồi ghi 1 dòng "đề xuất" vào tab LichXuat_Email. App PC (Lịch xuất nhập hàng → nút "✉ Email") hiện danh sách chờ duyệt;
+// người dùng bấm Duyệt mới thêm / đổi / hủy lịch. Mỗi thư = 1 dòng (id = mã thư Gmail → quét lại không tạo trùng).
+//   hanhDong 'tao'  : thư GỐC của chuỗi thư (LSX nằm ở tiêu đề, ngày mặc định = ETD trong tiêu đề — PC cho sửa trước khi duyệt)
+//   hanhDong 'doi'  : thư trả lời ghi ngày (và giờ) kéo đóng mới, VD "Cont này OK đổi kéo đóng tại kho An An lúc 10h00 ngày 10/10"
+//   hanhDong 'huy'  : thư trả lời có chữ "hủy", VD "Cont này hủy kéo đóng tại kho An An ngày 08/10"
+//   hanhDong 'xe'   : (PC 8.28) thư trả lời "Thông tin xe" (tài xế, SĐT, số xe, cont, seal, booking, nhiệt độ) — PC TỰ điền vào phiếu xuất của LSX đó (không cần duyệt); ghiChu giữ NGUYÊN các dòng
+//   hanhDong 'khac' : thư có LSX nhưng không đọc được ngày / hành động → chỉ hiện nội dung để người dùng tự xem
+// LSX luôn lấy từ TIÊU ĐỀ thư đầu của chuỗi (thư trả lời không ghi lại LSX). Cột PHẢI khớp LX_EM_HEADERS (sheets-webapp-client.js).
+// Cấu hình (Cài đặt dự án → Thuộc tính tập lệnh, tuỳ chọn):
+//   EMAIL_QUERY     : câu tìm Gmail (mặc định: newer_than:14d (LSX OR LOADING OR "kéo đóng"))
+//   EMAIL_NGAY      : chỉ lấy thư trong N ngày gần nhất (mặc định 14)
+//   EMAIL_NGUOI_GUI : chỉ nhận thư từ các địa chỉ / tên miền này, cách nhau dấu phẩy (VD "haminhtien0803@gmail.com, congty.vn"); trống = nhận mọi người gửi
+// Chạy tự động: chạy hàm emailCaiDatTuDong() MỘT LẦN trong trình soạn thảo Apps Script (đổi EMAIL_PHUT bên dưới nếu muốn 5 / 15 / 30 phút) — lần đầu Google hỏi quyền đọc Gmail.
+// ---------------------------------------------------------------------------------------------
+var LX_EM_COLS = ['id', 'threadId', 'nhanLuc', 'nguoiGui', 'tieuDe', 'lsx', 'hanhDong', 'ngay', 'gio', 'ghiChu', 'trangThai', 'xuLyLuc'];
+var EMAIL_PHUT = 10; // chu kỳ quét tự động: 1, 5, 10, 15 hoặc 30
+var EMAIL_LSX_RE = /\b\d{2}\.\d{2}\.\d{2,3}[A-Za-z]?\b/g;
+
+function emailBoDau_(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
+}
+function emailPad_(n) { return (n < 10 ? '0' : '') + n; }
+// dd/mm[/yyyy] → yyyy-mm-dd; thiếu năm → năm của thư (nếu ngày rơi quá 90 ngày TRƯỚC ngày thư thì hiểu là năm sau)
+function emailNgay_(dd, mm, yy, ref) {
+  var d = parseInt(dd, 10), m = parseInt(mm, 10), y = yy ? parseInt(yy, 10) : ref.getFullYear();
+  if (yy && y < 100) y += 2000;
+  if (!(d >= 1 && d <= 31 && m >= 1 && m <= 12)) return '';
+  if (!yy && new Date(y, m - 1, d).getTime() < ref.getTime() - 90 * 86400000) y++;
+  return y + '-' + emailPad_(m) + '-' + emailPad_(d);
+}
+// chỉ phần chữ MỚI của thư (cắt phần trích dẫn thư cũ: "Vào … đã viết:", "On … wrote:", dòng bắt đầu bằng ">")
+function emailPhanMoi_(body) {
+  var t = String(body || '').replace(/\r/g, ''), cut = t.length;
+  [/^[ \t]*V[àa]o\b[\s\S]{0,300}?(?:đã viết|viết)\s*:/im, /^[ \t]*On\b[\s\S]{0,300}?wrote\s*:/im, /^[ \t]*>/m,
+   /^[ \t]*-{2,}\s*(?:Original|Forwarded|Tin nhắn|Thư)/im, /^[ \t]*_{5,}/m, /^[ \t]*(?:From|Từ)\s*:/im].forEach(function (re) {
+    var m = re.exec(t); if (m && m.index < cut) cut = m.index;
+  });
+  return t.slice(0, cut).replace(/[ \t]+/g, ' ').replace(/\n{2,}/g, '\n').trim();
+}
+// Phân tích thư TRẢ LỜI → { hanhDong: doi|huy|khac, ngay, gio }
+function emailPhanTichTraLoi_(text, ref) {
+  var t = emailBoDau_(text).toLowerCase(), out = { hanhDong: 'khac', ngay: '', gio: '' };
+  var md = t.match(/ngay\s*(\d{1,2})\s*[\/\-.]\s*(\d{1,2})(?:\s*[\/\-.]\s*(\d{2,4}))?/);
+  if (md) out.ngay = emailNgay_(md[1], md[2], md[3], ref);
+  var mg = t.match(/\b(\d{1,2})\s*(?:h|:|gio)\s*(\d{2})?(?![a-z0-9])/);
+  if (mg && +mg[1] < 24 && (!mg[2] || +mg[2] < 60)) out.gio = emailPad_(+mg[1]) + ':' + (mg[2] || '00');
+  if (/\b(huy|cancel|cancelled)\b/.test(t)) out.hanhDong = 'huy';
+  else if (out.ngay) out.hanhDong = 'doi';
+  return out;
+}
+// PC 8.24: chuỗi thư phải liên quan nhập / xuất hàng (từ khóa trong TIÊU ĐỀ). Tùy chọn Thuộc tính tập lệnh EMAIL_TU_KHOA (cách nhau dấu phẩy; "*" = không lọc).
+var EMAIL_TU_KHOA = ['loading', 'keo dong', 'keo hang', 'cont', 'container', 'booking', 'etd', 'eta', 'xuat', 'nhap', 'stuffing', 'shipping', 'giao hang', 'lay hang', 'xe '];
+function emailLienQuan_(subj, kws) {
+  if (kws.length === 1 && kws[0] === '*') return true;
+  var t = ' ' + emailBoDau_(subj).toLowerCase() + ' ';
+  return kws.some(function (k) { return t.indexOf(k) >= 0; });
+}
+function emailChoPhep_(from, allow) {
+  if (!allow.length) return true;
+  var f = String(from || '').toLowerCase();
+  return allow.some(function (a) { return a && f.indexOf(a) >= 0; });
+}
+// PC 8.28: thư \"Thông tin xe\" = có ít nhất 3 trong 7 nhãn (tài xế / số điện thoại / số xe / số cont / số seal / số booking / nhiệt độ) ở dạng \"Nhãn: giá trị\".
+function emailLaThongTinXe_(text) {
+  var t = emailBoDau_(text).toLowerCase(), n = 0;
+  [/(ho ten tai xe|tai xe)\s*:/, /(so dien thoai|sdt|dt)\s*:/, /(so xe|bien so)\s*:/, /(so cont|cont so|so container)\s*:/, /so seal\s*:/, /(so booking|booking)\s*:/, /nhiet do[^:\n]{0,30}:/].forEach(function (re) { if (re.test(t)) n++; });
+  return n >= 3;
+}
+function emailQuet_() {
+  var props = PropertiesService.getScriptProperties();
+  var ngay = parseInt(props.getProperty('EMAIL_NGAY'), 10) || 14;
+  var query = props.getProperty('EMAIL_QUERY') || ('newer_than:' + ngay + 'd (LSX OR LOADING OR "kéo đóng")');
+  var allow = String(props.getProperty('EMAIL_NGUOI_GUI') || '').toLowerCase().split(/[,;\s]+/).filter(String);
+  var kwRaw = String(props.getProperty('EMAIL_TU_KHOA') || '').split(',').map(function (x) { return emailBoDau_(x).toLowerCase().replace(/^\s+/, ''); }).filter(String);
+  var kws = kwRaw.length ? kwRaw : EMAIL_TU_KHOA;
+  var cutoff = Date.now() - ngay * 86400000;
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error('Sheet đang bận, thử lại sau.');
+  try {
+    var threads;
+    try { threads = GmailApp.search(query, 0, 60); }
+    catch (err) { throw new Error('Chưa đọc được Gmail (' + err.message + '). Mở Apps Script → chạy hàm emailCaiDatTuDong một lần để cấp quyền, rồi Triển khai → Phiên bản mới.'); }
+    var info = ensureTab_(TAB.LX_EM, LX_EM_COLS), sh = info.sheet, have = {}, last = sh.getLastRow(), cId = info.headers.indexOf('id');
+    if (last >= 2) sh.getRange(2, cId + 1, last - 1, 1).getValues().forEach(function (v) { have[String(v[0]).trim()] = true; });
+    var fresh = [], now = new Date().toISOString();
+    threads.forEach(function (th) {
+      var msgs = th.getMessages(), first = th.getFirstMessageSubject() || '', codes = first.match(EMAIL_LSX_RE);
+      if (!codes) return; // chuỗi thư không có LSX ở tiêu đề → không liên quan
+      if (!emailLienQuan_(first, kws)) return; // PC 8.24: tiêu đề không nói về nhập / xuất hàng → bỏ
+      var seen = {}, lsx = codes.filter(function (c) { c = c.toUpperCase(); if (seen[c]) return false; seen[c] = 1; return true; }).map(function (c) { return c.toUpperCase(); }).join(' + ');
+      var subj = first.replace(/^\s*((re|fw|fwd|tr)\s*:\s*)+/i, '').trim();
+      msgs.forEach(function (m, i) {
+        var id = m.getId(); if (have[id]) return;
+        var dt = m.getDate(); if (dt.getTime() < cutoff) return;
+        var from = m.getFrom(); if (!emailChoPhep_(from, allow)) return;
+        var rec = { id: id, threadId: th.getId(), nhanLuc: dt.toISOString(), nguoiGui: String(from).replace(/["']/g, '').trim() || from, // PC 8.30: giữ cả địa chỉ <email> để PC so với danh sách "người gửi tin cậy"
+          tieuDe: subj.slice(0, 250), lsx: lsx, hanhDong: 'khac', ngay: '', gio: '', ghiChu: '', trangThai: '', xuLyLuc: '' };
+        if (i === 0 && !/^\s*(re|fw|fwd|tr)\s*:/i.test(m.getSubject() || '')) {
+          // thư GỐC: ngày mặc định = ETD trong tiêu đề (chỉ là ngày tàu chạy → PC cho sửa); ghi chú = các phần còn lại của tiêu đề
+          rec.hanhDong = 'tao';
+          var e = subj.match(/ETD\s*:?\s*(\d{1,2})\s*[\/.\-]\s*(\d{1,2})(?:\s*[\/.\-]\s*(\d{2,4}))?/i);
+          if (e) rec.ngay = emailNgay_(e[1], e[2], e[3], dt);
+          rec.ghiChu = subj.split(/\s+-\s+/).filter(function (p) { return !/^AN AN$/i.test(p.trim()) && !/\bLSX\b/i.test(p); }).join(' · ').slice(0, 300);
+        } else {
+          var txt = emailPhanMoi_(m.getPlainBody()), r = emailPhanTichTraLoi_(txt, dt);
+          if (emailLaThongTinXe_(txt)) { rec.hanhDong = 'xe'; rec.ghiChu = txt.replace(/[ \t]+/g, ' ').replace(/\n\s*/g, '\n').slice(0, 900); } // PC 8.28: giữ xuống dòng để PC tách từng mục
+          else { rec.hanhDong = r.hanhDong; rec.ngay = r.ngay; rec.gio = r.gio; rec.ghiChu = txt.replace(/\s*\n\s*/g, ' ').slice(0, 300); }
+        }
+        if (rec.hanhDong === 'khac') { have[id] = true; return; } // PC 8.24: thư chỉ để xem → không đưa vào hộp chờ duyệt
+        fresh.push(rec); have[id] = true;
+      });
+    });
+    fresh.sort(function (a, b) { return a.nhanLuc < b.nhanLuc ? -1 : 1; });
+    appendObjects_(info, fresh);
+    // dọn dòng đã xử lý quá 14 ngày
+    var iS = info.headers.indexOf('trangThai'), iX = info.headers.indexOf('xuLyLuc'), iT = info.headers.indexOf('nhanLuc');
+    if (iS >= 0 && last >= 2) {
+      var vals = sh.getRange(2, 1, last - 1, info.headers.length).getValues(), cut2 = Date.now() - 14 * 86400000, del = [];
+      vals.forEach(function (r, i) {
+        if (!String(r[iS]).trim()) return;
+        var t = new Date(String(r[iX] || r[iT] || '')).getTime();
+        if (t && t < cut2) del.push(i + 2);
+      });
+      if (del.length) deleteRows_(sh, del);
+    }
+    SpreadsheetApp.flush();
+    return { ok: true, moi: fresh.length, cacChuoi: threads.length };
+  } finally {
+    lock.releaseLock();
+  }
+}
+// Hàm chạy theo lịch (trigger) — lỗi chỉ ghi nhật ký, không làm hỏng gì.
+function emailQuetTuDong() {
+  try { emailQuet_(); } catch (err) { console.error('emailQuetTuDong: ' + err.message); }
+}
+// CHẠY 1 LẦN trong trình soạn thảo Apps Script: cấp quyền đọc Gmail + đặt lịch quét tự động mỗi EMAIL_PHUT phút (chạy lại để đổi chu kỳ).
+function emailCaiDatTuDong() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'emailQuetTuDong') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('emailQuetTuDong').timeBased().everyMinutes(EMAIL_PHUT).create();
+  var r = emailQuet_();
+  console.log('Đã đặt lịch quét mail mỗi ' + EMAIL_PHUT + ' phút. Lần quét đầu: ' + r.moi + ' thư mới.');
+}
+// Tắt quét tự động (PC vẫn bấm "Quét mail ngay" được).
+function emailTatTuDong() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'emailQuetTuDong') ScriptApp.deleteTrigger(t); });
 }
 
 function pqRead_() {
@@ -1047,7 +1198,7 @@ function buildItemsVTB_(id, reqItems, pending) {
 // CÁC LỆNH DÀNH RIÊNG CHO APP PC (PC_TOKEN) — xem app/sheets-webapp-client.js
 // ============================================================================================
 var PC_ALLOWED_TABS = [TAB.PQ, TAB.M01, TAB.VITRI, TAB.VITRIBOT, TAB.M02, TAB.M03, TAB.M03_LSX, TAB.M04, TAB.META, TAB.PX, TAB.PXI,
-  TAB.M08_MAHOA, TAB.M08_MADATAO, TAB.M08_TONGHOP, TAB.M08_RADONG, TAB.M08_SIZE, TAB.M08_KS, TAB.M08_KSXOA, TAB.M01_BAOCAO, TAB.M02_BAOCAO, TAB.LX, TAB.LX_THANG, TAB.LX_YC, TAB.PX_LUUTRU, TAB.PXI_LUUTRU];
+  TAB.M08_MAHOA, TAB.M08_MADATAO, TAB.M08_TONGHOP, TAB.M08_RADONG, TAB.M08_SIZE, TAB.M08_KS, TAB.M08_KSXOA, TAB.M01_BAOCAO, TAB.M02_BAOCAO, TAB.LX, TAB.LX_THANG, TAB.LX_YC, TAB.LX_EM, TAB.PX_LUUTRU, TAB.PXI_LUUTRU];
 function assertPcTab_(name) {
   if (PC_ALLOWED_TABS.indexOf(name) < 0) throw new Error('Không được phép thao tác tab "' + name + '".');
 }
@@ -1073,6 +1224,7 @@ function pcWriteTable_(name, columns, rows) {
   if (!lock.tryLock(30000)) throw new Error('Sheet đang bận, thử lại sau.');
   try {
     var sh = ss_().getSheetByName(name) || ss_().insertSheet(name);
+    if (name === TAB.PQ) pcBackupPq_(sh); // PC 7.95: lưu bản sao danh sách tài khoản TRƯỚC khi ghi đè
     var nCols = columns.length;
     var values = [columns.map(String)].concat(rows.map(function (r) {
       var out = [];
@@ -1105,6 +1257,38 @@ function pcWriteTable_(name, columns, rows) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// PC 7.95 — BẢN SAO tab PhanQuyen trước mỗi lần ghi đè. Danh sách tài khoản mất là mất trên MỌI máy + điện thoại (các máy đồng bộ theo Sheet và xóa theo),
+// nên mỗi lần PC ghi đè tab này, bản cũ được chép sang tab ẩn "PhanQuyen_BanLuu_<ngày_giờ>" (giữ 5 bản mới nhất). Khôi phục: chạy hàm khoiPhucPhanQuyen()
+// trong trình soạn Apps Script (lấy bản mới nhất), hoặc hiện tab ẩn (chuột phải tên tab → Xem các trang tính ẩn) rồi chép lại.
+// Lỗi ở bước này KHÔNG được làm hỏng lần ghi chính.
+var PQ_BACKUP_PREFIX_ = 'PhanQuyen_BanLuu_', PQ_BACKUP_KEEP_ = 5;
+function pcBackupPq_(sh) {
+  try {
+    if (sh.getLastRow() < 2 || sh.getLastColumn() < 1) return; // chưa có tài khoản nào → không cần sao
+    var book = ss_();
+    var tz = Session.getScriptTimeZone() || 'GMT+7';
+    var name = PQ_BACKUP_PREFIX_ + Utilities.formatDate(new Date(), tz, 'yyyyMMdd_HHmmss');
+    if (book.getSheetByName(name)) return;
+    var copy = sh.copyTo(book);
+    copy.setName(name);
+    try { copy.hideSheet(); } catch (e1) { /* không ẩn được thì để hiện */ }
+    var olds = book.getSheets().map(function (x) { return x.getName(); }).filter(function (n) { return n.indexOf(PQ_BACKUP_PREFIX_) === 0; }).sort().reverse();
+    olds.slice(PQ_BACKUP_KEEP_).forEach(function (n) { try { book.deleteSheet(book.getSheetByName(n)); } catch (e2) { /* bỏ qua */ } });
+  } catch (e) { /* không chặn việc ghi chính */ }
+}
+// CHẠY TAY khi cần: chép bản sao mới nhất (PhanQuyen_BanLuu_…) về tab PhanQuyen. Sau đó mở app PC → Cài đặt › Tài khoản › "Kéo từ Sheet".
+function khoiPhucPhanQuyen() {
+  var book = ss_();
+  var names = book.getSheets().map(function (x) { return x.getName(); }).filter(function (n) { return n.indexOf(PQ_BACKUP_PREFIX_) === 0; }).sort().reverse();
+  if (!names.length) throw new Error('Chưa có bản sao nào (PhanQuyen_BanLuu_…).');
+  var src = book.getSheetByName(names[0]).getDataRange().getValues();
+  var dst = book.getSheetByName(TAB.PQ) || book.insertSheet(TAB.PQ);
+  dst.clearContents();
+  dst.getRange(1, 1, src.length, src[0].length).setNumberFormat('@').setValues(src);
+  SpreadsheetApp.flush();
+  return 'Đã khôi phục ' + (src.length - 1) + ' tài khoản từ ' + names[0];
 }
 
 // Đọc 1 tab: { headers, rows } — rows là mảng giá trị, kèm số dòng thật trên Sheet (rowNumbers).

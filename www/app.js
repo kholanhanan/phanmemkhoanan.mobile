@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '4.26 (10/10/2026)';
+  const APP_VERSION = '4.27 (10/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -3087,7 +3087,7 @@
   // của điện thoại (prefers-color-scheme) và tự đổi khi máy đổi. index.html có đoạn script nhỏ trong <head>
   // đặt data-theme TRƯỚC khi trang hiện (tránh nháy trắng khi mở ở chế độ Tối) — giữ 2 nơi giống nhau.
   const LS_THEME = 'klanan.theme';
-  const THEME_BAR = { light: '#1766C0', dark: '#0A1118' }; // màu thanh trạng thái Android = màu thanh trên
+  const THEME_BAR = { light: '#945806', dark: '#0A1118' }; // màu thanh trạng thái Android = màu thanh trên
   const darkMQ = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
   function themeChoice() { try { const t = localStorage.getItem(LS_THEME); return t === 'dark' || t === 'auto' ? t : 'light'; } catch (e) { return 'light'; } }
   function currentTheme() { return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'; }

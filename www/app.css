@@ -3,43 +3,44 @@
    Điểm nhấn duy nhất: con số "còn lại" của từng lô — to, đậm, căn phải. Mọi thứ khác giữ yên. */
 
 :root {
-  /* ===== CHẾ ĐỘ SÁNG (mặc định) — mẫu "H · Xanh da trời tươi" (09/2026) =====
+  /* ===== CHẾ ĐỘ SÁNG (mặc định) — mẫu "Mật ong" (PC 8.82 / ĐT 4.27, 10/2026; trước là "H · Xanh da trời tươi") =====
+     Lấy theo mẫu số 5 "Mật ong", chỉnh nhấn #A16207 → #945806 để chữ nhấn trên nền nhạt đạt ≥ 5:1 (WCAG AA).
      Đổi chế độ: html[data-theme="dark"] (khối ngay dưới). Mọi màu trong file dùng các biến này —
      KHÔNG viết mã màu cứng mới, thêm biến ở cả 2 khối. */
-  --frost: #EEF6FD;     /* nền trang */
+  --frost: #FFFCF2;     /* nền trang */
   --paper: #FFFFFF;     /* nền thẻ / ô */
-  --ink: #0F2A44;       /* chữ chính */
-  --muted: #4B6581;     /* chữ phụ */
-  --line: #CFE2F5;      /* viền */
-  --cobalt: #1862BA;    /* hành động chính */
-  --on-cobalt: #FFFFFF; /* chữ trên nền --cobalt */
-  --cobalt-soft: #E0EEFC;
-  --amber: #9A5200;     /* đang chờ PC nhận */
-  --amber-soft: #FBEFD9;
+  --ink: #3B2A06;       /* chữ chính (13,5:1) */
+  --muted: #6B5316;     /* chữ phụ (7,1:1) */
+  --line: #E9D58B;      /* viền */
+  --cobalt: #945806;    /* hành động chính (tên biến giữ nguyên cho đỡ phải sửa code) */
+  --on-cobalt: #FFFFFF; /* chữ trên nền --cobalt (5,7:1) */
+  --cobalt-soft: #FDEFC0;
+  --amber: #A63A08;     /* đang chờ PC nhận — cam gạch, khác hẳn màu nhấn mật ong */
+  --amber-soft: #FDE6D6;
   --on-amber: #FFFFFF;
   --green: #1D7446;
   --green-soft: #DDF1E5;
   --red: #B42318;
   --red-soft: #FBE4E1;
   /* thanh trên cùng */
-  --top-bg: #1766C0; --top-text: #FFFFFF; --top-muted: #E3EFFF; --top-warn: #FFF3C4; --top-press: rgba(255,255,255,.14);
+  --top-bg: #945806; --top-text: #FFFFFF; --top-muted: #FDEFC0; --top-warn: #FFF3C4; --top-press: rgba(255,255,255,.14);
   /* khối "đảo màu" (thông báo nổi, chip đang chọn, thanh chọn nhiều) */
-  --inverse-bg: #0F2A44; --inverse-text: #FFFFFF;
-  --seg-bg: #D7E8F8;        /* nền nhóm nút chuyển (segmented) */
-  --chip-bg: #E3EEFA;       /* nhãn nhỏ (size…) */
-  --field-bg: #F5F9FE;      /* ô nhập */
-  --field-ph: #93A9BF;      /* chữ gợi ý ô nhập */
-  --picked-bg: #E6F0FD;     /* dòng đang được chọn */
-  --muted-bg: #EEF3F8;      /* ô mờ / không chọn được */
-  --empty-text: #93A9BF;    /* số của dòng hết hàng */
-  --totalbar-bg: #E8F2FC;   /* thanh tổng dưới cùng */
-  --btn-disabled: #A9C6EA; --btn-disabled-text: #FFFFFF;
-  --check-border: #9FB6CE;
-  --shadow-rgb: 15,42,68;   /* bóng đổ */
+  --inverse-bg: #3B2A06; --inverse-text: #FFFFFF;
+  --seg-bg: #F6E8B8;        /* nền nhóm nút chuyển (segmented) */
+  --chip-bg: #F8EBC4;       /* nhãn nhỏ (size…) */
+  --field-bg: #FFFAEB;      /* ô nhập */
+  --field-ph: #7A6424;      /* chữ gợi ý ô nhập (5,5:1) */
+  --picked-bg: #FDEFC0;     /* dòng đang được chọn */
+  --muted-bg: #F7F0DC;      /* ô mờ / không chọn được */
+  --empty-text: #7A6424;    /* số của dòng hết hàng */
+  --totalbar-bg: #FEF3D0;   /* thanh tổng dưới cùng */
+  --btn-disabled: #E9DBB0; --btn-disabled-text: #6B5316;
+  --check-border: #B8923A;
+  --shadow-rgb: 59,42,6;    /* bóng đổ */
   --ks-pass-border: #9ED9B8; --ks-pass-bg: #EAF8F0; --ks-fail-border: #F2B1AA; --ks-fail-bg: #FDEDEB;
-  --ks-none-bg: #F4F6F8; --ks-pill-bg: #E7EFF6; --ks-pill-nd-bg: #F3F5F7; --ks-pill-nd-text: #56666F;
+  --ks-none-bg: #F7F2E4; --ks-pill-bg: #F3E8C4; --ks-pill-nd-bg: #F7F2E4; --ks-pill-nd-text: #6B5316;
   --ks-pill-bad-bg: #FBE3E0; --ks-pill-bad-text: #B42318;
-  --ks-pass: #1A7A43; --ks-fail: #C2362B; --ks-none: #66737E;
+  --ks-pass: #1A7A43; --ks-fail: #C2362B; --ks-none: #6B5316;
   --radius-sm: 8px;
   --radius-lg: 18px;
   --font: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;

@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#945806">
+  <meta name="theme-color" content="#FBEBEF">
   <!-- Chế độ giao diện đặt TRƯỚC khi vẽ trang (mặc định Sáng) — xem applyTheme() trong app.js -->
   <script>/* đặt giao diện TRƯỚC khi vẽ trang — giống applyTheme() trong app.js */try{var c=localStorage.getItem('klanan.theme');var d=c==='dark'||(c==='auto'&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.setAttribute('data-theme',d?'dark':'light');document.querySelector('meta[name="theme-color"]').setAttribute('content',d?'#0A1118':'#1766C0');}catch(e){document.documentElement.setAttribute('data-theme','light');}</script>
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
   <title>Kho Lạnh An An</title>
-<link rel="stylesheet" href="fonts.css?v=4.27-20261010"><!-- font trong máy (offline) -->
-  <link rel="stylesheet" href="app.css?v=4.27-20261010">
-  <link rel="stylesheet" href="c3d-phone.css?v=4.27-20261010">
+<link rel="stylesheet" href="fonts.css?v=4.28-20261010"><!-- font trong máy (offline) -->
+  <link rel="stylesheet" href="app.css?v=4.28-20261010">
+  <link rel="stylesheet" href="c3d-phone.css?v=4.28-20261010">
 </head>
 <body>
   <header class="topbar">
@@ -227,12 +227,12 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="live-update.js?v=4.27-20261010"></script><!-- tự cập nhật giao diện APK (đặt ĐẦU TIÊN: báo app đã chạy tốt) -->
-  <script src="export.js?v=4.27-20261010"></script>
-  <script src="size-label.js?v=4.27-20261010"></script>
-  <script src="ks-rules.js?v=4.27-20261010"></script>
-  <script src="app-config.js?v=4.27-20261010"></script><!-- đường dẫn Web App cố định (ẩn ô nhập link trên điện thoại) -->
-  <script src="c3d-phone.js?v=4.27-20261010"></script><!-- Xếp cont 3D: chỉ là phần giao diện nhỏ; three.js nạp khi mở tab -->
-  <script src="app.js?v=4.27-20261010"></script>
+  <script src="live-update.js?v=4.28-20261010"></script><!-- tự cập nhật giao diện APK (đặt ĐẦU TIÊN: báo app đã chạy tốt) -->
+  <script src="export.js?v=4.28-20261010"></script>
+  <script src="size-label.js?v=4.28-20261010"></script>
+  <script src="ks-rules.js?v=4.28-20261010"></script>
+  <script src="app-config.js?v=4.28-20261010"></script><!-- đường dẫn Web App cố định (ẩn ô nhập link trên điện thoại) -->
+  <script src="c3d-phone.js?v=4.28-20261010"></script><!-- Xếp cont 3D: chỉ là phần giao diện nhỏ; three.js nạp khi mở tab -->
+  <script src="app.js?v=4.28-20261010"></script>
 </body>
 </html>

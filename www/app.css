@@ -3,44 +3,45 @@
    Điểm nhấn duy nhất: con số "còn lại" của từng lô — to, đậm, căn phải. Mọi thứ khác giữ yên. */
 
 :root {
-  /* ===== CHẾ ĐỘ SÁNG (mặc định) — mẫu "Mật ong" (PC 8.82 / ĐT 4.27, 10/2026; trước là "H · Xanh da trời tươi") =====
-     Lấy theo mẫu số 5 "Mật ong", chỉnh nhấn #A16207 → #945806 để chữ nhấn trên nền nhạt đạt ≥ 5:1 (WCAG AA).
+  /* ===== CHẾ ĐỘ SÁNG (mặc định) — mẫu "Rượu vang" (ĐT 4.28, 10/2026; thanh trên nền nhạt, nút phụ viền trắng) =====
+     Chọn từ trang mẫu dien-thoai-theme-mau.html (mẫu 14). Mọi cặp chữ/nền ≥ 4,5:1 (WCAG AA).
      Đổi chế độ: html[data-theme="dark"] (khối ngay dưới). Mọi màu trong file dùng các biến này —
      KHÔNG viết mã màu cứng mới, thêm biến ở cả 2 khối. */
-  --frost: #FFFCF2;     /* nền trang */
+  --frost: #FEF8F9;     /* nền trang */
   --paper: #FFFFFF;     /* nền thẻ / ô */
-  --ink: #3B2A06;       /* chữ chính (13,5:1) */
-  --muted: #6B5316;     /* chữ phụ (7,1:1) */
-  --line: #E9D58B;      /* viền */
-  --cobalt: #945806;    /* hành động chính (tên biến giữ nguyên cho đỡ phải sửa code) */
-  --on-cobalt: #FFFFFF; /* chữ trên nền --cobalt (5,7:1) */
-  --cobalt-soft: #FDEFC0;
-  --amber: #A63A08;     /* đang chờ PC nhận — cam gạch, khác hẳn màu nhấn mật ong */
-  --amber-soft: #FDE6D6;
+  --ink: #3A0F1D;       /* chữ chính (15,8:1) */
+  --muted: #764150;     /* chữ phụ (7,6:1) */
+  --line: #F3D5DD;      /* viền */
+  --cobalt: #881337;    /* hành động chính (tên biến giữ nguyên cho đỡ phải sửa code) */
+  --on-cobalt: #FFFFFF; /* chữ trên nền --cobalt (9,6:1) */
+  --cobalt-soft: #F9E0E7;
+  --amber: #1D5FA8;     /* đang chờ PC nhận — xanh dương, khác hẳn màu nhấn đỏ rượu */
+  --amber-soft: #E3EEFA;
   --on-amber: #FFFFFF;
   --green: #1D7446;
   --green-soft: #DDF1E5;
   --red: #B42318;
   --red-soft: #FBE4E1;
-  /* thanh trên cùng */
-  --top-bg: #945806; --top-text: #FFFFFF; --top-muted: #FDEFC0; --top-warn: #FFF3C4; --top-press: rgba(255,255,255,.14);
+  /* thanh trên cùng — nền nhạt, chữ đậm */
+  --top-bg: #FBEBEF; --top-text: #3A0F1D; --top-muted: #764150; --top-warn: #8A4B00; --top-press: rgba(58,15,29,.10); --top-line: #F3D5DD;
+  --brand-a: #881337; --brand-b: #BE7D91;
   /* khối "đảo màu" (thông báo nổi, chip đang chọn, thanh chọn nhiều) */
-  --inverse-bg: #3B2A06; --inverse-text: #FFFFFF;
-  --seg-bg: #F6E8B8;        /* nền nhóm nút chuyển (segmented) */
-  --chip-bg: #F8EBC4;       /* nhãn nhỏ (size…) */
-  --field-bg: #FFFAEB;      /* ô nhập */
-  --field-ph: #7A6424;      /* chữ gợi ý ô nhập (5,5:1) */
-  --picked-bg: #FDEFC0;     /* dòng đang được chọn */
-  --muted-bg: #F7F0DC;      /* ô mờ / không chọn được */
-  --empty-text: #7A6424;    /* số của dòng hết hàng */
-  --totalbar-bg: #FEF3D0;   /* thanh tổng dưới cùng */
-  --btn-disabled: #E9DBB0; --btn-disabled-text: #6B5316;
-  --check-border: #B8923A;
-  --shadow-rgb: 59,42,6;    /* bóng đổ */
+  --inverse-bg: #3A0F1D; --inverse-text: #FFFFFF;
+  --seg-bg: #F6DAE2;        /* nền nhóm nút chuyển (segmented) */
+  --chip-bg: #FAE6EB;       /* nhãn nhỏ (size…) */
+  --field-bg: #FFFCFD;      /* ô nhập */
+  --field-ph: #764150;      /* chữ gợi ý ô nhập (6,9:1) */
+  --picked-bg: #F9E0E7;     /* dòng đang được chọn */
+  --muted-bg: #FAE6EB;      /* ô mờ / không chọn được */
+  --empty-text: #764150;    /* số của dòng hết hàng */
+  --totalbar-bg: #FBEBEF;   /* thanh tổng dưới cùng */
+  --btn-disabled: #EBD3DA; --btn-disabled-text: #764150;
+  --check-border: #A07C87;
+  --shadow-rgb: 58,15,29;   /* bóng đổ */
   --ks-pass-border: #9ED9B8; --ks-pass-bg: #EAF8F0; --ks-fail-border: #F2B1AA; --ks-fail-bg: #FDEDEB;
-  --ks-none-bg: #F7F2E4; --ks-pill-bg: #F3E8C4; --ks-pill-nd-bg: #F7F2E4; --ks-pill-nd-text: #6B5316;
+  --ks-none-bg: #FAF3F5; --ks-pill-bg: #FAE6EB; --ks-pill-nd-bg: #FAF3F5; --ks-pill-nd-text: #764150;
   --ks-pill-bad-bg: #FBE3E0; --ks-pill-bad-text: #B42318;
-  --ks-pass: #1A7A43; --ks-fail: #C2362B; --ks-none: #6B5316;
+  --ks-pass: #1A7A43; --ks-fail: #C2362B; --ks-none: #764150;
   --radius-sm: 8px;
   --radius-lg: 18px;
   --font: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -67,7 +68,8 @@ html[data-theme="dark"] {
   --green-soft: #133226;
   --red: #FF7A6E;
   --red-soft: #3D1A17;
-  --top-bg: #0A1118; --top-text: #E8EEF3; --top-muted: #A3B5C4; --top-warn: #FFD591; --top-press: rgba(255,255,255,.10);
+  --top-bg: #0A1118; --top-text: #E8EEF3; --top-muted: #A3B5C4; --top-warn: #FFD591; --top-press: rgba(255,255,255,.10); --top-line: transparent;
+  --brand-a: #9CC9E8; --brand-b: #FFFFFF;
   --inverse-bg: #E8EEF3; --inverse-text: #0F171E;
   --seg-bg: #22303C;
   --chip-bg: #22303C;
@@ -111,12 +113,13 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
   position: sticky; top: 0; z-index: 20;
   background: var(--top-bg); color: var(--top-text);
   padding: calc(var(--safe-top) + 8px) 16px 10px;
+  border-bottom: 1px solid var(--top-line);
 }
 .topbar-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand-mark {
   width: 14px; height: 14px; border-radius: 3px;
-  background: linear-gradient(135deg, #9CC9E8 0 50%, #fff 50% 100%);
+  background: linear-gradient(135deg, var(--brand-a) 0 50%, var(--brand-b) 50% 100%);
 }
 .brand-name { font-weight: 700; font-size: 18px; letter-spacing: -0.01em; }
 .topbar-actions { display: flex; gap: 4px; }
@@ -297,6 +300,8 @@ body.has-totalbar main { padding-bottom: calc(var(--tabbar-h) + var(--safe-botto
 .btn-primary { background: var(--cobalt); color: var(--on-cobalt); }
 .btn-primary:disabled { background: var(--btn-disabled); color: var(--btn-disabled-text); }
 .btn-ghost { background: var(--frost); color: var(--ink); }
+/* Nút phụ: nền trắng, viền + chữ màu nhấn (Lưu = nút chính, Gửi qua… = nút phụ) */
+.btn-outline { background: var(--paper); color: var(--cobalt); border: 2px solid var(--cobalt); }
 .btn-danger { background: transparent; color: var(--red); min-height: 48px; }
 
 .cart-items { list-style: none; margin: 0 0 14px; padding: 0; border: 1px solid var(--line); border-radius: 14px; }

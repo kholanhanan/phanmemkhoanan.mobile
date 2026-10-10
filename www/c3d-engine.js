@@ -14,6 +14,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
   const EPS = 1e-6;
+  const MIN_SAMPLE = 10; // số thùng mẫu hải quan tối thiểu cho mỗi dòng (mã · size · ngày) — hệ thống tự chia đều, người dùng không nhập
 
   // ---------------------------------------------------------------- danh sách container lạnh mẫu (THAM KHẢO — sửa theo cont thực tế)
   const PRESETS = [
@@ -310,7 +311,7 @@
       }
     }
     // 1b) chồng lên khoảng trống phía trên vách cuối của nhóm trước (nếu cho phép)
-    if (opts.stackTop && !opts.mergeTail && S.top && !(sku.sole || sku._auto) && left > 0) {
+    if (opts.stackTop && S.top && !(sku.sole || sku._auto) && left > 0) { // chồng lên chỗ hổng phía trên vách cuối của mặt hàng trước (dùng được cả khi bật "ghép lấp")
       const t = S.top, sp2 = Object.assign({}, sp, { Lu: t.depth, Wu: t.w, effH: sp.effH - t.z });
       const o2 = orientationsOf(sku, sp2), pats2 = o2.length ? buildPatterns(sku, o2, sp2, t.w, null).filter((p) => p.kind !== 'sole') : [];
       let bst = null;
@@ -387,18 +388,22 @@
     }
     out.placed = nWant - left;
     // 3) ghi lại phần trống bên cạnh vách cuối để nhóm sau lấp (chỉ khi ghép + vách cuối đang xếp "cột đầy")
-    S.strip = null;
+    // Nhóm quá ít, nằm gọn trong chỗ hổng của nhóm trước (không mở vách mới) → phần hổng chưa dùng vẫn để dành cho nhóm sau.
+    const absorbed = !lastTail && left === 0 && out.placed > 0;
+    if (!(absorbed && !out.stripUsed)) S.strip = null;
     if (opts.mergeTail && !isLast && left === 0 && lastTail && lastTail.style === 'tall' && lastTail.boxes && lastTail.kind === 'col' && Math.abs(S.cursor - (lastTail.x0 + lastTail.used)) < EPS) {
       let yEnd = sp.y0; lastTail.boxes.forEach((b) => { yEnd = Math.max(yEnd, b.y + b.dy); });
       const w = sp.y1 - yEnd; if (w > 1) S.strip = { x0: lastTail.x0, depth: lastTail.used, y0: yEnd, w, aW: yEnd - sp.y0 };
     }
-    // 4) ghi lại mặt phẳng trống phía trên vách cuối (chỉ khi vách cuối xếp "từng tầng" và ở chế độ tách riêng)
-    S.top = null;
-    if (opts.stackTop && !opts.mergeTail && !isLast && left === 0 && lastTail && lastTail.kind === 'col' && lastTail.boxes && Math.abs(S.cursor - (lastTail.x0 + lastTail.used)) < EPS) {
+    // 4) ghi lại mặt phẳng trống phía trên vách cuối: cột còn thiếu tầng (vách "cột đầy" thiếu vài thùng) hoặc vách xếp "từng tầng"
+    if (!(absorbed && !out.stackedOn)) S.top = null;
+    if (opts.stackTop && !isLast && left === 0 && lastTail && lastTail.kind === 'col' && lastTail.boxes && Math.abs(S.cursor - (lastTail.x0 + lastTail.used)) < EPS) {
       const pt = lastTail.pat, tops = []; for (let c = 0; c < pt.nc; c++) tops.push(0);
       lastTail.boxes.forEach((b) => { const c = Math.round((b.y - sp.y0) / pt.o.dy); if (c >= 0 && c < pt.nc) tops[c] = Math.max(tops[c], b.z + b.dz); });
-      const mn = Math.min(...tops); let bestRun = null, i0 = 0;
-      if (opts.heightRule !== false && mn <= EPS) tops.fill(1e18); // vách cột đầy chừa cột trống bên cạnh → KHÔNG có mặt phẳng phía trên để chồng
+      let bestRun = null, i0 = 0;
+      // cột còn TRỐNG hẳn (vách cột đầy chừa cột trống bên cạnh) không phải "mặt phẳng phía trên" → bỏ qua (phần này do "ghép lấp" xử lý); chỉ chồng lên cột đang thiếu tầng
+      if (opts.heightRule !== false || lastTail.style === 'tall') for (let c = 0; c < tops.length; c++) if (tops[c] <= EPS) tops[c] = 1e18;
+      const mn = Math.min(...tops);
       while (i0 < tops.length) { if (Math.abs(tops[i0] - mn) > EPS) { i0++; continue; } let i1 = i0; while (i1 + 1 < tops.length && Math.abs(tops[i1 + 1] - mn) <= EPS) i1++; if (!bestRun || i1 - i0 > bestRun.i1 - bestRun.i0) bestRun = { i0, i1 }; i0 = i1 + 1; }
       if (bestRun && sp.effH - mn > 1) S.top = { x0: lastTail.x0, depth: lastTail.used, y0: sp.y0 + bestRun.i0 * pt.o.dy, w: (bestRun.i1 - bestRun.i0 + 1) * pt.o.dy, z: mn, tiers: Math.round(mn / pt.o.dz) };
     }
@@ -474,7 +479,7 @@
       });
     }
     let weightLeft = c.maxPayload > 0 ? c.maxPayload : Infinity, loadedKg = 0;
-    const sampleQ = opts.sampleOn === false ? 0 : Math.max(0, Math.floor(num(opts.sampleQty))); // sampleOn=false → KHÔNG chừa dãy mẫu hải quan
+    const sampleQ = opts.sampleOn === false ? 0 : MIN_SAMPLE; // hàng mẫu hải quan: TỰ ĐỘNG tối thiểu MIN_SAMPLE thùng / mỗi dòng, chia đều vào các dãy (không còn dãy mẫu riêng); sampleOn=false → không đánh dấu mẫu
     const SOLE_WHY = { 'mot-tang': 'chỉ xếp được 1 tầng', 'khong-khe': 'bề ngang không còn khe để so le' };
     groups.forEach((g, gi) => {
       const k = g.sku; g.index = gi; g.requested = k.qty; g.loaded = 0; g.left = k.qty; g.sample = 0; g.reasons = []; g.patterns = []; g.xStart = null; g.xEnd = null; g.kg = 0; g.ok = false;
@@ -485,21 +490,10 @@
     });
     const boxes = [], mainBoxes = [], sampBoxes = [], wLimit = (k, n) => { if (k.kg > 0 && Number.isFinite(weightLeft)) return Math.min(n, Math.floor((weightLeft + 1e-6) / k.kg)); return n; };
     const addWhy = (g, t) => { if (!g.reasons.includes(t)) g.reasons.push(t); };
-    // A) HÀNG MẪU HẢI QUAN: mỗi dòng (mã · size · ngày) giữ lại ~sampleQty thùng, gom thành 1–2 dãy ngay sát cửa (các nhóm đứng cạnh nhau trong cùng dãy)
-    let Ds = 0;
-    if (sampleQ > 0) {
-      const S2 = { sp, cursor: sp.x0, strip: null, top: null };
-      groups.forEach((g) => {
-        if (!g.ok) return; const k = g.sku, want = wLimit(k, Math.min(sampleQ, k.qty)); if (want <= 0) return;
-        const r = runGroup(S2, g, want, Object.assign({}, opts, { mergeTail: true, stackTop: false, _sample: true }), false);
-        r.boxes.forEach((b) => { b.group = g.index; b.skuId = k.id; b.sample = true; }); sampBoxes.push(...r.boxes); g.sample = r.placed;
-        if (Number.isFinite(weightLeft)) weightLeft -= r.placed * k.kg; if (r.placed < Math.min(sampleQ, k.qty)) addWhy(g, 'Không đủ chỗ / tải trọng cho ' + sampleQ + ' thùng mẫu hải quan.');
-        if (r.soleFail) g.soleFail = r.soleFail;
-      });
-      if (sampBoxes.length) { Ds = S2.cursor - sp.x0; const delta = sp.x1 - S2.cursor; sampBoxes.forEach((b) => { b.x += delta; }); }
-    }
+    // (hàng mẫu hải quan KHÔNG còn xếp riêng 2 dãy cuối: sau khi xếp xong, hệ thống tự chọn & đánh dấu thùng mẫu chia đều vào các dãy — xem bước đánh dấu bên dưới)
+    const Ds = 0;
     // B) HÀNG CHÍNH: từ vách đầu ra tới trước dãy mẫu
-    const spM = Object.assign({}, sp, { x1: sp.x1 - Ds, Lu: sp.Lu - Ds }), S = { sp: spM, cursor: sp.x0, strip: null, top: null };
+    const spM = sp, S = { sp: spM, cursor: sp.x0, strip: null, top: null };
     const lastIdx = (() => { let li = -1; groups.forEach((g, i) => { if (g.ok && g.requested - g.sample > 0) li = i; }); return li; })();
     groups.forEach((g, gi) => {
       if (!g.ok) return; const k = g.sku; const n0 = k.qty - g.sample; if (n0 <= 0) return;
@@ -512,12 +506,10 @@
       if (Number.isFinite(weightLeft)) weightLeft -= r.placed * k.kg;
     });
     groups.forEach((g) => {
-      const mine = sampBoxes.filter((b) => b.group === g.index);
-      g.loaded += g.sample; g.left = g.requested - g.loaded; g.kg = g.loaded * g.sku.kg; loadedKg += g.kg;
+      g.left = g.requested - g.loaded; g.kg = g.loaded * g.sku.kg; loadedKg += g.kg;
       g.volUnit = g.sku.L * g.sku.W * g.sku.H; g.volReq = g.volUnit * g.requested; g.volLoaded = g.volUnit * g.loaded; // mm³ (÷ 1e9 = m³)
-      const all = mainBoxes.filter((b) => b.group === g.index).concat(mine);
+      const all = mainBoxes.filter((b) => b.group === g.index);
       if (all.length) { g.xStart = Math.min(...all.map((b) => b.x)); g.xEnd = Math.max(...all.map((b) => b.x + b.dx)); }
-      if (mine.length && !g.patterns.length) g.patterns = [{ text: 'chỉ có thùng mẫu hải quan', kind: 'col' }];
       if (g.soleFail) addWhy(g, 'Không xếp SOLE được: ' + (SOLE_WHY[g.soleFail] || '') + ' → xếp thẳng hàng.');
     });
     boxes.push(...mainBoxes, ...sampBoxes);
@@ -529,6 +521,26 @@
       info.forEach((r) => { const g = Object.keys(r.gs), w = Object.keys(r.ws); r.group = g.length === 1 ? +g[0] : -1; r.wall = (g.length === 1 && w.length === 1 && +w[0] >= 0 && !r.sample) ? +w[0] : -1; delete r.gs; delete r.ws; r.gaps = { right: r.y0, left: c.W - r.y1, top: r.top, ceiling: c.H - r.top, red: sp.red - r.top, eff: sp.effH - r.top }; }); // wall ≥ 0 → dãy này chỉnh được hướng (thuộc 1 mặt hàng, vách chính)
       return info;
     })();
+    // HÀNG MẪU HẢI QUAN — TỰ CHIA ĐỀU: mỗi dòng (mã · size · ngày) lấy tối thiểu MIN_SAMPLE thùng, chia đều cho các dãy mà dòng đó nằm
+    // (mỗi dãy 1–2 thùng), ưu tiên thùng ở TẦNG TRÊN CÙNG (dễ lấy ra kiểm), xoay vị trí trái/phải giữa các dãy. Thùng mẫu nằm ngay trong khối hàng, KHÔNG tách riêng.
+    let nSample = 0;
+    if (sampleQ > 0) {
+      groups.forEach((g) => {
+        if (!g.ok) return; const mine = boxes.filter((b) => b.group === g.index); if (!mine.length) return;
+        const need = Math.min(sampleQ, mine.length), byRow = {}; mine.forEach((b) => { (byRow[b.row] = byRow[b.row] || []).push(b); });
+        const ids = Object.keys(byRow).map(Number).sort((a, b) => a - b), R = ids.length, quota = ids.map((_, i) => Math.floor(need * (i + 1) / R) - Math.floor(need * i / R));
+        let miss = 0; ids.forEach((id, i) => { if (quota[i] > byRow[id].length) { miss += quota[i] - byRow[id].length; quota[i] = byRow[id].length; } });
+        for (let i = 0; miss > 0 && i < 4 * R; i++) { const j = i % R; if (quota[j] < byRow[ids[j]].length) { quota[j]++; miss--; } } // dãy nào ít thùng quá thì dồn sang dãy khác
+        ids.forEach((id, i) => {
+          const q = quota[i]; if (q <= 0) return; const cand = byRow[id].slice().sort((a, b) => ((b.z + b.dz) - (a.z + a.dz)) || (a.y - b.y)), topZ = cand[0].z + cand[0].dz;
+          const nTop = cand.filter((b) => b.z + b.dz >= topZ - 1e-3).length, head = cand.slice(0, nTop), rest = cand.slice(nTop);
+          const sh = (i * 3) % Math.max(1, head.length), ordered = head.slice(sh).concat(head.slice(0, sh)).concat(rest); // xoay điểm bắt đầu theo dãy → mẫu không dồn 1 phía
+          ordered.slice(0, q).forEach((b) => { b.sample = true; nSample++; g.sample++; });
+        });
+        if (g.sample < Math.min(sampleQ, g.sku.qty)) addWhy(g, 'Chỉ xếp được ' + g.sample + ' thùng, chưa đủ ' + sampleQ + ' thùng mẫu hải quan.');
+      });
+    }
+    rows.forEach((r) => { r.samples = 0; }); boxes.forEach((b) => { if (b.sample && rows[b.row - 1]) rows[b.row - 1].samples++; }); // số thùng mẫu HQ trong từng dãy
     // QUY TẮC CAO → THẤP (trong → cửa): dãy phía trong KHÔNG được thấp hơn dãy phía ngoài. Dãy còn dư chỗ chồng thêm 1 tầng mà dãy liền sau lại cao hơn → vi phạm (bỏ qua dãy mẫu hải quan).
     const heightViol = [];
     for (let i = 0; i + 1 < rows.length; i++) { const a = rows[i], b2 = rows[i + 1]; if (a.sample || b2.sample) continue; if (sp.effH - a.top >= a.hmin - 1e-3 && b2.top > a.top + 1e-3) heightViol.push({ row: a.row, next: b2.row, top: a.top, nextTop: b2.top }); }
@@ -542,7 +554,7 @@
     const cog = kgSum > 0 ? { x: cx / kgSum, y: cy / kgSum, xPct: cx / kgSum / c.L * 100, yPct: cy / kgSum / c.W * 100 } : null;
     // KHOẢNG TRỐNG CÒN LẠI (mm): thùng gần nhất → vách đầu / cửa / vách phải / vách trái, thùng CAO NHẤT → trần / red line / giới hạn xếp
     const gaps = boxes.length ? (() => { let mnx = 1e18, mxx = -1e18, mny = 1e18, mxy = -1e18, top = 0; boxes.forEach((b) => { mnx = Math.min(mnx, b.x); mxx = Math.max(mxx, b.x + b.dx); mny = Math.min(mny, b.y); mxy = Math.max(mxy, b.y + b.dy); top = Math.max(top, b.z + b.dz); }); return { front: mnx, door: c.L - mxx, right: mny, left: c.W - mxy, top, ceiling: c.H - top, red: sp.red - top, eff: sp.effH - top }; })() : null;
-    const mainEnd = mainBoxes.length ? Math.max(...mainBoxes.map((b) => b.x + b.dx)) - sp.x0 : 0, usedLen = mainEnd + Ds, gapSample = (sampBoxes.length && mainBoxes.length) ? Math.max(0, (spM.x1 - sp.x0) - mainEnd) : 0;
+    const mainEnd = mainBoxes.length ? Math.max(...mainBoxes.map((b) => b.x + b.dx)) - sp.x0 : 0, usedLen = mainEnd + Ds, gapSample = 0;
     const reqTotal = groups.reduce((s, g) => s + g.requested, 0), loadTotal = groups.reduce((s, g) => s + g.loaded, 0);
     if (!ver.ok) errors.push('Kiểm tra độc lập phát hiện ' + ver.violations.length + ' lỗi trong phương án (xem chi tiết).');
     if (cog && (Math.abs(cog.xPct - 50) > 12)) warnings.push('Trọng tâm hàng lệch dọc cont: ' + cog.xPct.toFixed(0) + '% chiều dài tính từ vách đầu (nên 40–60%).');
@@ -555,7 +567,7 @@
     return {
       ok: errors.length === 0, errors, warnings, container: c, space: sp, groups, boxes, skus, rows, heightViol,
       verify: ver, maxTier,
-      totals: { volReqAll: groups.reduce((a, g) => a + (g.volReq || 0), 0), volFreeInternal: volIn - volBox, volFreeUsable: volUse - volBox, gaps, rows: rows.length, gapSample, sample: sampBoxes.length, sampleDepth: Ds, requested: reqTotal, loaded: loadTotal, left: reqTotal - loadTotal, kg: loadedKg, payload: c.maxPayload, volBox, volUsable: volUse, volInternal: volIn, fillUsablePct: volUse > 0 ? volBox / volUse * 100 : 0, fillInternalPct: volIn > 0 ? volBox / volIn * 100 : 0, usedLength: usedLen, freeLength: sp.Lu - usedLen, effH: sp.effH, cog },
+      totals: { volReqAll: groups.reduce((a, g) => a + (g.volReq || 0), 0), volFreeInternal: volIn - volBox, volFreeUsable: volUse - volBox, gaps, rows: rows.length, gapSample, sample: nSample, sampleDepth: 0, requested: reqTotal, loaded: loadTotal, left: reqTotal - loadTotal, kg: loadedKg, payload: c.maxPayload, volBox, volUsable: volUse, volInternal: volIn, fillUsablePct: volUse > 0 ? volBox / volUse * 100 : 0, fillInternalPct: volIn > 0 ? volBox / volIn * 100 : 0, usedLength: usedLen, freeLength: sp.Lu - usedLen, effH: sp.effH, cog },
       options: { heightRule: opts.heightRule !== false, sampleOn: opts.sampleOn !== false, sampleQty: sampleQ, stackTop: !!opts.stackTop, mergeTail: !!opts.mergeTail, dateDir: opts.dateDir || 'asc', sortMode: opts.sortMode || 'auto', minSupport: opts.minSupport || 0.7 },
     };
   }
@@ -609,13 +621,13 @@
     if (!(p1.totals.requested > 0) || p1.totals.left > 0 || p1.maxTier < 2) return p1;
     if (p1.totals.usedLength - Ds >= target - 1) return p1;
     const note = (p, extra) => {
-      const rt = {}; p.boxes.forEach((b) => { if (!b.sample) rt[b.row] = Math.max(rt[b.row] || 0, b.tier); }); const ts = Object.keys(rt).map((k) => rt[k]), mn = Math.min(...ts), mx = Math.max(...ts), rws = ts.length;
+      const rt = {}; p.boxes.forEach((b) => { rt[b.row] = Math.max(rt[b.row] || 0, b.tier); }); const ts = Object.keys(rt).map((k) => rt[k]), mn = Math.min(...ts), mx = Math.max(...ts), rws = ts.length;
       return 'Hàng ít nên trải đều: ' + rws + ' dãy (dùng ' + Math.round((p.totals.usedLength - Ds) / main * 100) + '% chiều dài chứa hàng), mỗi dãy ' + (mn === mx ? mx : mn + '–' + mx) + ' tầng (≈ ' + Math.round(p.totals.loaded / Math.max(1, rws)) + ' thùng/dãy) — thay vì ' + p1.totals.rows + ' dãy cao ' + p1.maxTier + ' tầng.' + (extra || '');
     };
     // CÁCH 1 (ưu tiên): trải ra ĐỦ số dãy vừa chiều dài; số tầng từng dãy chênh nhau tối đa 1 (VD 5 tầng, 4 tầng xen nhau; dãy cao đứng trước)
     try {
       const info = {};
-      p1.boxes.forEach((b) => { if (b.sample || b.wall == null || b.wall < 0) return; const g = (info[b.group] = info[b.group] || { n: 0, walls: {}, t1: {} }); g.n++; const w = (g.walls[b.wall] = g.walls[b.wall] || { x0: 1e18, x1: -1e18 }); w.x0 = Math.min(w.x0, b.x); w.x1 = Math.max(w.x1, b.x + b.dx); if (b.tier === 1) g.t1[b.wall] = (g.t1[b.wall] || 0) + 1; });
+      p1.boxes.forEach((b) => { if (b.wall == null || b.wall < 0) return; const g = (info[b.group] = info[b.group] || { n: 0, walls: {}, t1: {} }); g.n++; const w = (g.walls[b.wall] = g.walls[b.wall] || { x0: 1e18, x1: -1e18 }); w.x0 = Math.min(w.x0, b.x); w.x1 = Math.max(w.x1, b.x + b.dx); if (b.tier === 1) g.t1[b.wall] = (g.t1[b.wall] || 0) + 1; });
       const gi = Object.keys(info); let totalLen = 0;
       gi.forEach((k) => { const g = info[k], ws = Object.keys(g.walls); g.wc = ws.length; g.D = Math.max(...ws.map((w) => g.walls[w].x1 - g.walls[w].x0)); g.capT = Math.max(1, ...Object.keys(g.t1).map((w) => g.t1[w])); g.Tsum = Math.ceil(g.n / g.capT); totalLen += g.wc * g.D; });
       if (gi.length && totalLen > 0) {

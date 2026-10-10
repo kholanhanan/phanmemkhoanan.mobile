@@ -19,7 +19,7 @@
 
   // ------------------------------------------------------------------ nạp thư viện (lần đầu)
   function loadScript(src) {
-    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src + '?v=4.23'; s.onload = res; s.onerror = () => rej(new Error('Không nạp được ' + src)); document.head.appendChild(s); });
+    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src + '?v=4.24'; s.onload = res; s.onerror = () => rej(new Error('Không nạp được ' + src)); document.head.appendChild(s); });
   }
   function ensure() {
     if (!ready) ready = (async () => {
@@ -188,8 +188,7 @@
       '<label class="c3-chk big"><input type="checkbox" id="c3Auto"' + (o.autoLayout !== false ? ' checked' : '') + '> Tự sắp xếp hợp lý khi trống một bên (so le trái/phải, ưu tiên thoáng khí)</label>' +
       '<label class="c3-chk big"><input type="checkbox" id="c3Stack"' + (o.stackTop !== false ? ' checked' : '') + '> Cho mặt hàng sau chồng lên khoảng trống phía trên mặt hàng trước</label>' +
       '<label class="c3-chk big"><input type="checkbox" id="c3Height"' + (o.heightRule !== false ? ' checked' : '') + '> Xếp từ cao xuống thấp (trong cùng → cửa cont)</label>' +
-      '<label class="c3-chk big"><input type="checkbox" id="c3SampOn"' + (o.sampleOn !== false ? ' checked' : '') + '> Chừa mẫu hải quan (2 dãy cuối)</label>' +
-      (o.sampleOn !== false ? fld('Hàng mẫu hải quan (thùng / mỗi loại)', 'id="c3Samp"', o.sampleQty == null ? 10 : o.sampleQty) : '') +
+      '<label class="c3-chk big"><input type="checkbox" id="c3SampOn"' + (o.sampleOn !== false ? ' checked' : '') + '> Hàng mẫu hải quan: tự chia đều vào các dãy (tối thiểu 10 thùng / mỗi loại)</label>' +
       '<div class="c3-g2"><label class="c3-f"><span>Thứ tự đóng</span><select id="c3Sort"><option value="auto"' + (o.sortMode !== 'manual' ? ' selected' : '') + '>Mặt hàng › Size › Ngày</option><option value="manual"' + (o.sortMode === 'manual' ? ' selected' : '') + '>Đúng thứ tự nhập</option></select></label>' +
       '<label class="c3-f"><span>Ngày</span><select id="c3Date"><option value="asc"' + (o.dateDir !== 'desc' ? ' selected' : '') + '>Cũ vào trong</option><option value="desc"' + (o.dateDir === 'desc' ? ' selected' : '') + '>Mới vào trong</option></select></label></div></div></details>';
   }
@@ -208,7 +207,7 @@
     if (p.verify.ok && t.loaded) h += msg('ok', '✔ <b>Đã kiểm tra độc lập ' + fmt(t.loaded) + ' thùng</b>: không chồng, trong cont, dưới red line, đủ điểm đỡ, thứ tự đóng không bị chắn.');
     p.warnings.forEach((m) => { h += msg('warn', '⚠ ' + esc(m)); });
     if (t.left > 0) h += msg('err', '📦 <b>Rớt lại kho ' + fmt(t.left) + ' thùng</b>: ' + p.groups.filter((g) => g.left > 0).map((g) => esc((g.sku.code || 'Mặt hàng') + ' ' + (g.sku.size || '')) + ' ' + fmt(g.left)).join(' · '));
-    if (p.rows.some((r) => r.sample)) h += msg('tip', '🛃 Dãy mẫu hải quan: ' + p.rows.filter((r) => r.sample).map((r) => 'Dãy ' + r.row).join(', ') + '.');
+    if (t.sample > 0) h += msg('tip', '🛃 Hàng mẫu hải quan: ' + fmt(t.sample) + ' thùng, tự chia đều vào ' + fmt(p.rows.filter((r) => r.samples > 0).length) + ' dãy (tối thiểu 10 thùng / mỗi loại), tô sáng trên hình 3D.');
     if (p.compare && p.compare.ok && p.compare.delta > 0) h += msg('tip', '💡 Đổi sang “' + (p.compare.mergeTail ? 'Ghép lấp chỗ trống' : 'Tách riêng') + '” xếp thêm ' + fmt(p.compare.delta) + ' thùng.');
     h += p.groups.map((g, i) => {
       const rs = p.boxes.filter((b) => b.group === i).map((b) => b.row), rr = rs.length ? 'Dãy ' + Math.min(...rs) + (Math.max(...rs) > Math.min(...rs) ? '–' + Math.max(...rs) : '') : '—';
@@ -232,7 +231,7 @@
     let ly = ''; for (let t = 1; t <= p.maxTier; t++) ly += row('data-tier="' + t + '"', !S.hidden.tiers.has(t), 'Lớp ' + t, cnt[t] || 0);
     h += '<div class="c3-sec"><b class="c3-h">Lớp (tầng) <span><button type="button" class="c3-mini" data-lyall="t1">Tất cả</button><button type="button" class="c3-mini" data-lyall="t0">Ẩn hết</button></span></b><div class="c3-cols">' + ly + '</div></div>';
     h += '<div class="c3-sec"><b class="c3-h">Dãy (vách → cửa) <span><button type="button" class="c3-mini" data-lyall="r1">Tất cả</button><button type="button" class="c3-mini" data-lyall="r0">Ẩn hết</button></span></b><div class="c3-cols">' +
-      p.rows.map((r) => row('data-row="' + r.row + '"', !S.hidden.rows.has(r.row), 'Dãy ' + r.row + (r.sample ? ' 🛃' : ''), r.n)).join('') + '</div></div>';
+      p.rows.map((r) => row('data-row="' + r.row + '"', !S.hidden.rows.has(r.row), 'Dãy ' + r.row + (r.samples ? ' 🛃' + r.samples : ''), r.n)).join('') + '</div></div>';
     return h;
   }
 
@@ -240,7 +239,6 @@
   function onInput(e) {
     const t = e.target;
     if (t.dataset.c) { const k = t.dataset.c; if (k === 'name' || k === 'type') S.cont[k] = t.value; else if (k === 'maxPayload') S.cont[k] = E.num(t.value); else S.cont[k] = fromU(t.value); sched(); return; }
-    if (t.id === 'c3Samp') { S.opts.sampleQty = Math.max(0, Math.floor(E.num(t.value))); sched(); return; }
     if (t.dataset.s && t.dataset.f) {
       const k = S.skus.find((x) => x.id === t.dataset.s); if (!k) return; const f = t.dataset.f;
       if (t.type === 'checkbox') k[f] = t.checked; else if (f === 'orient') k[f] = t.value; else if (t.dataset.len) k[f] = fromU(t.value); else if (['qty', 'maxLayers'].includes(f)) k[f] = Math.max(0, Math.floor(E.num(t.value))); else if (f === 'kg') k[f] = E.num(t.value); else k[f] = t.value;
@@ -385,7 +383,7 @@
       p.groups.forEach((g, i) => w2.addRow([i + 1, g.sku.code, g.sku.size, g.sku.date, g.requested, g.loaded, g.left, g.sample || 0, (g.patterns || []).map((x) => x.text).join(' | '), Math.round(g.kg * 100) / 100, g.sku.note, (g.reasons || []).join(' ')])); [6, 16, 10, 12, 10, 10, 10, 9, 44, 12, 28, 40].forEach((w, i) => { w2.getColumn(i + 1).width = w; });
       const w3 = wb.addWorksheet('Trình tự đóng'); w3.addRow(['STT đóng', 'Dãy', 'Loại', 'Mã hàng', 'Size', 'Date', 'Lớp', 'Cách vách đầu (mm)', 'Cách vách phải (mm)', 'Cao (mm)', 'Dài', 'Ngang', 'Cao']).font = { bold: true };
       p.boxes.forEach((b) => { const sk = p.groups[b.group].sku; w3.addRow([b.seq, b.row, b.sample ? 'Mẫu hải quan' : 'Hàng chính', sk.code, sk.size, sk.date, b.tier, Math.round(b.x - sp.x0), Math.round(b.y - sp.y0), Math.round(b.z), Math.round(b.dx), Math.round(b.dy), Math.round(b.dz)]); });
-      const w4 = wb.addWorksheet('Theo dãy'); w4.addRow(['Dãy', 'Từ (mm)', 'Đến (mm)', 'Số thùng', 'Mẫu HQ']).font = { bold: true }; p.rows.forEach((r) => w4.addRow([r.row, Math.round(r.x0 - sp.x0), Math.round(r.x1 - sp.x0), r.n, r.sample ? 'Có' : '']));
+      const w4 = wb.addWorksheet('Theo dãy'); w4.addRow(['Dãy', 'Từ (mm)', 'Đến (mm)', 'Số thùng', 'Mẫu HQ']).font = { bold: true }; p.rows.forEach((r) => w4.addRow([r.row, Math.round(r.x0 - sp.x0), Math.round(r.x1 - sp.x0), r.n, r.samples ? r.samples : '']));
       const buf = await wb.xlsx.writeBuffer(); fileDialog({ blob: new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), name: 'XepContainer_' + safe(c.name) + '_' + ymd() + '.xlsx', mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     } catch (e) { toast('Không tạo được Excel: ' + e.message, true); }
   }

@@ -145,7 +145,7 @@
       ];
       const E = [[0, 0, 0, 1, 0, 0], [0, 1, 0, 1, 1, 0], [0, 0, 1, 1, 0, 1], [0, 1, 1, 1, 1, 1], [0, 0, 0, 0, 1, 0], [1, 0, 0, 1, 1, 0], [0, 0, 1, 0, 1, 1], [1, 0, 1, 1, 1, 1], [0, 0, 0, 0, 0, 1], [1, 0, 0, 1, 0, 1], [0, 1, 0, 0, 1, 1], [1, 1, 0, 1, 1, 1]];
       vis.forEach((bi) => {
-        const b = p.boxes[bi], rgb = hexToRgb(colors[b.group]);
+        const b = p.boxes[bi], rgb0 = hexToRgb(colors[b.group]), rgb = b.sample ? rgb0.map((v) => v * 0.45 + 0.55) : rgb0; // thùng mẫu hải quan: màu nhạt / sáng hơn
         const x0 = b.x * SC - L / 2, y0 = b.z * SC, z0 = b.y * SC - W / 2, sx = b.dx * SC, sy = b.dz * SC, sz = b.dy * SC; // KHÔNG chừa khe (mặt thùng khít nhau, viền phân tách)
         F.forEach((face) => {
           const nv = face[0], q = face[1];

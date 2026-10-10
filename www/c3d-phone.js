@@ -6,7 +6,7 @@
 (function () {
   'use strict';
   const $ = (id) => document.getElementById(id);
-  const LS = 'klanan.c3d.v1', LSP = 'klanan.c3d.plans.v1', LSPC = 'klanan.c3d.pc.v1'; // LSPC = cont + phương án PC đã đẩy (chỉ xem / mở)
+  const LS = 'klanan.c3d.v1', LSP = 'klanan.c3d.plans.v1', LSPC = 'klanan.c3d.pc.v1', LST = 'klanan.c3d.thung.v1'; // LST = danh mục loại thùng lưu trên máy; LSPC = cont + phương án PC đã đẩy (chỉ xem / mở)
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmt = (n, d) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 });
   const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -19,7 +19,7 @@
 
   // ------------------------------------------------------------------ nạp thư viện (lần đầu)
   function loadScript(src) {
-    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src + '?v=4.20'; s.onload = res; s.onerror = () => rej(new Error('Không nạp được ' + src)); document.head.appendChild(s); });
+    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src + '?v=4.21'; s.onload = res; s.onerror = () => rej(new Error('Không nạp được ' + src)); document.head.appendChild(s); });
   }
   function ensure() {
     if (!ready) ready = (async () => {
@@ -34,7 +34,27 @@
   function schedSave() { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(LS, JSON.stringify({ unit: S.unit, cid: S.cid, cont: S.cont, saved: S.saved, skus: S.skus, colors: S.colors, opts: S.opts })); } catch (e) { /* đầy bộ nhớ: bỏ qua */ } }, 700); }
   const u = () => (S.unit === 'cm' ? 10 : 1), toU = (mm) => String(Math.round(mm / u() * 100) / 100), fromU = (s) => E.num(s) * u();
   const unj = (s) => { try { return JSON.parse(String(s || '').replace(/^__JSON__/, '')); } catch (e) { return null; } };
-  const pcData = () => loadLS(LSPC, { at: '', conts: [], plans: [] });
+  const pcData = () => Object.assign({ at: '', conts: [], plans: [], thung: [] }, loadLS(LSPC, {}));
+  // DANH MỤC LOẠI THÙNG: lưu kích thước + kg + cách xếp để dùng lại cho cont sau (trên máy + loại PC đã đẩy sang, ☁)
+  const CATF = ['code', 'size', 'name', 'L', 'W', 'H', 'kg', 'allowRotate', 'allowStand', 'allowLay', 'sole', 'maxLayers', 'orient', 'rowPlan', 'note'];
+  const catKey = (v) => String(v.code || '').trim().toLowerCase() + '|' + String(v.size || '').trim().toLowerCase();
+  const catLabel = (v) => (String(v.code || '').trim() || '(chưa có mã)') + (v.size ? ' · ' + v.size : '') + (v.name ? ' · ' + v.name : '');
+  const catLocal = () => loadLS(LST, []);
+  function catAll() { const loc = catLocal(), seen = new Set(loc.map((c) => catKey(c.v))); return loc.map((c) => Object.assign({}, c, { pc: false })).concat(pcData().thung.filter((c) => !seen.has(catKey(c.v))).map((c) => ({ id: c.id, name: c.name, v: c.v, pc: true }))); }
+  function catSave(id) {
+    const k = S.skus.find((x) => x.id === id); if (!k) return; if (!String(k.code || '').trim()) { toast('Nhập Mã hàng trước.', true); return; } if (!(k.L > 0 && k.W > 0 && k.H > 0)) { toast('Nhập đủ Dài / Rộng / Cao thùng.', true); return; }
+    const v = {}; CATF.forEach((f) => { v[f] = k[f] === undefined ? '' : clone(k[f]); }); const list = catLocal(), key = catKey(v), i = list.findIndex((c) => catKey(c.v) === key), rec = { id: i >= 0 ? list[i].id : 'th' + Date.now().toString(36), name: catLabel(v), v };
+    if (i >= 0) list[i] = rec; else list.push(rec); try { localStorage.setItem(LST, JSON.stringify(list)); toast((i >= 0 ? 'Đã cập nhật' : 'Đã lưu') + ' loại thùng vào danh mục.'); } catch (e) { toast('Không lưu được (đầy bộ nhớ).', true); }
+  }
+  function catOpen() {
+    const all = catAll(), m = modal('<h3>Danh mục loại thùng</h3>' + (all.length ? all.map((c) => '<div class="c3-plan"><div><b>' + (c.pc ? '☁ ' : '') + esc(catLabel(c.v)) + '</b><small>' + Math.round(c.v.L) + '×' + Math.round(c.v.W) + '×' + Math.round(c.v.H) + ' mm · ' + fmt(c.v.kg, 2) + ' kg · ' + fmt(c.v.L * c.v.W * c.v.H / 1e9, 4) + ' m³</small></div><input type="text" inputmode="numeric" data-q="' + esc(c.id) + '" value="100" style="width:64px;min-height:38px;font-size:15px"><button type="button" class="c3-b sm pri" data-ca="' + esc(c.id) + '">Thêm</button>' + (c.pc ? '' : '<button type="button" class="c3-b sm dng" data-cd="' + esc(c.id) + '">Xóa</button>') + '</div>').join('') : '<div class="c3-empty">Danh mục trống. Mở 1 mặt hàng › “Lưu danh mục”.</div>') + '<div class="c3-btns"><button type="button" class="c3-b" id="c3CatCl">Đóng</button></div>');
+    $('c3CatCl').onclick = () => { m.hidden = true; };
+    m.onclick = (e) => {
+      if (e.target === m) { m.hidden = true; return; } const a = e.target.closest('[data-ca]'), d = e.target.closest('[data-cd]');
+      if (a) { const c = all.find((x) => x.id === a.dataset.ca), qi = m.querySelector('[data-q="' + a.dataset.ca + '"]'); if (!c) return; const k = newSku(Object.assign({}, clone(c.v), { qty: Math.max(1, Math.floor(E.num(qi && qi.value) || 100)) })); S.skus.push(k); S.open = new Set([k.id]); m.hidden = true; renderPane(); sched(0); schedSave(); toast('Đã thêm ' + catLabel(c.v) + '.'); }
+      else if (d) { if (!confirm('Xóa loại thùng này khỏi danh mục?')) return; localStorage.setItem(LST, JSON.stringify(catLocal().filter((x) => x.id !== d.dataset.cd))); catOpen(); }
+    };
+  }
   function contList() {
     const ov = {}, pcv = {}; pcData().conts.forEach((c) => { pcv[c.id] = c.v; }); S.saved.forEach((c) => { ov[c.id] = c.v; });
     const out = E.PRESETS.map((p) => Object.assign({}, p, pcv[p.id] || {}, ov[p.id] || {}, { id: p.id, builtin: true, edited: !!(ov[p.id] || pcv[p.id]), fromPc: !!pcv[p.id] && !ov[p.id] }));
@@ -49,8 +69,9 @@
     try {
       const r = await K.api('c3dData'), h = r.headers || [], ix = (n) => h.indexOf(n), rows = r.rows || [], g = (row, n) => (ix(n) < 0 ? '' : row[ix(n)]);
       const conts = [], plans = [];
-      rows.forEach((row) => { const d = unj(g(row, 'data')); if (!d) return; const id = String(g(row, 'id')); if (g(row, 'kind') === 'cont') conts.push({ id, v: d }); else if (g(row, 'kind') === 'plan') plans.push({ id, name: String(g(row, 'name')), at: String(g(row, 'capNhat')), contName: String(g(row, 'contName')), loaded: +g(row, 'loaded') || 0, requested: +g(row, 'requested') || 0, data: d }); });
-      localStorage.setItem(LSPC, JSON.stringify({ at: new Date().toISOString(), conts, plans }));
+      const thung = [];
+      rows.forEach((row) => { const d = unj(g(row, 'data')); if (!d) return; const id = String(g(row, 'id')); if (g(row, 'kind') === 'thung') { thung.push({ id, name: String(g(row, 'name')), v: d }); return; } if (g(row, 'kind') === 'cont') conts.push({ id, v: d }); else if (g(row, 'kind') === 'plan') plans.push({ id, name: String(g(row, 'name')), at: String(g(row, 'capNhat')), contName: String(g(row, 'contName')), loaded: +g(row, 'loaded') || 0, requested: +g(row, 'requested') || 0, data: d }); });
+      localStorage.setItem(LSPC, JSON.stringify({ at: new Date().toISOString(), conts, plans, thung }));
       if (manual) toast('Đã tải từ PC: ' + conts.length + ' cont, ' + plans.length + ' phương án.');
       if (S && S.tab === 'cont') renderPane(); return true;
     } catch (e) { if (manual) toast(/Không có chức năng/.test(e.message) ? 'Web App chưa cập nhật (cần dán lại Code.gs trên PC).' : e.message, true); return false; }
@@ -155,11 +176,11 @@
       '<label class="c3-f"><span>Dãy mẫu — trong 1 LỚP của 1 dãy (VD: 6 nằm 2 đứng; mọi dãy lặp lại; trống = tự động)</span><input type="text" ' + a + ' data-f="rowPlan" value="' + esc(k.rowPlan || '') + '" placeholder="VD: 6 nằm 2 đứng"></label>' +
       '<div class="c3-flags">' + chk('allowRotate', 'Cho xoay') + chk('allowStand', 'Giữ cao gốc') + chk('allowLay', 'Cho lật') + chk('sole', 'Xếp sole') + '</div>' +
       '<label class="c3-f"><span>Ghi chú đóng hàng</span><input type="text" ' + a + ' data-f="note" value="' + esc(k.note) + '"></label>' +
-      '<div class="c3-btns"><button type="button" class="c3-b" ' + a + ' data-act="sDup">Nhân bản</button><button type="button" class="c3-b dng" ' + a + ' data-act="sDel">Xóa dòng</button></div></div></div>';
+      '<div class="c3-btns"><button type="button" class="c3-b" ' + a + ' data-act="catSave">Lưu danh mục</button><button type="button" class="c3-b" ' + a + ' data-act="sDup">Nhân bản</button><button type="button" class="c3-b dng" ' + a + ' data-act="sDel">Xóa dòng</button></div></div></div>';
   }
   function paneHang() {
     const o = S.opts;
-    return '<div class="c3-btns top"><button type="button" class="c3-b pri" data-act="sAdd">+ Thêm mặt hàng</button><button type="button" class="c3-b" data-act="sDemo">Ví dụ mẫu</button><button type="button" class="c3-b" data-act="pOpen">Phương án đã lưu / từ PC</button><button type="button" class="c3-b dng" data-act="sClear">Xóa hết</button></div>' +
+    return '<div class="c3-btns top"><button type="button" class="c3-b pri" data-act="sAdd">+ Thêm mặt hàng</button><button type="button" class="c3-b" data-act="catOpen">Danh mục thùng</button><button type="button" class="c3-b" data-act="sDemo">Ví dụ mẫu</button><button type="button" class="c3-b" data-act="pOpen">Phương án đã lưu / từ PC</button><button type="button" class="c3-b dng" data-act="sClear">Xóa hết</button></div>' +
       (S.skus.length ? S.skus.map(skuCard).join('') : '<div class="c3-empty">Chưa có mặt hàng. Bấm “+ Thêm mặt hàng” hoặc “Ví dụ mẫu”.</div>') +
       '<details class="c3-opt"' + (S.skus.length ? '' : ' open') + '><summary>Cách xếp & hàng mẫu hải quan</summary><div class="c3-sec">' +
       '<label class="c3-chk big"><input type="checkbox" id="c3Merge"' + (o.mergeTail ? ' checked' : '') + '> Ghép lấp chỗ trống cạnh vách cuối (tiết kiệm chỗ)</label>' +
@@ -256,6 +277,8 @@
     else if (act === 'sDel') { S.skus = S.skus.filter((x) => x.id !== id); renderPane(); sched(0); schedSave(); }
     else if (act === 'sDup') { const i = S.skus.findIndex((x) => x.id === id); if (i >= 0) { const c = clone(S.skus[i]); c.id = newSku().id; S.skus.splice(i + 1, 0, c); S.open = new Set([c.id]); renderPane(); sched(0); schedSave(); } }
     else if (act === 'sClear') { if (!S.skus.length || confirm('Xóa toàn bộ danh sách hàng?')) { S.skus = []; renderPane(); sched(0); schedSave(); } }
+    else if (act === 'catOpen') catOpen();
+    else if (act === 'catSave') catSave(id);
     else if (act === 'sDemo') { if (S.skus.length && !confirm('Thay danh sách hiện tại bằng ví dụ mẫu?')) return; S.skus = demo(); S.open = new Set(); renderPane(); sched(0); schedSave(); }
     else if (act === 'cSave') saveCont(false); else if (act === 'cNew') saveCont(true); else if (act === 'cDel') delCont();
     else if (act === 'hint') { const hh = ((S.plan && S.plan.hints) || [])[+b.dataset.i]; if (hh) { Object.keys(hh.patch.skus || {}).forEach((id) => { const k = S.skus.find((x) => x.id === id); if (k) Object.assign(k, clone(hh.patch.skus[id])); }); Object.assign(S.cont, hh.patch.container || {}); Object.assign(S.opts, hh.patch.opts || {}); renderPane(); calc(); schedSave(); toast('Đã áp dụng gợi ý.'); } }

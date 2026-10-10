@@ -349,7 +349,7 @@
         if (left > 0) {
           const best = pick(null); let steps = best && best.placed > 0 ? [{ p: best.p, count: left }] : [];
           const seq = (!opts._sample && !wallPat && sku._tierSeq && sku._tierSeq.length) ? sku._tierSeq : null;
-          if (seq && best && best.placed > 0) { // TRẢI ĐỀU: dãy thứ i chỉ chồng seq[i] tầng (số tầng các dãy chênh nhau ≤ 1)
+          if (seq && best && best.placed > 0) { // TRẢI ĐỀU: dãy thứ i chỉ chồng seq[i] tầng (số tầng các dãy chênh nhau ≤ 1, xếp bậc thang)
             const bp = best.p, cache = {}, Wu0 = sp.Wu;
             const limitT = (cap) => {
               cap = Math.max(1, cap); if (cap >= bp.T) return bp; if (cache[cap]) return cache[cap]; let q;
@@ -610,7 +610,7 @@
         const sc = target / totalLen, seqs = {};
         gi.forEach((k) => {
           const g = info[k], n = Math.min(g.Tsum, Math.max(g.wc, Math.floor(g.wc * sc + 1e-9))), base = Math.floor(g.Tsum / n), extra = g.Tsum - base * n;
-          seqs[p1.groups[+k].sku.id] = Array.from({ length: n }, (_, i) => base + (Math.ceil((i + 1) * extra / n - 1e-9) - Math.ceil(i * extra / n - 1e-9)));
+          seqs[p1.groups[+k].sku.id] = Array.from({ length: n }, (_, i) => base + (i < extra ? 1 : 0)); // BẬC THANG: các dãy nhiều tầng liền nhau ở phía vách đầu, hết rồi mới tới các dãy ít tầng hơn (KHÔNG xen kẽ)
         });
         const p2 = solveBest(input, Object.assign({}, opts, { _tierSeqs: seqs, spread: false, compare: false }));
         if (p2.totals.left === 0 && p2.verify.ok && !p2.errors.length && p2.totals.usedLength - (p2.totals.sampleDepth || 0) <= target + 1 && p2.totals.rows > p1.totals.rows) { p2.spreadNote = note(p2); return p2; }

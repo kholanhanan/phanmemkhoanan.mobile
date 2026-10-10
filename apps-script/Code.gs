@@ -57,7 +57,7 @@ var ALL_KHO = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M08', 'BC01', 'BC
 // Module mở được trên PC + quyền riêng từng mục Cài đặt. Cấp 1 / 2: không có CD_* và TAIKHOAN; Quản lý: có CD_*, TAIKHOAN chỉ khi Quản trị / admin cấp;
 // Quản trị: luôn có CD_* + TAIKHOAN, chỉ module M* là bỏ tick được (danh sách trống = bản cũ → đủ).
 var PQ_CD_ = ['CD_SAOLUU', 'CD_KHOIPHUC', 'CD_DONGBO'];
-var PQ_PC_ = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M05', 'M06', 'M07', 'M08', 'M09', 'M12', 'M13', 'LX_EMAIL'].concat(PQ_CD_, ['TAIKHOAN']); // PC 8.34: LX_EMAIL = duyệt email Lịch xuất
+var PQ_PC_ = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M05', 'M06', 'M07', 'M08', 'M09', 'M12', 'M13', 'M14', 'LX_EMAIL'].concat(PQ_CD_, ['TAIKHOAN']); // PC 8.34: LX_EMAIL = duyệt email Lịch xuất
 var PQ_FIXED_PC_ = ['TAIKHOAN', 'LX_EMAIL'].concat(PQ_CD_);
 function pcClean_(v) { // chuỗi "M01,M02" hoặc mảng → mảng mã hợp lệ, không trùng
   var a = Array.isArray(v) ? v.slice() : String(v || '').split(',');
@@ -329,8 +329,8 @@ function lxYcList_() {
 //   hanhDong 'khac' : thư có LSX nhưng không đọc được ngày / hành động → chỉ hiện nội dung để người dùng tự xem
 // LSX luôn lấy từ TIÊU ĐỀ thư đầu của chuỗi (thư trả lời không ghi lại LSX). Cột PHẢI khớp LX_EM_HEADERS (sheets-webapp-client.js).
 // Cấu hình (Cài đặt dự án → Thuộc tính tập lệnh, tuỳ chọn):
-//   EMAIL_QUERY     : câu tìm Gmail (mặc định: newer_than:14d (LSX OR LOADING OR "kéo đóng"))
-//   EMAIL_NGAY      : chỉ lấy thư trong N ngày gần nhất (mặc định 14)
+//   EMAIL_QUERY     : câu tìm Gmail (mặc định: newer_than:7d (LSX OR LOADING OR "kéo đóng"))
+//   EMAIL_NGAY      : chỉ lấy thư trong N ngày gần nhất (mặc định 7 từ PC 8.35)
 //   EMAIL_NGUOI_GUI : chỉ nhận thư từ các địa chỉ / tên miền này, cách nhau dấu phẩy (VD "haminhtien0803@gmail.com, congty.vn"); trống = nhận mọi người gửi
 // Chạy tự động: chạy hàm emailCaiDatTuDong() MỘT LẦN trong trình soạn thảo Apps Script (đổi EMAIL_PHUT bên dưới nếu muốn 5 / 15 / 30 phút) — lần đầu Google hỏi quyền đọc Gmail.
 // ---------------------------------------------------------------------------------------------
@@ -388,9 +388,25 @@ function emailLaThongTinXe_(text) {
   [/(ho ten tai xe|tai xe)\s*:/, /(so dien thoai|sdt|dt)\s*:/, /(so xe|bien so)\s*:/, /(so cont|cont so|so container)\s*:/, /so seal\s*:/, /(so booking|booking)\s*:/, /nhiet do[^:\n]{0,30}:/].forEach(function (re) { if (re.test(t)) n++; });
   return n >= 3;
 }
+// PC 8.35: thư thông báo LIST / thông tin giao hàng (\"BP Kho An An gửi List xuất hàng ngày 08.10 … Người nhận hàng … Cont/Xe … Seal\") KHÔNG phải thư đổi lịch dù có cụm \"ngày 08.10\"
+function emailLaThongBaoList_(text) {
+  var t = emailBoDau_(text).toLowerCase();
+  return /gui list|list xuat hang|nguoi nhan hang|cont\s*\/\s*xe\s*:|seal\s*:/.test(t);
+}
+// PC 8.35: thư trả lời có DẤU HIỆU đổi lịch (cut off, update, đổi, dời, lùi, ETD, closing…) nhưng KHÔNG đọc được ngày kéo đóng (VD thông báo hãng tàu \"ETD Oct 11, 2026\")
+// → vẫn đưa vào hộp chờ duyệt (ngày để trống để người dùng tự điền), KHÔNG BAO GIỜ tự xử lý.
+function emailGoiYDoiLich_(text) {
+  var t = emailBoDau_(text).toLowerCase();
+  return /cut ?-?off|update|thay doi|doi (lai|ngay|lich|gio|sang|qua|keo)|\blui\b|som hon|tam hoan|hoan (lai|keo|xuat)|delay|postpone|\betd\b|closing|keo dong/.test(t); // PC 8.37: bỏ "hoan" / "doi" trơn (khớp nhầm "hoàn thành", "chờ đợi")
+}
+function emailTomTatLich_(text) { // giữ các dòng có ngày giờ quan trọng (ETA / ETD / Closing / cut off / At … hrs)
+  var out = [], lines = String(text || '').split('\n');
+  lines.forEach(function (l) { if (/\b(ETA|ETD|closing|cut ?-?off)\b|hrs\b/i.test(l)) out.push(l.trim()); });
+  return (out.length ? out.join(' | ') : lines.join(' ')).replace(/\s+/g, ' ').slice(0, 400);
+}
 function emailQuet_() {
   var props = PropertiesService.getScriptProperties();
-  var ngay = parseInt(props.getProperty('EMAIL_NGAY'), 10) || 14;
+  var ngay = parseInt(props.getProperty('EMAIL_NGAY'), 10) || 7; // PC 8.35: mặc định 7 ngày (trước 14) — chỉ cần rà lịch xuất 1–2 tuần
   var query = props.getProperty('EMAIL_QUERY') || ('newer_than:' + ngay + 'd (LSX OR LOADING OR "kéo đóng")');
   var allow = String(props.getProperty('EMAIL_NGUOI_GUI') || '').toLowerCase().split(/[,;\s]+/).filter(String);
   var kwRaw = String(props.getProperty('EMAIL_TU_KHOA') || '').split(',').map(function (x) { return emailBoDau_(x).toLowerCase().replace(/^\s+/, ''); }).filter(String);
@@ -426,6 +442,8 @@ function emailQuet_() {
         } else {
           var txt = emailPhanMoi_(m.getPlainBody()), r = emailPhanTichTraLoi_(txt, dt);
           if (emailLaThongTinXe_(txt)) { rec.hanhDong = 'xe'; rec.ghiChu = txt.replace(/[ \t]+/g, ' ').replace(/\n\s*/g, '\n').slice(0, 900); } // PC 8.28: giữ xuống dòng để PC tách từng mục
+          else if (emailLaThongBaoList_(txt)) { rec.hanhDong = 'khac'; }
+          else if (r.hanhDong === 'khac' && emailGoiYDoiLich_(txt)) { rec.hanhDong = 'doi'; rec.ngay = ''; rec.gio = ''; rec.ghiChu = emailTomTatLich_(txt); } // PC 8.35: không có ngày rõ → chờ duyệt, tự điền ngày
           else { rec.hanhDong = r.hanhDong; rec.ngay = r.ngay; rec.gio = r.gio; rec.ghiChu = txt.replace(/\s*\n\s*/g, ' ').slice(0, 300); }
         }
         if (rec.hanhDong === 'khac') { have[id] = true; return; } // PC 8.24: thư chỉ để xem → không đưa vào hộp chờ duyệt

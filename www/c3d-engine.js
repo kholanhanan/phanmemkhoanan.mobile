@@ -146,11 +146,11 @@
   // SOLE (so le trái / phải): trong 1 dãy, tầng lẻ dồn sát vách này chừa khe ở vách kia, tầng chẵn làm ngược lại → mỗi tầng có 1 đường trống sát vách
   // cho hơi lạnh chạy từ đầu cont xuống cuối cont. Độ lệch giữa 2 tầng d = min(khe dư, nửa thùng) → thùng đầu/cuối hàng được đỡ ≥ 50% (trọng tâm vẫn nằm trên điểm đỡ).
   // Hướng nhìn từ cửa vào: y = 0 là vách PHẢI. Tầng 1: khe nằm ở vách phải (thùng dồn sang trái); tầng 2: khe ở vách trái.
-  function solePattern(o, T, Wu) {
+  function solePattern(o, T, Wu, allowDrop) {
     if (T < 2) return null;
     let n = Math.floor((Wu + EPS) / o.dy); if (n < 1) return null;
     let g = Wu - n * o.dy;
-    if (g < 0.1 * o.dy) { n -= 1; g += o.dy; } // vừa khít → bỏ 1 cột để có khe thoáng
+    if (g < 0.1 * o.dy) { if (allowDrop === false) return null; n -= 1; g += o.dy; } // vừa khít → bỏ 1 cột để có khe thoáng (tự động thì chỉ khi cont còn trống)
     if (n < 1) return null;
     const d = Math.min(g, o.dy / 2); if (d < 1) return null;
     return {
@@ -167,9 +167,9 @@
   function buildPatterns(sku, ors, sp, Wu, info) {
     const Tof = (o) => Math.min(Math.floor((sp.effH + EPS) / o.dz), sku.maxLayers > 0 ? sku.maxLayers : Infinity);
     let pats = [];
-    if (sku.sole) {
-      ors.forEach((o) => { const p = solePattern(o, Tof(o), Wu); if (p) pats.push(p); });
-      if (!pats.length && info) info.soleFail = ors.every((o) => Tof(o) < 2) ? 'mot-tang' : 'khong-khe';
+    if (sku.sole || sku._auto) { // sole do người dùng chọn, hoặc TỰ ĐỘNG khi trống 1 bên (xem solveBest)
+      ors.forEach((o) => { const p = solePattern(o, Tof(o), Wu, sku.sole ? true : !!sku._drop); if (p) pats.push(p); });
+      if (!pats.length && info && sku.sole) info.soleFail = ors.every((o) => Tof(o) < 2) ? 'mot-tang' : 'khong-khe';
     }
     if (!pats.length) {
       ors.forEach((o) => { const p = colPattern(o, Tof(o), Wu); if (p) pats.push(p); });
@@ -208,11 +208,11 @@
     const ors = orientationsOf(sku, sp);
     if (!ors.length) { out.reason = 'khong-vua'; return out; }
     let left = nWant; const style = (opts.mergeTail && !isLast) ? 'tall' : 'wide';
-    const note = (p) => { if (!out.patterns.some((q) => q.text === describe(p))) out.patterns.push({ text: describe(p), kind: p.kind, o: p.o }); };
+    const note = (p) => { const tx = describe(p) + (sku._auto && p.kind === 'sole' ? ' [tự động]' : ''); if (!out.patterns.some((q) => q.text === tx)) out.patterns.push({ text: tx, kind: p.kind, o: p.o }); };
     const describe = (p) => orientText(p.o) + ' · ' + r1(p.o.dx) + '×' + r1(p.o.dy) + '×' + r1(p.o.dz) + (p.kind === 'sole' ? ' · sole (so le trái/phải từng tầng, khe ' + r1(p.gap) + ' mm)' : (p.kind === 'mix' ? ' · trộn hướng cùng chiều sâu' : ''));
     let lastTail = null;
     // 1) lấp phần trống cạnh vách cuối của nhóm trước (nếu bật "ghép")
-    if (opts.mergeTail && S.strip && !sku.sole && left > 0) {
+    if (opts.mergeTail && S.strip && !(sku.sole || sku._auto) && left > 0) {
       const st = S.strip;
       const pats = buildPatterns(sku, ors, sp, st.w, null).filter((p) => p.kind !== 'cross');
       pats.sort((a, b) => (b.cap / b.D) - (a.cap / a.D) || prefOf(a) - prefOf(b));
@@ -229,7 +229,7 @@
       }
     }
     // 1b) chồng lên khoảng trống phía trên vách cuối của nhóm trước (nếu cho phép)
-    if (opts.stackTop && !opts.mergeTail && S.top && !sku.sole && left > 0) {
+    if (opts.stackTop && !opts.mergeTail && S.top && !(sku.sole || sku._auto) && left > 0) {
       const t = S.top, sp2 = Object.assign({}, sp, { Lu: t.depth, Wu: t.w, effH: sp.effH - t.z });
       const o2 = orientationsOf(sku, sp2), pats2 = o2.length ? buildPatterns(sku, o2, sp2, t.w, null).filter((p) => p.kind !== 'sole') : [];
       let bst = null;
@@ -249,7 +249,8 @@
         let best = null;
         pats.forEach((p) => {
           const r = placeWalls(p, left, S.cursor, sp.x1, style, sp.y0, true), cand = { p, placed: r.placed, end: r.end };
-          if (!best || cand.placed > best.placed || (cand.placed === best.placed && (cand.end < best.end - EPS || (Math.abs(cand.end - best.end) <= EPS && prefOf(p) < prefOf(best.p))))) best = cand;
+          const airy = !!opts._airflow; // cont còn trống nhiều: ưu tiên DỰNG ĐỨNG + thoáng khí trước, tiết kiệm chiều dài sau
+          if (!best || cand.placed > best.placed || (cand.placed === best.placed && (airy ? (prefOf(p) < prefOf(best.p) || (prefOf(p) === prefOf(best.p) && cand.end < best.end - EPS)) : (cand.end < best.end - EPS || (Math.abs(cand.end - best.end) <= EPS && prefOf(p) < prefOf(best.p)))))) best = cand;
         });
         if (best && best.placed > 0) {
           const res = placeWalls(best.p, left, S.cursor, sp.x1, style, sp.y0, false);
@@ -338,6 +339,7 @@
     if (!(c.L > 0 && c.W > 0 && c.H > 0)) errors.push('Container chưa có kích thước bên trong (dài / rộng / cao).');
     if (sp.Lu <= 0 || sp.Wu <= 0 || sp.effH <= 0) errors.push('Khe hở đầu / cửa / hai bên lớn hơn kích thước cont — không còn chỗ chứa hàng.');
     const skus = (input.skus || []).map(normSku).filter((k) => k.qty > 0 || k.code || k.size);
+    if (opts._auto) skus.forEach((k) => { if (!k.sole) { k._auto = true; k._drop = !!opts._drop; } });
     const groups = skus.map((k) => ({ sku: k }));
     // thứ tự đóng: mặt hàng > size > ngày (hoặc đúng thứ tự nhập)
     if (opts.sortMode !== 'manual') {
@@ -429,12 +431,26 @@
       options: { sampleQty: sampleQ, stackTop: !!opts.stackTop, mergeTail: !!opts.mergeTail, dateDir: opts.dateDir || 'asc', sortMode: opts.sortMode || 'auto', minSupport: opts.minSupport || 0.7 },
     };
   }
+  // TỰ SẮP XẾP HỢP LÝ KHI TRỐNG MỘT BÊN: bề ngang cont thường dư 1 khe < 1 thùng (VD 275 mm) dồn hết về 1 vách → cả khối sát 1 bên.
+  //  • khe không mất chỗ (≥ 10% thùng) → mọi mặt hàng không-sole tự đóng SO LE trái/phải từng tầng (cùng số thùng, có đường khí 2 bên + chống nghiêng);
+  //  • cont còn trống nhiều (xếp đủ + còn ≥ 15% chiều dài) → cho phép bỏ 1 cột để có khe, ưu tiên DỰNG ĐỨNG;
+  //  • hàng nhiều (sát sức chứa) → chỉ dùng cách so le nếu KHÔNG mất thùng và không dài hơn. Chỉ nhận phương án mới khi kiểm tra độc lập vẫn đạt.
+  function solveBest(input, opts) {
+    const p1 = solveOnce(input, opts);
+    if (opts.autoLayout === false || !(p1.totals.requested > 0) || !p1.groups.some((g) => !g.sku.sole && g.loaded > 0)) return p1;
+    const spare = p1.totals.left === 0 && p1.totals.freeLength >= 0.15 * p1.space.Lu;
+    let p2; try { p2 = solveOnce(input, Object.assign({}, opts, { _auto: true, _airflow: spare, _drop: spare })); } catch (e) { return p1; }
+    const applied = p2.groups.some((g) => g.sku._auto && g.patterns.some((q) => q.kind === 'sole'));
+    if (!applied || !p2.verify.ok || p2.errors.length || p2.totals.loaded < p1.totals.loaded || (!spare && p2.totals.usedLength > p1.totals.usedLength + 1)) return p1;
+    p2.layoutNote = spare ? 'Cont còn trống nhiều → tự đóng so le (sole) trái/phải từng tầng + ưu tiên dựng đứng để khí lạnh lưu thông hai bên.' : 'Khe dư bề ngang không xếp thêm được thùng → tự đóng so le trái/phải từng tầng (không mất chỗ) để có đường khí hai bên và chống nghiêng.';
+    return p2;
+  }
   function solve(input, options) {
-    const opts = Object.assign({ mergeTail: false, stackTop: true, sampleQty: 10, dateDir: 'asc', sortMode: 'auto', minSupport: 0.7, compare: true }, options || {});
-    const plan = solveOnce(input, opts);
+    const opts = Object.assign({ mergeTail: false, stackTop: true, sampleQty: 10, autoLayout: true, dateDir: 'asc', sortMode: 'auto', minSupport: 0.7, compare: true }, options || {});
+    const plan = solveBest(input, opts);
     if (opts.compare && plan.totals.requested > 0) {
       try {
-        const alt = solveOnce(input, Object.assign({}, opts, { mergeTail: !opts.mergeTail }));
+        const alt = solveBest(input, Object.assign({}, opts, { mergeTail: !opts.mergeTail }));
         plan.compare = { mergeTail: !opts.mergeTail, loaded: alt.totals.loaded, kg: alt.totals.kg, ok: alt.ok, usedLength: alt.totals.usedLength, delta: alt.totals.loaded - plan.totals.loaded };
       } catch (e) { /* bỏ qua */ }
     }

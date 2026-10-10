@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '4.14 (10/10/2026)';
+  const APP_VERSION = '4.15 (10/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -231,7 +231,7 @@
   // Sửa / xóa phiếu: quản lý = mọi phiếu; tài khoản "Tạo phiếu" = phiếu của chính mình (máy chủ kiểm tra lại).
   const canEditPhieu = (p) => isAdmin() || (canCreate() && (!p || isMyPhieu(p)));
   // Xếp cont 3D (module PC 12, quyền M14): mã chung / Web App cũ chưa có danh sách quyền PC → đủ quyền
-  const canC3d = () => !state.me || !Array.isArray(state.me.pc) || state.me.pc.includes('M14');
+  const canC3d = () => !state.me || (state.me.kho || []).includes('C3D'); // quyền điện thoại RIÊNG: mã kho 'C3D' (Cài đặt › Tài khoản › Kho điện thoại)
   const canView = (k) => !state.me || (state.me.kho || []).includes(TABLE_OF[k]);
   // Quyền xem trang Báo cáo của từng nguồn (mã BC01 / BC02 trong "Kho được dùng").
   const canReport = (src) => !state.me || (state.me.kho || []).includes(REPORT_CFG[src].perm);
@@ -269,8 +269,8 @@
   function tabOk(t) {
     const hasKho = SOURCES.length > 0;
     // Trang chủ còn là nơi xem lịch xuất nhập hôm nay (bản 3.0) → tài khoản chỉ có quyền LX vẫn có Trang chủ.
-    if (t === 'home') return hasKho || canLx() || !(canView('m08') || REPORT_SRCS.some(canReport));
-    if (t === 'xuat') return hasKho || !(canView('m08') || REPORT_SRCS.some(canReport) || canLx());
+    if (t === 'home') return hasKho || canLx() || !(canView('m08') || REPORT_SRCS.some(canReport) || canC3d());
+    if (t === 'xuat') return hasKho || !(canView('m08') || REPORT_SRCS.some(canReport) || canLx() || canC3d());
     if (t === 'phieu') return hasKho && canCreate();
     if (t === 'baocao') return REPORT_SRCS.some(canReport);
     if (t === 'm8') return canView('m08');
@@ -3243,7 +3243,7 @@
   // 3.1 (PC 7.43): ĐẦY ĐỦ như app PC — 4 vai trò, kho điện thoại + module PC từng người, cấp bậc (không xem mã / sửa / xóa người cùng cấp hoặc cao hơn),
   // Quản lý được cấp quyền Tài khoản, Quản trị tự bỏ tick module / kho. Luật kiểm tra thật nằm ở Web App (Code.gs › pqSave_) — nơi này chỉ khóa ô cho dễ dùng.
   const PQ_KHO = [['M01', 'Tồn kho An An'], ['M01VT', 'Tồn theo vị trí'], ['M01VTB', 'Vị trí Bột'], ['M02', 'Tồn kho gửi'],
-    ['M08', 'Tra cứu kháng sinh'], ['BC01', 'Báo cáo Tồn kho An An'], ['BC02', 'Báo cáo Tồn kho gửi'], ['LX', 'Lịch xuất nhập hàng'],
+    ['M08', 'Tra cứu kháng sinh'], ['BC01', 'Báo cáo Tồn kho An An'], ['BC02', 'Báo cáo Tồn kho gửi'], ['LX', 'Lịch xuất nhập hàng'], ['C3D', 'Xếp cont 3D'],
     ['M03', 'NXT Bột/Sốt'], ['M04', 'NXT TNK/TGC']];
   // Module mở được trên app PC + quyền riêng từng mục Cài đặt — GIỐNG PQ_PC (main.js) / PC (tai-khoan.js)
   const PQ_PC = [['M01', '01 · Tồn An An'], ['M01VT', '01 · Tồn theo vị trí'], ['M01VTB', '01 · Vị trí bột'], ['M02', '02 · Tồn Kho Gửi'],
@@ -3252,7 +3252,7 @@
     ['CD_SAOLUU', 'Cài đặt › Sao lưu Drive (toàn quyền)'], ['CD_KHOIPHUC', 'Cài đặt › Khôi phục Drive'], ['CD_DONGBO', 'Cài đặt › Đồng bộ điện thoại'],
     ['TAIKHOAN', 'Cài đặt › Tài khoản (quản lý người dùng)']];
   const PQ_FIXED_PC = ['CD_SAOLUU', 'CD_KHOIPHUC', 'CD_DONGBO', 'TAIKHOAN', 'LX_EMAIL']; // Quản trị luôn có — không tự khóa mình khỏi Cài đặt / Tài khoản
-  const PQ_KHO2PC = { M01: 'M01', M01VT: 'M01VT', M01VTB: 'M01VTB', BC01: 'M01', M02: 'M02', BC02: 'M02', M03: 'M03', M04: 'M04', M08: 'M08' };
+  const PQ_KHO2PC = { M01: 'M01', M01VT: 'M01VT', M01VTB: 'M01VTB', BC01: 'M01', M02: 'M02', BC02: 'M02', M03: 'M03', M04: 'M04', M08: 'M08', C3D: 'M14' };
   const PQ_QUYEN = { xem: 'Người dùng cấp 1', xuat: 'Người dùng cấp 2', quanly: 'Quản lý', quantri: 'Quản trị' };
   const PQ_ROLE_OPT = { xem: 'Người dùng cấp 1 — chỉ xem', xuat: 'Người dùng cấp 2 — xem + tạo phiếu xuất', quanly: 'Quản lý — + sửa / xóa mọi phiếu', quantri: 'Quản trị — toàn quyền (chỉ admin tạo được)' };
   const PQ_ROLE_HINT = {

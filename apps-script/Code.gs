@@ -50,10 +50,10 @@ var TAB = {
   PX_LUUTRU: 'PhieuXuat_LuuTru', PXI_LUUTRU: 'PhieuXuatItems_LuuTru'
 };
 // Kho (mã giống cột "module" của phiếu) mà từng lệnh đọc dữ liệu cần — dùng để chặn token không được xem kho đó.
-var KHO_OF_ACTION = { tonKhoGui: 'M02', tonKho: 'M01', baoCaoM01: 'BC01', baoCaoM02: 'BC02', viTri: 'M01VT', viTriBot: 'M01VTB', tonKhoM03: 'M03', tonKhoM04: 'M04', m08: 'M08', ksSince: 'M08', lichXuat: 'LX', lichXuatGui: 'LX' };
+var KHO_OF_ACTION = { tonKhoGui: 'M02', tonKho: 'M01', baoCaoM01: 'BC01', baoCaoM02: 'BC02', viTri: 'M01VT', viTriBot: 'M01VTB', tonKhoM03: 'M03', tonKhoM04: 'M04', m08: 'M08', ksSince: 'M08', lichXuat: 'LX', lichXuatGui: 'LX', c3dData: 'C3D' };
 // BC01 / BC02 = quyền xem trang "Báo cáo" trên điện thoại (file Excel Module 01 / Module 02) — KHÔNG phải kho hàng,
 // độc lập với quyền xem kho M01 / M02. Khớp PQ_KHO (main.js), KHO (cai-dat.js), REPORT_CFG + PQ_KHO (www/app.js).
-var ALL_KHO = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M08', 'BC01', 'BC02', 'LX'];
+var ALL_KHO = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M08', 'BC01', 'BC02', 'LX', 'C3D'];
 // PHÂN QUYỀN GIỐNG APP PC (main.js › PQ_PC / limitPcByRole / effectivePc) — sửa 1 bên thì sửa bên kia.
 // Module mở được trên PC + quyền riêng từng mục Cài đặt. Cấp 1 / 2: không có CD_* và TAIKHOAN; Quản lý: có CD_*, TAIKHOAN chỉ khi Quản trị / admin cấp;
 // Quản trị: luôn có CD_* + TAIKHOAN, chỉ module M* là bỏ tick được (danh sách trống = bản cũ → đủ).
@@ -174,7 +174,6 @@ function doPost(e) {
       if (own && !user.quanLy && !phieuVisibleTo_(own.cur, user)) return forbid_('Bạn không được cấp quyền'); // Quản lý / Quản trị: mọi phiếu
     }
     // Thêm nhanh / chuyển ngày Lịch xuất nhập hàng từ điện thoại: CHỈ Quản lý trở lên (và phải có quyền xem lịch 'LX').
-    if (action === 'c3dData' && !user.admin && (user.pc || []).indexOf('M14') < 0) return forbid_('Bạn không được cấp quyền');
     if (action === 'lichXuatGui' && !user.quanLy) return forbid_('Chỉ tài khoản Quản lý trở lên mới thêm / chuyển được lịch xuất nhập hàng.');
     if (action.indexOf('pq.') === 0 && !pqAllowed_(user)) return forbid_('Chỉ tài khoản Quản trị, hoặc Quản lý được cấp quyền Tài khoản, mới quản lý được người dùng.');
     if (action === 'taoPhieu' && req.phieu) {
@@ -225,7 +224,7 @@ function doPost(e) {
       }
       // (PC 7.63) Quản lý trở lên gửi yêu cầu THÊM NHANH / CHUYỂN NGÀY lịch — ghi vào tab LichXuat_YeuCau, PC kéo về xử lý.
       case 'lichXuatGui': return json_(lxGui_(user, req.ops));
-      // (PC 8.61) Container Loading 3D: cont + phương án PC đã đẩy (tab C3D_Data) — cần quyền PC M14.
+      // (PC 8.61) Container Loading 3D: cont + phương án PC đã đẩy (tab C3D_Data) — cần mã kho 'C3D' (phân quyền điện thoại riêng).
       case 'c3dData': { var cd = readTab_(TAB.C3D); return json_({ ok: true, meta: getMeta_(), headers: cd.headers, rows: cd.rows }); }
       case 'baoCaoM01': return json_(getBaoCao_(TAB.M01_BAOCAO));
       case 'baoCaoM02': return json_(getBaoCao_(TAB.M02_BAOCAO));

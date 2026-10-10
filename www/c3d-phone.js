@@ -18,7 +18,7 @@
 
   // ------------------------------------------------------------------ nạp thư viện (lần đầu)
   function loadScript(src) {
-    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src + '?v=4.14'; s.onload = res; s.onerror = () => rej(new Error('Không nạp được ' + src)); document.head.appendChild(s); });
+    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src + '?v=4.15'; s.onload = res; s.onerror = () => rej(new Error('Không nạp được ' + src)); document.head.appendChild(s); });
   }
   function ensure() {
     if (!ready) ready = (async () => {
@@ -158,6 +158,7 @@
       (S.skus.length ? S.skus.map(skuCard).join('') : '<div class="c3-empty">Chưa có mặt hàng. Bấm “+ Thêm mặt hàng” hoặc “Ví dụ mẫu”.</div>') +
       '<details class="c3-opt"' + (S.skus.length ? '' : ' open') + '><summary>Cách xếp & hàng mẫu hải quan</summary><div class="c3-sec">' +
       '<label class="c3-chk big"><input type="checkbox" id="c3Merge"' + (o.mergeTail ? ' checked' : '') + '> Ghép lấp chỗ trống cạnh vách cuối (tiết kiệm chỗ)</label>' +
+      '<label class="c3-chk big"><input type="checkbox" id="c3Auto"' + (o.autoLayout !== false ? ' checked' : '') + '> Tự sắp xếp hợp lý khi trống một bên (so le trái/phải, ưu tiên thoáng khí)</label>' +
       '<label class="c3-chk big"><input type="checkbox" id="c3Stack"' + (o.stackTop !== false ? ' checked' : '') + '> Cho mặt hàng sau chồng lên khoảng trống phía trên mặt hàng trước</label>' +
       fld('Hàng mẫu hải quan (thùng / mỗi loại, 0 = tắt)', 'id="c3Samp"', o.sampleQty == null ? 10 : o.sampleQty) +
       '<div class="c3-g2"><label class="c3-f"><span>Thứ tự đóng</span><select id="c3Sort"><option value="auto"' + (o.sortMode !== 'manual' ? ' selected' : '') + '>Mặt hàng › Size › Ngày</option><option value="manual"' + (o.sortMode === 'manual' ? ' selected' : '') + '>Đúng thứ tự nhập</option></select></label>' +
@@ -171,6 +172,7 @@
       kp('Khối lượng', fmt(t.kg, 0) + ' kg', t.payload > 0 ? fmt(pay, 1) + '% tải trọng' : '') + kp('Lấp đầy', fmt(t.fillUsablePct, 1) + '%', 'vùng chứa hàng') + kp('Số dãy', fmt(t.rows), 'dài đã dùng ' + fmt(t.usedLength / 1000, 2) + ' m') + kp('Mẫu hải quan', fmt(t.sample), t.sample ? 'dãy sát cửa' : 'tắt') + '</div>';
     const msg = (cls, tx) => '<div class="c3-msg ' + cls + '">' + tx + '</div>';
     p.errors.forEach((m) => { h += msg('err', '⛔ ' + esc(m)); });
+    if (p.layoutNote) h += msg('tip', '🌬 ' + esc(p.layoutNote));
     if (p.verify.ok && t.loaded) h += msg('ok', '✔ <b>Đã kiểm tra độc lập ' + fmt(t.loaded) + ' thùng</b>: không chồng, trong cont, dưới red line, đủ điểm đỡ, thứ tự đóng không bị chắn.');
     p.warnings.forEach((m) => { h += msg('warn', '⚠ ' + esc(m)); });
     if (t.left > 0) h += msg('err', '📦 <b>Rớt lại kho ' + fmt(t.left) + ' thùng</b>: ' + p.groups.filter((g) => g.left > 0).map((g) => esc((g.sku.code || 'Mặt hàng') + ' ' + (g.sku.size || '')) + ' ' + fmt(g.left)).join(' · '));
@@ -217,6 +219,7 @@
     const t = e.target;
     if (t.id === 'c3Sel') { pick(t.value); renderPane(); sched(0); schedSave(); return; }
     if (t.id === 'c3Unit') { S.unit = t.value; renderPane(); schedSave(); return; }
+    if (t.id === 'c3Auto') { S.opts.autoLayout = t.checked; sched(0); return; }
     if (t.id === 'c3Merge') { S.opts.mergeTail = t.checked; sched(0); return; } if (t.id === 'c3Stack') { S.opts.stackTop = t.checked; sched(0); return; }
     if (t.id === 'c3Sort') { S.opts.sortMode = t.value; sched(0); return; } if (t.id === 'c3Date') { S.opts.dateDir = t.value; sched(0); return; }
     if (t.dataset.s && t.dataset.f === 'orient') { const k = S.skus.find((x) => x.id === t.dataset.s); if (k) { k.orient = t.value; renderPane(); sched(0); } return; }

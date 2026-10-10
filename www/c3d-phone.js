@@ -6,7 +6,7 @@
 (function () {
   'use strict';
   const $ = (id) => document.getElementById(id);
-  const LS = 'klanan.c3d.v1', LSP = 'klanan.c3d.plans.v1';
+  const LS = 'klanan.c3d.v1', LSP = 'klanan.c3d.plans.v1', LSPC = 'klanan.c3d.pc.v1'; // LSPC = cont + phương án PC đã đẩy (chỉ xem / mở)
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmt = (n, d) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 });
   const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -18,7 +18,7 @@
 
   // ------------------------------------------------------------------ nạp thư viện (lần đầu)
   function loadScript(src) {
-    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src + '?v=4.13'; s.onload = res; s.onerror = () => rej(new Error('Không nạp được ' + src)); document.head.appendChild(s); });
+    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src + '?v=4.14'; s.onload = res; s.onerror = () => rej(new Error('Không nạp được ' + src)); document.head.appendChild(s); });
   }
   function ensure() {
     if (!ready) ready = (async () => {
@@ -32,13 +32,29 @@
   function loadLS(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
   function schedSave() { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(LS, JSON.stringify({ unit: S.unit, cid: S.cid, cont: S.cont, saved: S.saved, skus: S.skus, colors: S.colors, opts: S.opts })); } catch (e) { /* đầy bộ nhớ: bỏ qua */ } }, 700); }
   const u = () => (S.unit === 'cm' ? 10 : 1), toU = (mm) => String(Math.round(mm / u() * 100) / 100), fromU = (s) => E.num(s) * u();
+  const unj = (s) => { try { return JSON.parse(String(s || '').replace(/^__JSON__/, '')); } catch (e) { return null; } };
+  const pcData = () => loadLS(LSPC, { at: '', conts: [], plans: [] });
   function contList() {
-    const ov = {}; S.saved.forEach((c) => { ov[c.id] = c.v; });
-    const out = E.PRESETS.map((p) => Object.assign({}, p, ov[p.id] || {}, { id: p.id, builtin: true, edited: !!ov[p.id] }));
-    S.saved.filter((c) => !E.PRESETS.some((p) => p.id === c.id)).forEach((c) => out.push(Object.assign({}, c.v, { id: c.id, builtin: false })));
+    const ov = {}, pcv = {}; pcData().conts.forEach((c) => { pcv[c.id] = c.v; }); S.saved.forEach((c) => { ov[c.id] = c.v; });
+    const out = E.PRESETS.map((p) => Object.assign({}, p, pcv[p.id] || {}, ov[p.id] || {}, { id: p.id, builtin: true, edited: !!(ov[p.id] || pcv[p.id]), fromPc: !!pcv[p.id] && !ov[p.id] }));
+    const seen = new Set(E.PRESETS.map((p) => p.id));
+    S.saved.filter((c) => !seen.has(c.id)).forEach((c) => { seen.add(c.id); out.push(Object.assign({}, c.v, { id: c.id, builtin: false })); });
+    pcData().conts.filter((c) => !seen.has(c.id)).forEach((c) => { seen.add(c.id); out.push(Object.assign({}, c.v, { id: c.id, builtin: false, fromPc: true })); });
     return out;
   }
-  function pick(id) { const c = contList().find((x) => x.id === id) || contList()[2]; S.cid = c.id; S.cont = clone(c); delete S.cont.builtin; delete S.cont.edited; }
+  // Tải cont + phương án mà PC đã đẩy lên (tab C3D_Data) — cần Web App bản mới (lệnh c3dData) và quyền M14.
+  async function pullPc(manual) {
+    const K = window.KLShare; if (!K || !K.cfgOk || !K.cfgOk()) { if (manual) toast('Chưa cài đặt kết nối với PC (Cài đặt).', true); return false; }
+    try {
+      const r = await K.api('c3dData'), h = r.headers || [], ix = (n) => h.indexOf(n), rows = r.rows || [], g = (row, n) => (ix(n) < 0 ? '' : row[ix(n)]);
+      const conts = [], plans = [];
+      rows.forEach((row) => { const d = unj(g(row, 'data')); if (!d) return; const id = String(g(row, 'id')); if (g(row, 'kind') === 'cont') conts.push({ id, v: d }); else if (g(row, 'kind') === 'plan') plans.push({ id, name: String(g(row, 'name')), at: String(g(row, 'capNhat')), contName: String(g(row, 'contName')), loaded: +g(row, 'loaded') || 0, requested: +g(row, 'requested') || 0, data: d }); });
+      localStorage.setItem(LSPC, JSON.stringify({ at: new Date().toISOString(), conts, plans }));
+      if (manual) toast('Đã tải từ PC: ' + conts.length + ' cont, ' + plans.length + ' phương án.');
+      if (S && S.tab === 'cont') renderPane(); return true;
+    } catch (e) { if (manual) toast(/Không có chức năng/.test(e.message) ? 'Web App chưa cập nhật (cần dán lại Code.gs trên PC).' : e.message, true); return false; }
+  }
+  function pick(id) { const c = contList().find((x) => x.id === id) || contList()[2]; S.cid = c.id; S.cont = clone(c); delete S.cont.builtin; delete S.cont.edited; delete S.cont.fromPc; }
   const newSku = (o) => Object.assign({ id: 's' + Date.now().toString(36) + (skuSeq++), code: '', name: '', size: '', date: '', qty: 100, L: 520, W: 280, H: 190, kg: 10, allowRotate: true, allowStand: true, allowLay: false, sole: false, maxLayers: 0, orient: '', note: '' }, o || {});
   function colorFor(code) { const k = String(code || '').trim() || '(trống)'; if (S.colors[k]) return S.colors[k]; const used = new Set(Object.values(S.colors)), free = PAL.find((c) => !used.has(c)); S.colors[k] = free || PAL[Object.keys(S.colors).length % PAL.length]; return S.colors[k]; }
   function shade(hex, d) {
@@ -84,6 +100,7 @@
     if (mq.addEventListener) mq.addEventListener('change', onOri); else if (mq.addListener) mq.addListener(onOri);
     window.addEventListener('resize', () => { if (!$('view-c3d').hidden) layout(); });
     S.full = mq.matches; S.needFit = true; renderPane(); calc();
+    const pc0 = pcData(); if (!pc0.at || Date.now() - new Date(pc0.at).getTime() > 30 * 60 * 1000) pullPc(false); // lặng lẽ lấy cont / phương án mới từ PC (nếu có kết nối + quyền)
   }
 
   // ------------------------------------------------------------------ bố cục (đứng / ngang)
@@ -110,7 +127,7 @@
   function paneCont() {
     const c = S.cont, lst = contList(), uu = S.unit, cur = lst.find((x) => x.id === S.cid);
     const red = c.redLine > 0 ? c.redLine : c.H, eff = Math.min(c.H, red, c.doorH > 0 ? c.doorH : c.H);
-    return '<div class="c3-sec"><label class="c3-f"><span>Chọn container</span><select id="c3Sel">' + lst.map((x) => '<option value="' + esc(x.id) + '"' + (x.id === S.cid ? ' selected' : '') + '>' + esc((x.builtin ? '' : '★ ') + x.name + (x.edited ? ' (đã sửa)' : '')) + '</option>').join('') + '</select></label>' +
+    return '<div class="c3-sec"><label class="c3-f"><span>Chọn container</span><select id="c3Sel">' + lst.map((x) => '<option value="' + esc(x.id) + '"' + (x.id === S.cid ? ' selected' : '') + '>' + esc((x.fromPc ? '☁ ' : x.builtin ? '' : '★ ') + x.name + (x.fromPc ? ' (từ PC)' : x.edited ? ' (đã sửa)' : '')) + '</option>').join('') + '</select></label>' +
       '<div class="c3-g2"><label class="c3-f"><span>Đơn vị dài</span><select id="c3Unit"><option value="mm"' + (uu === 'mm' ? ' selected' : '') + '>mm</option><option value="cm"' + (uu === 'cm' ? ' selected' : '') + '>cm</option></select></label>' +
       '<label class="c3-f"><span>Loại</span><select data-c="type">' + TYPES.map((t) => '<option value="' + t[0] + '"' + (c.type === t[0] ? ' selected' : '') + '>' + t[1] + '</option>').join('') + '</select></label></div>' +
       '<label class="c3-f"><span>Tên container</span><input type="text" data-c="name" value="' + esc(c.name) + '"></label>' +
@@ -137,7 +154,7 @@
   }
   function paneHang() {
     const o = S.opts;
-    return '<div class="c3-btns top"><button type="button" class="c3-b pri" data-act="sAdd">+ Thêm mặt hàng</button><button type="button" class="c3-b" data-act="sDemo">Ví dụ mẫu</button><button type="button" class="c3-b dng" data-act="sClear">Xóa hết</button></div>' +
+    return '<div class="c3-btns top"><button type="button" class="c3-b pri" data-act="sAdd">+ Thêm mặt hàng</button><button type="button" class="c3-b" data-act="sDemo">Ví dụ mẫu</button><button type="button" class="c3-b" data-act="pOpen">Phương án đã lưu / từ PC</button><button type="button" class="c3-b dng" data-act="sClear">Xóa hết</button></div>' +
       (S.skus.length ? S.skus.map(skuCard).join('') : '<div class="c3-empty">Chưa có mặt hàng. Bấm “+ Thêm mặt hàng” hoặc “Ví dụ mẫu”.</div>') +
       '<details class="c3-opt"' + (S.skus.length ? '' : ' open') + '><summary>Cách xếp & hàng mẫu hải quan</summary><div class="c3-sec">' +
       '<label class="c3-chk big"><input type="checkbox" id="c3Merge"' + (o.mergeTail ? ' checked' : '') + '> Ghép lấp chỗ trống cạnh vách cuối (tiết kiệm chỗ)</label>' +
@@ -234,11 +251,12 @@
     const c = clone(S.cont); if (!String(c.name || '').trim()) { toast('Nhập tên container.', true); return; }
     let id = S.cid; const cur = contList().find((x) => x.id === S.cid);
     if (asNew || !cur) { id = 'cx' + Date.now().toString(36); if (contList().some((x) => x.name === c.name)) c.name += ' (bản sao)'; }
-    c.id = id; delete c.builtin; delete c.edited; const i = S.saved.findIndex((x) => x.id === id); if (i >= 0) S.saved[i] = { id, v: c }; else S.saved.push({ id, v: c });
+    c.id = id; delete c.builtin; delete c.edited; delete c.fromPc; const i = S.saved.findIndex((x) => x.id === id); if (i >= 0) S.saved[i] = { id, v: c }; else S.saved.push({ id, v: c });
     S.cid = id; S.cont = clone(c); schedSave(); renderPane(); toast(asNew ? 'Đã lưu thành container mới.' : 'Đã lưu thay đổi.');
   }
   function delCont() {
     const cur = contList().find((x) => x.id === S.cid); if (!cur) return;
+    if (cur.fromPc) { toast('Cont này do PC đẩy sang — sửa / xóa ở PC rồi bấm “Tải mới từ PC”.', true); return; }
     if (cur.builtin) { if (!cur.edited) { toast('Đây là thông số mẫu gốc.'); return; } if (!confirm('Khôi phục "' + cur.name + '" về mẫu gốc?')) return; } else if (!confirm('Xóa container "' + cur.name + '"?')) return;
     S.saved = S.saved.filter((x) => x.id !== S.cid); pick(cur.builtin ? cur.id : 'rf40hc'); schedSave(); renderPane(); sched(0);
   }
@@ -294,11 +312,16 @@
   }
   function openPlans() {
     const list = loadLS(LSP, []);
-    const m = modal('<h3>Phương án đã lưu</h3>' + (list.length ? list.map((p) => '<div class="c3-plan"><div><b>' + esc(p.name) + '</b><small>' + esc(p.contName) + ' · ' + fmt(p.loaded) + '/' + fmt(p.requested) + ' thùng</small></div><button type="button" class="c3-b sm pri" data-o="' + esc(p.id) + '">Mở</button><button type="button" class="c3-b sm dng" data-d="' + esc(p.id) + '">Xóa</button></div>').join('') : '<div class="c3-empty">Chưa có phương án nào.</div>') + '<div class="c3-btns"><button type="button" class="c3-b" id="c3PClose">Đóng</button></div>');
+    const pcp = pcData();
+    const m = modal('<h3>Phương án đã lưu</h3>' + (list.length ? list.map((p) => '<div class="c3-plan"><div><b>' + esc(p.name) + '</b><small>' + esc(p.contName) + ' · ' + fmt(p.loaded) + '/' + fmt(p.requested) + ' thùng</small></div><button type="button" class="c3-b sm pri" data-o="' + esc(p.id) + '">Mở</button><button type="button" class="c3-b sm dng" data-d="' + esc(p.id) + '">Xóa</button></div>').join('') : '<div class="c3-empty">Chưa có phương án nào trên máy.</div>') +
+      '<h3 style="margin-top:14px">☁ Từ PC <small style="font-weight:500;color:var(--muted)">' + (pcp.at ? 'tải lúc ' + new Date(pcp.at).toLocaleString('vi-VN') : 'chưa tải') + '</small></h3>' + (pcp.plans.length ? pcp.plans.map((p) => '<div class="c3-plan"><div><b>' + esc(p.name) + '</b><small>' + esc(p.contName) + ' · ' + fmt(p.loaded) + '/' + fmt(p.requested) + ' thùng</small></div><button type="button" class="c3-b sm pri" data-op="' + esc(p.id) + '">Mở</button></div>').join('') : '<div class="c3-empty">PC chưa đẩy phương án nào (trên PC: Xếp cont 3D → Lưu phương án → Đẩy lên điện thoại).</div>') +
+      '<div class="c3-btns"><button type="button" class="c3-b pri" id="c3PPull">⟳ Tải mới từ PC</button><button type="button" class="c3-b" id="c3PClose">Đóng</button></div>');
+    $('c3PPull').onclick = async () => { $('c3PPull').disabled = true; await pullPc(true); openPlans(); };
     $('c3PClose').onclick = () => { m.hidden = true; };
     m.onclick = (e) => {
       if (e.target === m) { m.hidden = true; return; } const o = e.target.closest('[data-o]'), d = e.target.closest('[data-d]');
-      if (o) { const p = list.find((x) => x.id === o.dataset.o); if (!p) return; const dt = p.data; S.unit = dt.unit || 'mm'; S.cid = dt.cid || S.cid; S.cont = dt.cont; S.skus = dt.skus || []; S.opts = Object.assign({ mergeTail: false, stackTop: true, sampleQty: 10, dateDir: 'asc', sortMode: 'auto' }, dt.opts || {}); S.colors = dt.colors || {}; S.open = new Set(); m.hidden = true; renderPane(); calc(); schedSave(); toast('Đã mở “' + p.name + '”.'); }
+      const op = e.target.closest('[data-op]');
+      if (o || op) { const p = o ? list.find((x) => x.id === o.dataset.o) : pcp.plans.find((x) => x.id === op.dataset.op); if (!p) return; const dt = p.data; S.unit = dt.unit || 'mm'; S.cid = dt.cid || S.cid; S.cont = dt.cont; S.skus = dt.skus || []; S.opts = Object.assign({ mergeTail: false, stackTop: true, sampleQty: 10, dateDir: 'asc', sortMode: 'auto' }, dt.opts || {}); S.colors = dt.colors || {}; S.open = new Set(); m.hidden = true; renderPane(); calc(); schedSave(); toast('Đã mở “' + p.name + '”.'); }
       else if (d) { if (!confirm('Xóa phương án này?')) return; const nl = list.filter((x) => x.id !== d.dataset.d); localStorage.setItem(LSP, JSON.stringify(nl)); openPlans(); }
     };
   }

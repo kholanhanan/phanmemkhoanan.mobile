@@ -43,6 +43,7 @@ var TAB = {
   M01_BAOCAO: 'BaoCao_M01', // file Excel "Báo Cáo Tổng Tồn" + "Bảng Tổng Hợp HLSO" (base64 cắt nhiều ô) do PC dựng
   LX: 'LichXuat_Cont', LX_THANG: 'LichXuat_Thang', // Lịch xuất nhập hàng (PC 7.31) — điện thoại XEM
   LX_EM: 'LichXuat_Email', // (PC 8.22) hộp chờ duyệt: email (Gmail) → đề xuất thêm / đổi / hủy lịch xuất — PC duyệt rồi mới áp vào lịch
+  C3D: 'C3D_Data', // (PC 8.61) Container Loading 3D: cont đã sửa + phương án đã lưu — điện thoại XEM / mở (lệnh c3dData)
   LX_YC: 'LichXuat_YeuCau', // (PC 7.63) hộp thư yêu cầu THÊM / CHUYỂN lịch từ điện thoại của Quản lý trở lên — PC kéo về xử lý (xem lxGui_)
   M02_BAOCAO: 'BaoCao_M02', // file Excel "Bảng Tổng Hợp" của Module 02 (cùng cách lưu)
   // LƯU TRỮ (pcArchive_): phiếu ĐÃ XONG quá N ngày chuyển khỏi 2 tab chính để tab không phình mãi
@@ -173,6 +174,7 @@ function doPost(e) {
       if (own && !user.quanLy && !phieuVisibleTo_(own.cur, user)) return forbid_('Bạn không được cấp quyền'); // Quản lý / Quản trị: mọi phiếu
     }
     // Thêm nhanh / chuyển ngày Lịch xuất nhập hàng từ điện thoại: CHỈ Quản lý trở lên (và phải có quyền xem lịch 'LX').
+    if (action === 'c3dData' && !user.admin && (user.pc || []).indexOf('M14') < 0) return forbid_('Bạn không được cấp quyền');
     if (action === 'lichXuatGui' && !user.quanLy) return forbid_('Chỉ tài khoản Quản lý trở lên mới thêm / chuyển được lịch xuất nhập hàng.');
     if (action.indexOf('pq.') === 0 && !pqAllowed_(user)) return forbid_('Chỉ tài khoản Quản trị, hoặc Quản lý được cấp quyền Tài khoản, mới quản lý được người dùng.');
     if (action === 'taoPhieu' && req.phieu) {
@@ -223,6 +225,8 @@ function doPost(e) {
       }
       // (PC 7.63) Quản lý trở lên gửi yêu cầu THÊM NHANH / CHUYỂN NGÀY lịch — ghi vào tab LichXuat_YeuCau, PC kéo về xử lý.
       case 'lichXuatGui': return json_(lxGui_(user, req.ops));
+      // (PC 8.61) Container Loading 3D: cont + phương án PC đã đẩy (tab C3D_Data) — cần quyền PC M14.
+      case 'c3dData': { var cd = readTab_(TAB.C3D); return json_({ ok: true, meta: getMeta_(), headers: cd.headers, rows: cd.rows }); }
       case 'baoCaoM01': return json_(getBaoCao_(TAB.M01_BAOCAO));
       case 'baoCaoM02': return json_(getBaoCao_(TAB.M02_BAOCAO));
       case 'phieu': return json_(getPhieu_(user));
@@ -1216,7 +1220,7 @@ function buildItemsVTB_(id, reqItems, pending) {
 // CÁC LỆNH DÀNH RIÊNG CHO APP PC (PC_TOKEN) — xem app/sheets-webapp-client.js
 // ============================================================================================
 var PC_ALLOWED_TABS = [TAB.PQ, TAB.M01, TAB.VITRI, TAB.VITRIBOT, TAB.M02, TAB.M03, TAB.M03_LSX, TAB.M04, TAB.META, TAB.PX, TAB.PXI,
-  TAB.M08_MAHOA, TAB.M08_MADATAO, TAB.M08_TONGHOP, TAB.M08_RADONG, TAB.M08_SIZE, TAB.M08_KS, TAB.M08_KSXOA, TAB.M01_BAOCAO, TAB.M02_BAOCAO, TAB.LX, TAB.LX_THANG, TAB.LX_YC, TAB.LX_EM, TAB.PX_LUUTRU, TAB.PXI_LUUTRU];
+  TAB.M08_MAHOA, TAB.M08_MADATAO, TAB.M08_TONGHOP, TAB.M08_RADONG, TAB.M08_SIZE, TAB.M08_KS, TAB.M08_KSXOA, TAB.M01_BAOCAO, TAB.M02_BAOCAO, TAB.LX, TAB.LX_THANG, TAB.LX_YC, TAB.LX_EM, TAB.C3D, TAB.PX_LUUTRU, TAB.PXI_LUUTRU];
 function assertPcTab_(name) {
   if (PC_ALLOWED_TABS.indexOf(name) < 0) throw new Error('Không được phép thao tác tab "' + name + '".');
 }

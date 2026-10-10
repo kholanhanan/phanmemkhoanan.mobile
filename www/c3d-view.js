@@ -28,7 +28,7 @@
     this.gCont = new T.Group(); this.gCargo = new T.Group(); this.gHL = new T.Group(); this.scene.add(this.gCont, this.gCargo, this.gHL);
     this.labels = []; this.selLabels = [];
     this.plan = null; this.colors = []; this.filter = { tiers: null, groups: null, rows: null, seqMax: null };
-    this.opt = { walls: { right: true, left: false, ceil: false, front: true }, redline: true, dims: true, glabels: true, rowlabels: false, wallOpacity: 0.16, usable: true };
+    this.opt = { walls: { right: true, left: false, ceil: false, front: true }, redline: true, dims: true, glabels: false, rowlabels: false, wallOpacity: 0.16, usable: true };
     this.visible = []; this.selected = null; this.selRow = null; this.hover = null; this.onPick = null; this.onHover = null; this.onRowPick = null;
     this._dirty = true; this._raf = 0; this._pickReq = null;
     this.light = false;

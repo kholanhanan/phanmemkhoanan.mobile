@@ -99,7 +99,7 @@
   // ------------------------------------------------------------------ khởi tạo giao diện (1 lần)
   function init() {
     const st = loadLS(LS, null) || {};
-    S = { unit: st.unit || 'mm', cid: st.cid || 'rf40hc', cont: st.cont || null, saved: st.saved || [], skus: st.skus || [], colors: st.colors || {}, opts: Object.assign({ mergeTail: false, stackTop: true, heightRule: true, sampleOn: true, sampleQty: 10, spread: false, spreadPct: 70, dateDir: 'asc', sortMode: 'auto' }, st.opts || {}),
+    S = { unit: st.unit || 'mm', cid: st.cid || 'rf40hc', cont: st.cont || null, saved: st.saved || [], skus: st.skus || [], colors: st.colors || {}, opts: Object.assign({ mergeTail: true, stackTop: true, heightRule: true, sampleOn: true, sampleQty: 10, spread: false, spreadPct: 70, dateDir: 'asc', sortMode: 'auto' }, st.opts || {}),
       plan: null, tab: 'hang', open: new Set(), hidden: { tiers: new Set(), groups: new Set(), rows: new Set() }, seqMax: null, playing: 0, full: false, viewName: 'iso', gcolors: [] };
     if (!S.cont || !(S.cont.L > 0)) pick(S.cid);
     const root = $('c3dRoot');
@@ -361,7 +361,7 @@
     m.onclick = (e) => {
       if (e.target === m) { m.hidden = true; return; } const o = e.target.closest('[data-o]'), d = e.target.closest('[data-d]');
       const op = e.target.closest('[data-op]');
-      if (o || op) { const p = o ? list.find((x) => x.id === o.dataset.o) : pcp.plans.find((x) => x.id === op.dataset.op); if (!p) return; const dt = p.data; S.unit = dt.unit || 'mm'; S.cid = dt.cid || S.cid; S.cont = dt.cont; S.skus = dt.skus || []; S.opts = Object.assign({ mergeTail: false, stackTop: true, heightRule: true, sampleOn: true, sampleQty: 10, dateDir: 'asc', sortMode: 'auto' }, dt.opts || {}); S.colors = dt.colors || {}; S.open = new Set(); m.hidden = true; renderPane(); calc(); schedSave(); toast('Đã mở “' + p.name + '”.'); }
+      if (o || op) { const p = o ? list.find((x) => x.id === o.dataset.o) : pcp.plans.find((x) => x.id === op.dataset.op); if (!p) return; const dt = p.data; S.unit = dt.unit || 'mm'; S.cid = dt.cid || S.cid; S.cont = dt.cont; S.skus = dt.skus || []; S.opts = Object.assign({ mergeTail: true, stackTop: true, heightRule: true, sampleOn: true, sampleQty: 10, dateDir: 'asc', sortMode: 'auto' }, dt.opts || {}); S.colors = dt.colors || {}; S.open = new Set(); m.hidden = true; renderPane(); calc(); schedSave(); toast('Đã mở “' + p.name + '”.'); }
       else if (d) { if (!confirm('Xóa phương án này?')) return; const nl = list.filter((x) => x.id !== d.dataset.d); localStorage.setItem(LSP, JSON.stringify(nl)); openPlans(); }
     };
   }

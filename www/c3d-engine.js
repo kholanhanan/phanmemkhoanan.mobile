@@ -707,7 +707,7 @@
     return p1;
   }
   function solve(input, options) {
-    const opts = Object.assign({ mergeTail: false, stackTop: true, heightRule: true, sampleOn: true, sampleQty: 10, autoLayout: true, spread: false, spreadPct: 70, dateDir: 'asc', sortMode: 'auto', minSupport: 0.7, compare: true }, options || {});
+    const opts = Object.assign({ mergeTail: true, stackTop: true, heightRule: true, sampleOn: true, sampleQty: 10, autoLayout: true, spread: false, spreadPct: 70, dateDir: 'asc', sortMode: 'auto', minSupport: 0.7, compare: true }, options || {});
     let plan = solveBest(input, opts);
     if (opts.spread) plan = solveSpread(input, opts, plan);
     if (opts.compare && plan.totals.requested > 0 && !plan.spreadNote) {

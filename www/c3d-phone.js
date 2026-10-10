@@ -19,7 +19,7 @@
 
   // ------------------------------------------------------------------ nạp thư viện (lần đầu)
   function loadScript(src) {
-    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src + '?v=4.21'; s.onload = res; s.onerror = () => rej(new Error('Không nạp được ' + src)); document.head.appendChild(s); });
+    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src + '?v=4.22'; s.onload = res; s.onerror = () => rej(new Error('Không nạp được ' + src)); document.head.appendChild(s); });
   }
   function ensure() {
     if (!ready) ready = (async () => {
@@ -99,7 +99,7 @@
   // ------------------------------------------------------------------ khởi tạo giao diện (1 lần)
   function init() {
     const st = loadLS(LS, null) || {};
-    S = { unit: st.unit || 'mm', cid: st.cid || 'rf40hc', cont: st.cont || null, saved: st.saved || [], skus: st.skus || [], colors: st.colors || {}, opts: Object.assign({ mergeTail: false, stackTop: true, sampleQty: 10, spread: false, spreadPct: 70, dateDir: 'asc', sortMode: 'auto' }, st.opts || {}),
+    S = { unit: st.unit || 'mm', cid: st.cid || 'rf40hc', cont: st.cont || null, saved: st.saved || [], skus: st.skus || [], colors: st.colors || {}, opts: Object.assign({ mergeTail: false, stackTop: true, heightRule: true, sampleOn: true, sampleQty: 10, spread: false, spreadPct: 70, dateDir: 'asc', sortMode: 'auto' }, st.opts || {}),
       plan: null, tab: 'hang', open: new Set(), hidden: { tiers: new Set(), groups: new Set(), rows: new Set() }, seqMax: null, playing: 0, full: false, viewName: 'iso', gcolors: [] };
     if (!S.cont || !(S.cont.L > 0)) pick(S.cid);
     const root = $('c3dRoot');
@@ -187,7 +187,9 @@
       '<label class="c3-chk big"><input type="checkbox" id="c3Spread"' + (o.spread ? ' checked' : '') + '> Hàng ít: trải đều nhiều dãy thấp (chắc hàng, không để dãy cao đứng riêng)</label>' + (o.spread ? fld('Trải tối đa (% chiều dài cont)', 'id="c3SpreadPct"', o.spreadPct || 70) : '') +
       '<label class="c3-chk big"><input type="checkbox" id="c3Auto"' + (o.autoLayout !== false ? ' checked' : '') + '> Tự sắp xếp hợp lý khi trống một bên (so le trái/phải, ưu tiên thoáng khí)</label>' +
       '<label class="c3-chk big"><input type="checkbox" id="c3Stack"' + (o.stackTop !== false ? ' checked' : '') + '> Cho mặt hàng sau chồng lên khoảng trống phía trên mặt hàng trước</label>' +
-      fld('Hàng mẫu hải quan (thùng / mỗi loại, 0 = tắt)', 'id="c3Samp"', o.sampleQty == null ? 10 : o.sampleQty) +
+      '<label class="c3-chk big"><input type="checkbox" id="c3Height"' + (o.heightRule !== false ? ' checked' : '') + '> Xếp từ cao xuống thấp (trong cùng → cửa cont)</label>' +
+      '<label class="c3-chk big"><input type="checkbox" id="c3SampOn"' + (o.sampleOn !== false ? ' checked' : '') + '> Chừa mẫu hải quan (2 dãy cuối)</label>' +
+      (o.sampleOn !== false ? fld('Hàng mẫu hải quan (thùng / mỗi loại)', 'id="c3Samp"', o.sampleQty == null ? 10 : o.sampleQty) : '') +
       '<div class="c3-g2"><label class="c3-f"><span>Thứ tự đóng</span><select id="c3Sort"><option value="auto"' + (o.sortMode !== 'manual' ? ' selected' : '') + '>Mặt hàng › Size › Ngày</option><option value="manual"' + (o.sortMode === 'manual' ? ' selected' : '') + '>Đúng thứ tự nhập</option></select></label>' +
       '<label class="c3-f"><span>Ngày</span><select id="c3Date"><option value="asc"' + (o.dateDir !== 'desc' ? ' selected' : '') + '>Cũ vào trong</option><option value="desc"' + (o.dateDir === 'desc' ? ' selected' : '') + '>Mới vào trong</option></select></label></div></div></details>';
   }
@@ -249,6 +251,8 @@
     const t = e.target;
     if (t.id === 'c3Sel') { pick(t.value); renderPane(); sched(0); schedSave(); return; }
     if (t.id === 'c3Unit') { S.unit = t.value; renderPane(); schedSave(); return; }
+    if (t.id === 'c3SampOn') { S.opts.sampleOn = t.checked; renderPane(); sched(0); return; }
+    if (t.id === 'c3Height') { S.opts.heightRule = t.checked; sched(0); return; }
     if (t.id === 'c3Spread') { S.opts.spread = t.checked; renderPane(); sched(0); return; }
     if (t.id === 'c3Auto') { S.opts.autoLayout = t.checked; sched(0); return; }
     if (t.id === 'c3SpreadPct') { S.opts.spreadPct = Math.min(100, Math.max(20, E.num(t.value) || 70)); sched(); return; }
@@ -359,7 +363,7 @@
     m.onclick = (e) => {
       if (e.target === m) { m.hidden = true; return; } const o = e.target.closest('[data-o]'), d = e.target.closest('[data-d]');
       const op = e.target.closest('[data-op]');
-      if (o || op) { const p = o ? list.find((x) => x.id === o.dataset.o) : pcp.plans.find((x) => x.id === op.dataset.op); if (!p) return; const dt = p.data; S.unit = dt.unit || 'mm'; S.cid = dt.cid || S.cid; S.cont = dt.cont; S.skus = dt.skus || []; S.opts = Object.assign({ mergeTail: false, stackTop: true, sampleQty: 10, dateDir: 'asc', sortMode: 'auto' }, dt.opts || {}); S.colors = dt.colors || {}; S.open = new Set(); m.hidden = true; renderPane(); calc(); schedSave(); toast('Đã mở “' + p.name + '”.'); }
+      if (o || op) { const p = o ? list.find((x) => x.id === o.dataset.o) : pcp.plans.find((x) => x.id === op.dataset.op); if (!p) return; const dt = p.data; S.unit = dt.unit || 'mm'; S.cid = dt.cid || S.cid; S.cont = dt.cont; S.skus = dt.skus || []; S.opts = Object.assign({ mergeTail: false, stackTop: true, heightRule: true, sampleOn: true, sampleQty: 10, dateDir: 'asc', sortMode: 'auto' }, dt.opts || {}); S.colors = dt.colors || {}; S.open = new Set(); m.hidden = true; renderPane(); calc(); schedSave(); toast('Đã mở “' + p.name + '”.'); }
       else if (d) { if (!confirm('Xóa phương án này?')) return; const nl = list.filter((x) => x.id !== d.dataset.d); localStorage.setItem(LSP, JSON.stringify(nl)); openPlans(); }
     };
   }

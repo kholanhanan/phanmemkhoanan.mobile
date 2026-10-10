@@ -162,12 +162,12 @@
       this.gCargo.add(new T.LineSegments(eg, new T.LineBasicMaterial({ color: this.light ? 0x1b2433 : 0x0a0d12, transparent: true, opacity: 0.38 })));
     } else this.cargoMesh = null;
     this.refreshRowLabels(); this.drawGapDims();
-    // nhãn nhóm (mã hàng · size · số thùng · kích thước thùng)
+    // nhãn nhóm (mã hàng · size · ngày · số thùng) — KHÔNG ghi kích thước thùng (PC 8.69: số liệu dài che màn hình 3D)
     const gb = {};
     vis.forEach((bi) => { const b = p.boxes[bi], gg = gb[b.group] = gb[b.group] || { n: 0, minx: 1e9, maxx: -1e9, miny: 1e9, maxy: -1e9, maxz: 0 }; gg.n++; gg.minx = Math.min(gg.minx, b.x); gg.maxx = Math.max(gg.maxx, b.x + b.dx); gg.miny = Math.min(gg.miny, b.y); gg.maxy = Math.max(gg.maxy, b.y + b.dy); gg.maxz = Math.max(gg.maxz, b.z + b.dz); });
     Object.keys(gb).forEach((k) => {
       const g = p.groups[+k], s = gb[k], sk = g.sku;
-      const txt = (sk.code || 'Mặt hàng ' + (+k + 1)) + (sk.size ? ' · ' + sk.size : '') + (sk.date ? ' · ' + sk.date : '') + '\n' + s.n + ' thùng · ' + Math.round(sk.L) + '×' + Math.round(sk.W) + '×' + Math.round(sk.H) + ' mm';
+      const txt = (sk.code || 'Mặt hàng ' + (+k + 1)) + (sk.size ? ' · ' + sk.size : '') + (sk.date ? ' · ' + sk.date : '') + '\n' + s.n + ' thùng';
       const v = new T.Vector3(((s.minx + s.maxx) / 2) * SC - L / 2, (s.maxz + 40) * SC, ((s.miny + s.maxy) / 2) * SC - W / 2);
       const o = this.addLabel(txt, v, 'grp', this.cargoLabels); o.el.style.borderColor = this.colors[+k] || '#888'; o.el.style.display = this.opt.glabels ? '' : 'none'; o.group = +k;
     });

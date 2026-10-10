@@ -412,6 +412,49 @@
   }
 
   // ---------------------------------------------------------------- KIỂM TRA ĐỘC LẬP phương án (chống "đúng trên hình nhưng không làm được")
+  // HÀNG MẪU HẢI QUAN — CÁC DÃY CUỐI (sát cửa) TRỘN ĐỦ MỌI MẶT HÀNG, mỗi dãy đầy đặn như các dãy khác (không để dãy mẫu thưa).
+  // Mỗi dãy mẫu chia bề ngang cho các mặt hàng sao cho số thùng mỗi mặt hàng xấp xỉ nhau (VD 3 mặt hàng, dãy 50 thùng → 15/15/20); số thùng mẫu
+  // của mỗi mặt hàng do hệ thống tự tính (≈ sức chứa các dãy mẫu ÷ số mặt hàng, tối thiểu minQ nếu đủ hàng) — người dùng không nhập.
+  function buildSampleRows(infos, sp, R, weightLeft) {
+    const rem = infos.map((f) => f.want), placed = infos.map(() => 0), rows = []; let wl = weightLeft;
+    for (let r = 0; r < R; r++) {
+      let wLeft = sp.Wu; const cols = infos.map(() => []);
+      for (let guard = 0; guard < 5000; guard++) {
+        let pick = -1;
+        infos.forEach((f, i) => { if (rem[i] <= 0 || f.o.dy > wLeft + EPS) return; if (pick < 0 || placed[i] < placed[pick]) pick = i; });
+        if (pick < 0) break;
+        const f = infos[pick]; let n = Math.min(f.T, rem[pick]);
+        if (Number.isFinite(wl) && f.k.kg > 0) n = Math.min(n, Math.floor((wl + 1e-6) / f.k.kg));
+        if (n <= 0) { rem[pick] = 0; continue; }
+        cols[pick].push(n); wLeft -= f.o.dy; rem[pick] -= n; if (Number.isFinite(wl)) wl -= n * f.k.kg;
+        placed[pick] += n;
+      }
+      const used = infos.map((f, i) => (cols[i].length ? f.o.dx : 0)); if (!used.some((d) => d > 0)) break;
+      rows.push({ D: Math.max(...used), cols });
+    }
+    return { rows, placed, reserve: rows.reduce((a, r) => a + r.D, 0), kg: Number.isFinite(weightLeft) ? weightLeft - wl : 0 };
+  }
+  function planSampleRows(gs, sp, minQ, weightLeft) {
+    const infos = [];
+    gs.forEach((g) => {
+      const k = g.sku, ors = orientationsOf(k, sp); let best = null, bs = -1;
+      ors.forEach((o) => {
+        let T = Math.floor((sp.effH + EPS) / o.dz); if (k.maxLayers > 0) T = Math.min(T, k.maxLayers);
+        if (T < 1 || o.dy > sp.Wu + EPS) return;
+        const sc = T / (o.dx * o.dy);
+        if (!best || sc > bs + 1e-12 || (Math.abs(sc - bs) <= 1e-12 && prefOf({ o, kind: 'col' }) < prefOf({ o: best.o, kind: 'col' }))) { bs = sc; best = { o, T }; }
+      });
+      if (best) infos.push({ g, k, o: best.o, T: best.T, want: Math.min(k.qty, Math.max(Math.min(minQ, k.qty), Math.floor(k.qty / 2))) });
+    });
+    if (infos.length < 2) return null;
+    let res = null;
+    for (let R = 2; R <= 4; R++) {
+      res = buildSampleRows(infos, sp, R, weightLeft);
+      if (infos.every((f, i) => res.placed[i] >= Math.min(minQ, f.k.qty))) break;
+    }
+    return res && res.rows.length ? { infos, rows: res.rows, placed: res.placed, reserve: res.reserve, kg: res.kg } : null;
+  }
+
   function verify(boxes, sp, opts) {
     const minSup = (opts && opts.minSupport) || 0.7, v = [], push = (type, i, msg) => { if (v.length < 200) v.push({ type, box: i, msg }); };
     boxes.forEach((b, i) => {
@@ -492,23 +535,38 @@
     const addWhy = (g, t) => { if (!g.reasons.includes(t)) g.reasons.push(t); };
     // (hàng mẫu hải quan KHÔNG còn xếp riêng 2 dãy cuối: sau khi xếp xong, hệ thống tự chọn & đánh dấu thùng mẫu chia đều vào các dãy — xem bước đánh dấu bên dưới)
     const Ds = 0;
-    // B) HÀNG CHÍNH: từ vách đầu ra tới trước dãy mẫu
-    const spM = sp, S = { sp: spM, cursor: sp.x0, strip: null, top: null };
+    // A) DÃY MẪU HẢI QUAN: các dãy cuối trộn đủ mọi mặt hàng (cần ≥ 2 mặt hàng xếp được) — tính trước để chừa chỗ + trừ số thùng mẫu khỏi hàng chính
+    const sampPlan = (sampleQ > 0 && !errors.length) ? planSampleRows(groups.filter((g) => g.ok), sp, sampleQ, weightLeft) : null;
+    if (sampPlan) { sampPlan.infos.forEach((f, i) => { f.g.sample = sampPlan.placed[i]; }); if (Number.isFinite(weightLeft)) weightLeft -= sampPlan.kg; }
+    // B) HÀNG CHÍNH: từ vách đầu ra tới trước các dãy mẫu
+    const spM = sampPlan ? Object.assign({}, sp, { x1: sp.x1 - sampPlan.reserve, Lu: sp.Lu - sampPlan.reserve }) : sp, S = { sp: spM, cursor: sp.x0, strip: null, top: null };
     const lastIdx = (() => { let li = -1; groups.forEach((g, i) => { if (g.ok && g.requested - g.sample > 0) li = i; }); return li; })();
     groups.forEach((g, gi) => {
       if (!g.ok) return; const k = g.sku; const n0 = k.qty - g.sample; if (n0 <= 0) return;
       let n = wLimit(k, n0); if (n < n0) addWhy(g, 'Hết tải trọng cho phép (' + Math.round(c.maxPayload) + ' kg).'); if (n <= 0) return;
-      const r = runGroup(S, g, n, sampBoxes.length ? Object.assign({}, opts, { _sampleAfter: true }) : opts, gi === lastIdx);
+      const r = runGroup(S, g, n, opts, gi === lastIdx);
       if (r.reason === 'khong-vua') { addWhy(g, k.orient ? 'Hướng đặt bạn chọn không vừa cont (so với bề ngang / red line). Đổi hướng hoặc chọn “Tự động”.' : 'Không có hướng đặt nào vừa trong cont (kích thước thùng so với bề ngang / red line). Thử bật xoay / đặt nằm.'); return; }
       r.boxes.forEach((b) => { b.group = gi; b.skuId = k.id; }); mainBoxes.push(...r.boxes);
       g.loaded = r.placed; g.patterns = r.patterns; g.soleFail = r.soleFail || g.soleFail; g.stripUsed = r.stripUsed || 0; g.stackedOn = r.stackedOn || 0;
       if (r.placed < n) addWhy(g, 'Hết chỗ trong cont (đã tới dãy mẫu / cửa / red line).');
       if (Number.isFinite(weightLeft)) weightLeft -= r.placed * k.kg;
     });
+    if (sampPlan) { // xếp các dãy mẫu ngay sau hàng chính (sát cửa): mỗi dãy chia bề ngang cho các mặt hàng
+      let cx = mainBoxes.length ? Math.max(...mainBoxes.map((b) => b.x + b.dx)) : sp.x0; sampPlan.infos.forEach((f) => { f.g.sample = 0; });
+      sampPlan.rows.forEach((rw) => {
+        if (cx + rw.D > sp.x1 + 1e-3) return; let y = sp.y0;
+        sampPlan.infos.forEach((f, i) => rw.cols[i].forEach((n) => {
+          for (let t = 0; t < n; t++) { const b = mk(cx, y, t * f.o.dz, f.o, t + 1); b.group = f.g.index; b.skuId = f.k.id; b.sample = true; sampBoxes.push(b); f.g.sample++; f.g.loaded++; }
+          y += f.o.dy;
+        }));
+        cx += rw.D;
+      });
+      sampPlan.infos.forEach((f) => { const g = f.g; if (!g.patterns.length) g.patterns.push({ text: orientText(f.o, f.k) + ' · hàng mẫu', kind: 'col', o: f.o }); if (g.loaded < g.requested && g.reasons.length === 0) addWhy(g, 'Hết chỗ trong cont (các dãy mẫu sát cửa).'); });
+    }
     groups.forEach((g) => {
       g.left = g.requested - g.loaded; g.kg = g.loaded * g.sku.kg; loadedKg += g.kg;
       g.volUnit = g.sku.L * g.sku.W * g.sku.H; g.volReq = g.volUnit * g.requested; g.volLoaded = g.volUnit * g.loaded; // mm³ (÷ 1e9 = m³)
-      const all = mainBoxes.filter((b) => b.group === g.index);
+      const all = mainBoxes.concat(sampBoxes).filter((b) => b.group === g.index);
       if (all.length) { g.xStart = Math.min(...all.map((b) => b.x)); g.xEnd = Math.max(...all.map((b) => b.x + b.dx)); }
       if (g.soleFail) addWhy(g, 'Không xếp SOLE được: ' + (SOLE_WHY[g.soleFail] || '') + ' → xếp thẳng hàng.');
     });
@@ -524,7 +582,7 @@
     // HÀNG MẪU HẢI QUAN — TỰ CHIA ĐỀU: mỗi dòng (mã · size · ngày) lấy tối thiểu MIN_SAMPLE thùng, chia đều cho các dãy mà dòng đó nằm
     // (mỗi dãy 1–2 thùng), ưu tiên thùng ở TẦNG TRÊN CÙNG (dễ lấy ra kiểm), xoay vị trí trái/phải giữa các dãy. Thùng mẫu nằm ngay trong khối hàng, KHÔNG tách riêng.
     let nSample = 0;
-    if (sampleQ > 0) {
+    if (sampleQ > 0 && !sampPlan) {
       groups.forEach((g) => {
         if (!g.ok) return; const mine = boxes.filter((b) => b.group === g.index); if (!mine.length) return;
         const need = Math.min(sampleQ, mine.length), byRow = {}; mine.forEach((b) => { (byRow[b.row] = byRow[b.row] || []).push(b); });
@@ -540,6 +598,7 @@
         if (g.sample < Math.min(sampleQ, g.sku.qty)) addWhy(g, 'Chỉ xếp được ' + g.sample + ' thùng, chưa đủ ' + sampleQ + ' thùng mẫu hải quan.');
       });
     }
+    if (sampPlan) { nSample = sampBoxes.length; groups.forEach((g) => { if (g.ok && g.sample < Math.min(sampleQ, g.sku.qty)) addWhy(g, 'Chỉ xếp được ' + g.sample + ' thùng, chưa đủ ' + sampleQ + ' thùng mẫu hải quan.'); }); }
     rows.forEach((r) => { r.samples = 0; }); boxes.forEach((b) => { if (b.sample && rows[b.row - 1]) rows[b.row - 1].samples++; }); // số thùng mẫu HQ trong từng dãy
     // QUY TẮC CAO → THẤP (trong → cửa): dãy phía trong KHÔNG được thấp hơn dãy phía ngoài. Dãy còn dư chỗ chồng thêm 1 tầng mà dãy liền sau lại cao hơn → vi phạm (bỏ qua dãy mẫu hải quan).
     const heightViol = [];
@@ -554,7 +613,7 @@
     const cog = kgSum > 0 ? { x: cx / kgSum, y: cy / kgSum, xPct: cx / kgSum / c.L * 100, yPct: cy / kgSum / c.W * 100 } : null;
     // KHOẢNG TRỐNG CÒN LẠI (mm): thùng gần nhất → vách đầu / cửa / vách phải / vách trái, thùng CAO NHẤT → trần / red line / giới hạn xếp
     const gaps = boxes.length ? (() => { let mnx = 1e18, mxx = -1e18, mny = 1e18, mxy = -1e18, top = 0; boxes.forEach((b) => { mnx = Math.min(mnx, b.x); mxx = Math.max(mxx, b.x + b.dx); mny = Math.min(mny, b.y); mxy = Math.max(mxy, b.y + b.dy); top = Math.max(top, b.z + b.dz); }); return { front: mnx, door: c.L - mxx, right: mny, left: c.W - mxy, top, ceiling: c.H - top, red: sp.red - top, eff: sp.effH - top }; })() : null;
-    const mainEnd = mainBoxes.length ? Math.max(...mainBoxes.map((b) => b.x + b.dx)) - sp.x0 : 0, usedLen = mainEnd + Ds, gapSample = 0;
+    const mainEnd = boxes.length ? Math.max(...boxes.map((b) => b.x + b.dx)) - sp.x0 : 0, usedLen = mainEnd + Ds, gapSample = 0;
     const reqTotal = groups.reduce((s, g) => s + g.requested, 0), loadTotal = groups.reduce((s, g) => s + g.loaded, 0);
     if (!ver.ok) errors.push('Kiểm tra độc lập phát hiện ' + ver.violations.length + ' lỗi trong phương án (xem chi tiết).');
     if (cog && (Math.abs(cog.xPct - 50) > 12)) warnings.push('Trọng tâm hàng lệch dọc cont: ' + cog.xPct.toFixed(0) + '% chiều dài tính từ vách đầu (nên 40–60%).');

@@ -188,7 +188,7 @@
       '<label class="c3-chk big"><input type="checkbox" id="c3Auto"' + (o.autoLayout !== false ? ' checked' : '') + '> Tự sắp xếp hợp lý khi trống một bên (so le trái/phải, ưu tiên thoáng khí)</label>' +
       '<label class="c3-chk big"><input type="checkbox" id="c3Stack"' + (o.stackTop !== false ? ' checked' : '') + '> Cho mặt hàng sau chồng lên khoảng trống phía trên mặt hàng trước</label>' +
       '<label class="c3-chk big"><input type="checkbox" id="c3Height"' + (o.heightRule !== false ? ' checked' : '') + '> Xếp từ cao xuống thấp (trong cùng → cửa cont)</label>' +
-      '<label class="c3-chk big"><input type="checkbox" id="c3SampOn"' + (o.sampleOn !== false ? ' checked' : '') + '> Hàng mẫu hải quan: tự chia đều vào các dãy (tối thiểu 10 thùng / mỗi loại)</label>' +
+      '<label class="c3-chk big"><input type="checkbox" id="c3SampOn"' + (o.sampleOn !== false ? ' checked' : '') + '> Hàng mẫu hải quan: tự chia ở các dãy cuối, trộn đủ mọi mặt hàng</label>' +
       '<div class="c3-g2"><label class="c3-f"><span>Thứ tự đóng</span><select id="c3Sort"><option value="auto"' + (o.sortMode !== 'manual' ? ' selected' : '') + '>Mặt hàng › Size › Ngày</option><option value="manual"' + (o.sortMode === 'manual' ? ' selected' : '') + '>Đúng thứ tự nhập</option></select></label>' +
       '<label class="c3-f"><span>Ngày</span><select id="c3Date"><option value="asc"' + (o.dateDir !== 'desc' ? ' selected' : '') + '>Cũ vào trong</option><option value="desc"' + (o.dateDir === 'desc' ? ' selected' : '') + '>Mới vào trong</option></select></label></div></div></details>';
   }
@@ -207,7 +207,7 @@
     if (p.verify.ok && t.loaded) h += msg('ok', '✔ <b>Đã kiểm tra độc lập ' + fmt(t.loaded) + ' thùng</b>: không chồng, trong cont, dưới red line, đủ điểm đỡ, thứ tự đóng không bị chắn.');
     p.warnings.forEach((m) => { h += msg('warn', '⚠ ' + esc(m)); });
     if (t.left > 0) h += msg('err', '📦 <b>Rớt lại kho ' + fmt(t.left) + ' thùng</b>: ' + p.groups.filter((g) => g.left > 0).map((g) => esc((g.sku.code || 'Mặt hàng') + ' ' + (g.sku.size || '')) + ' ' + fmt(g.left)).join(' · '));
-    if (t.sample > 0) h += msg('tip', '🛃 Hàng mẫu hải quan: ' + fmt(t.sample) + ' thùng, tự chia đều vào ' + fmt(p.rows.filter((r) => r.samples > 0).length) + ' dãy (tối thiểu 10 thùng / mỗi loại), tô sáng trên hình 3D.');
+    if (t.sample > 0) h += msg('tip', '🛃 Hàng mẫu hải quan: ' + fmt(t.sample) + ' thùng, nằm ở ' + fmt(p.rows.filter((r) => r.samples > 0).length) + ' dãy cuối (sát cửa), trộn đủ các mặt hàng, tô sáng trên hình 3D.');
     if (p.compare && p.compare.ok && p.compare.delta > 0) h += msg('tip', '💡 Đổi sang “' + (p.compare.mergeTail ? 'Ghép lấp chỗ trống' : 'Tách riêng') + '” xếp thêm ' + fmt(p.compare.delta) + ' thùng.');
     h += p.groups.map((g, i) => {
       const rs = p.boxes.filter((b) => b.group === i).map((b) => b.row), rr = rs.length ? 'Dãy ' + Math.min(...rs) + (Math.max(...rs) > Math.min(...rs) ? '–' + Math.max(...rs) : '') : '—';

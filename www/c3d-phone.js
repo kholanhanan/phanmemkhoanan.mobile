@@ -10,6 +10,7 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmt = (n, d) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 });
   const clone = (o) => JSON.parse(JSON.stringify(o));
+  const m3 = (mm3, d) => fmt(mm3 / 1e9, d == null ? 2 : d); // mm³ → m³
   const PAL = ['#3b82f6', '#f97316', '#22c55e', '#e11d48', '#a855f7', '#eab308', '#06b6d4', '#84cc16', '#ec4899', '#14b8a6', '#f43f5e', '#8b5cf6'];
   const TYPES = [['20RF', "20' RF"], ['40RF', "40' RF"], ['40HC', "40' HC RF"], ['KHAC', 'Khác']];
   const CK = ['L', 'W', 'H', 'doorW', 'doorH', 'redLine', 'clearFront', 'clearRear', 'clearSide'];
@@ -18,7 +19,7 @@
 
   // ------------------------------------------------------------------ nạp thư viện (lần đầu)
   function loadScript(src) {
-    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src + '?v=4.17'; s.onload = res; s.onerror = () => rej(new Error('Không nạp được ' + src)); document.head.appendChild(s); });
+    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src + '?v=4.18'; s.onload = res; s.onerror = () => rej(new Error('Không nạp được ' + src)); document.head.appendChild(s); });
   }
   function ensure() {
     if (!ready) ready = (async () => {
@@ -129,14 +130,14 @@
   function paneCont() {
     const c = S.cont, lst = contList(), uu = S.unit, cur = lst.find((x) => x.id === S.cid);
     const red = c.redLine > 0 ? c.redLine : c.H, eff = Math.min(c.H, red, c.doorH > 0 ? c.doorH : c.H);
-    return '<div class="c3-sec"><label class="c3-f"><span>Chọn container</span><select id="c3Sel">' + lst.map((x) => '<option value="' + esc(x.id) + '"' + (x.id === S.cid ? ' selected' : '') + '>' + esc((x.fromPc ? '☁ ' : x.builtin ? '' : '★ ') + x.name + (x.fromPc ? ' (từ PC)' : x.edited ? ' (đã sửa)' : '')) + '</option>').join('') + '</select></label>' +
+    return '<div class="c3-sec"><label class="c3-f"><span>Chọn container</span><select id="c3Sel">' + lst.map((x) => '<option value="' + esc(x.id) + '"' + (x.id === S.cid ? ' selected' : '') + '>' + esc((x.fromPc ? '☁ ' : x.builtin ? '' : '★ ') + x.name + (x.fromPc ? ' (từ PC)' : x.edited ? ' (đã sửa)' : '') + ' — ' + m3(x.L * x.W * x.H, 1) + ' m³') + '</option>').join('') + '</select></label>' +
       '<div class="c3-g2"><label class="c3-f"><span>Đơn vị dài</span><select id="c3Unit"><option value="mm"' + (uu === 'mm' ? ' selected' : '') + '>mm</option><option value="cm"' + (uu === 'cm' ? ' selected' : '') + '>cm</option></select></label>' +
       '<label class="c3-f"><span>Loại</span><select data-c="type">' + TYPES.map((t) => '<option value="' + t[0] + '"' + (c.type === t[0] ? ' selected' : '') + '>' + t[1] + '</option>').join('') + '</select></label></div>' +
       '<label class="c3-f"><span>Tên container</span><input type="text" data-c="name" value="' + esc(c.name) + '"></label>' +
       '<div class="c3-g3">' + fld('Dài trong (' + uu + ')', 'data-c="L"', toU(c.L)) + fld('Rộng trong', 'data-c="W"', toU(c.W)) + fld('Cao trong', 'data-c="H"', toU(c.H)) + fld('Rộng cửa', 'data-c="doorW"', toU(c.doorW)) + fld('Cao cửa', 'data-c="doorH"', toU(c.doorH)) + fld('Tải trọng (kg)', 'data-c="maxPayload"', String(c.maxPayload || '')) + '</div>' +
       fld('Red line — cao tối đa xếp (' + uu + ')', 'data-c="redLine"', toU(c.redLine)) +
       '<div class="c3-g3">' + fld('Khe vách đầu', 'data-c="clearFront"', toU(c.clearFront)) + fld('Khe cửa', 'data-c="clearRear"', toU(c.clearRear)) + fld('Khe hai bên', 'data-c="clearSide"', toU(c.clearSide)) + '</div>' +
-      '<p class="c3-note">Thể tích trong <b>' + fmt(c.L * c.W * c.H / 1e9, 2) + ' m³</b> · cao xếp tối đa <b>' + fmt(eff / 1000, 2) + ' m</b> (nhỏ nhất của red line / cao cửa / cao trong). Thông số mẫu chỉ tham khảo — nhập theo cont thực tế.</p>' +
+      '<p class="c3-note">Thể tích trong <b>' + fmt(c.L * c.W * c.H / 1e9, 2) + ' m³</b> · chứa hàng được <b>' + fmt((c.L - c.clearFront - c.clearRear) * (c.W - 2 * c.clearSide) * eff / 1e9, 2) + ' m³</b> · cao xếp tối đa <b>' + fmt(eff / 1000, 2) + ' m</b> (nhỏ nhất của red line / cao cửa / cao trong). Thông số mẫu chỉ tham khảo — nhập theo cont thực tế.</p>' +
       '<div class="c3-btns"><button type="button" class="c3-b" data-act="cSave">Lưu thay đổi</button><button type="button" class="c3-b" data-act="cNew">Lưu thành cont mới</button><button type="button" class="c3-b dng" data-act="cDel">' + (cur && cur.builtin ? 'Khôi phục mẫu' : 'Xóa cont') + '</button></div></div>';
   }
   function skuCard(k, i) {
@@ -148,6 +149,7 @@
       '<div class="c3-g2"><label class="c3-f"><span>Mã hàng</span><input type="text" ' + a + ' data-f="code" value="' + esc(k.code) + '"></label>' + fld('SL thùng', a + ' data-f="qty"', k.qty) +
       '<label class="c3-f"><span>Size</span><input type="text" ' + a + ' data-f="size" value="' + esc(k.size) + '" placeholder="31/40"></label><label class="c3-f"><span>Date</span><input type="text" ' + a + ' data-f="date" value="' + esc(k.date) + '" placeholder="dd/mm/yyyy"></label></div>' +
       '<div class="c3-g3">' + fld('Dài (' + uu + ')', a + ' data-f="L" data-len="1"', toU(k.L)) + fld('Rộng', a + ' data-f="W" data-len="1"', toU(k.W)) + fld('Cao', a + ' data-f="H" data-len="1"', toU(k.H)) + '</div>' +
+      '<div class="c3-note">Khối 1 thùng <b>' + fmt(k.L * k.W * k.H / 1e9, 4) + ' m³</b> · tổng ' + fmt(k.qty) + ' thùng <b>' + fmt(k.L * k.W * k.H * k.qty / 1e9, 2) + ' m³</b></div>' +
       '<div class="c3-g2">' + fld('kg / thùng', a + ' data-f="kg"', k.kg) + fld('Chồng tối đa (tầng, 0 = không giới hạn)', a + ' data-f="maxLayers"', k.maxLayers || 0) + '</div>' +
       '<label class="c3-f"><span>Hướng đặt thùng (tự xoay cho khớp thực tế)</span><select ' + a + ' data-f="orient">' + oriOpts(k.orient, k) + '</select></label>' +
       '<label class="c3-f"><span>Dãy mẫu — trong 1 LỚP của 1 dãy (VD: 6 nằm 2 đứng; mọi dãy lặp lại; trống = tự động)</span><input type="text" ' + a + ' data-f="rowPlan" value="' + esc(k.rowPlan || '') + '" placeholder="VD: 6 nằm 2 đứng"></label>' +
@@ -172,7 +174,7 @@
     const t = p.totals, pay = t.payload > 0 ? t.kg / t.payload * 100 : 0;
     const kp = (k, v, s, cls) => '<div class="c3-kpi ' + (cls || '') + '"><small>' + k + '</small><b>' + v + '</b>' + (s ? '<em>' + s + '</em>' : '') + '</div>';
     let h = '<div class="c3-kpis">' + kp('Đã xếp / yêu cầu', fmt(t.loaded) + ' / ' + fmt(t.requested), 'thùng', t.left ? '' : 'ok') + kp('Rớt lại kho', fmt(t.left), t.left ? 'thùng không đóng được' : 'đủ hàng', t.left ? 'bad' : 'ok') +
-      kp('Khối lượng', fmt(t.kg, 0) + ' kg', t.payload > 0 ? fmt(pay, 1) + '% tải trọng' : '') + kp('Lấp đầy', fmt(t.fillUsablePct, 1) + '%', 'vùng chứa hàng') + kp('Số dãy', fmt(t.rows), 'dài đã dùng ' + fmt(t.usedLength / 1000, 2) + ' m') + kp('Mẫu hải quan', fmt(t.sample), t.sample ? 'dãy sát cửa' : 'tắt') + '</div>';
+      kp('Khối lượng', fmt(t.kg, 0) + ' kg', t.payload > 0 ? fmt(pay, 1) + '% tải trọng' : '') + kp('Khối hàng', m3(t.volBox) + ' m³', 'lấp ' + fmt(t.fillUsablePct, 1) + '% vùng chứa') + kp('Khối còn trống', m3(t.volFreeUsable) + ' m³', 'cả cont còn ' + m3(t.volFreeInternal) + ' / ' + m3(t.volInternal)) + kp('Số dãy', fmt(t.rows), 'dài đã dùng ' + fmt(t.usedLength / 1000, 2) + ' m') + kp('Mẫu hải quan', fmt(t.sample), t.sample ? 'dãy sát cửa' : 'tắt') + '</div>';
     const msg = (cls, tx) => '<div class="c3-msg ' + cls + '">' + tx + '</div>';
     if (t.gaps) { const g = t.gaps; h += '<div class="c3-msg"><b>Khoảng trống còn lại</b> (mm)<br>thùng → vách đầu <b>' + fmt(g.front) + '</b> · → cửa <b>' + fmt(g.door) + '</b><br>→ vách phải <b>' + fmt(g.right) + '</b> · → vách trái <b>' + fmt(g.left) + '</b><br>thùng cao nhất → trần <b>' + fmt(g.ceiling) + '</b> · → red line <b>' + fmt(g.red) + '</b></div>'; }
     p.errors.forEach((m) => { h += msg('err', '⛔ ' + esc(m)); });
@@ -186,7 +188,7 @@
     h += p.groups.map((g, i) => {
       const rs = p.boxes.filter((b) => b.group === i).map((b) => b.row), rr = rs.length ? 'Dãy ' + Math.min(...rs) + (Math.max(...rs) > Math.min(...rs) ? '–' + Math.max(...rs) : '') : '—';
       return '<div class="c3-gc" style="--sk:' + ((S.gcolors || [])[i] || '#888') + '"><b>' + (i + 1) + '. ' + esc(g.sku.code || '(chưa có mã)') + '</b> <span>' + esc(g.sku.size || '') + (g.sku.date ? ' · ' + esc(g.sku.date) : '') + '</span>' +
-        '<div class="c3-gn"><span>Yêu cầu <b>' + fmt(g.requested) + '</b></span><span>Đã xếp <b>' + fmt(g.loaded) + '</b></span><span class="' + (g.left ? 'lf' : '') + '">Rớt kho <b>' + fmt(g.left) + '</b></span><span>' + rr + '</span></div>' +
+        '<div class="c3-gn"><span>Khối <b>' + m3(g.volLoaded) + (g.volReq !== g.volLoaded ? '/' + m3(g.volReq) : '') + ' m³</b> (' + fmt(g.volUnit / 1e9, 4) + '/thùng)</span><span>Yêu cầu <b>' + fmt(g.requested) + '</b></span><span>Đã xếp <b>' + fmt(g.loaded) + '</b></span><span class="' + (g.left ? 'lf' : '') + '">Rớt kho <b>' + fmt(g.left) + '</b></span><span>' + rr + '</span></div>' +
         '<small>' + ((g.patterns || []).map((x) => esc(x.text)).join('; ') || '—') + (g.sample ? ' · gồm ' + g.sample + ' mẫu HQ' : '') + (g.stackedOn ? ' · ' + g.stackedOn + ' chồng lên hàng trước' : '') + '</small>' +
         (g.sku.note ? '<small>📝 ' + esc(g.sku.note) + '</small>' : '') + ((g.reasons || []).length ? '<small class="why">' + g.reasons.map(esc).join(' ') + '</small>' : '') + '</div>';
     }).join('');

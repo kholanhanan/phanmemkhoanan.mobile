@@ -497,6 +497,7 @@
     groups.forEach((g) => {
       const mine = sampBoxes.filter((b) => b.group === g.index);
       g.loaded += g.sample; g.left = g.requested - g.loaded; g.kg = g.loaded * g.sku.kg; loadedKg += g.kg;
+      g.volUnit = g.sku.L * g.sku.W * g.sku.H; g.volReq = g.volUnit * g.requested; g.volLoaded = g.volUnit * g.loaded; // mm³ (÷ 1e9 = m³)
       const all = mainBoxes.filter((b) => b.group === g.index).concat(mine);
       if (all.length) { g.xStart = Math.min(...all.map((b) => b.x)); g.xEnd = Math.max(...all.map((b) => b.x + b.dx)); }
       if (mine.length && !g.patterns.length) g.patterns = [{ text: 'chỉ có thùng mẫu hải quan', kind: 'col' }];
@@ -533,7 +534,7 @@
     return {
       ok: errors.length === 0, errors, warnings, container: c, space: sp, groups, boxes, skus, rows,
       verify: ver, maxTier,
-      totals: { gaps, rows: rows.length, gapSample, sample: sampBoxes.length, sampleDepth: Ds, requested: reqTotal, loaded: loadTotal, left: reqTotal - loadTotal, kg: loadedKg, payload: c.maxPayload, volBox, volUsable: volUse, volInternal: volIn, fillUsablePct: volUse > 0 ? volBox / volUse * 100 : 0, fillInternalPct: volIn > 0 ? volBox / volIn * 100 : 0, usedLength: usedLen, freeLength: sp.Lu - usedLen, effH: sp.effH, cog },
+      totals: { volReqAll: groups.reduce((a, g) => a + (g.volReq || 0), 0), volFreeInternal: volIn - volBox, volFreeUsable: volUse - volBox, gaps, rows: rows.length, gapSample, sample: sampBoxes.length, sampleDepth: Ds, requested: reqTotal, loaded: loadTotal, left: reqTotal - loadTotal, kg: loadedKg, payload: c.maxPayload, volBox, volUsable: volUse, volInternal: volIn, fillUsablePct: volUse > 0 ? volBox / volUse * 100 : 0, fillInternalPct: volIn > 0 ? volBox / volIn * 100 : 0, usedLength: usedLen, freeLength: sp.Lu - usedLen, effH: sp.effH, cog },
       options: { sampleQty: sampleQ, stackTop: !!opts.stackTop, mergeTail: !!opts.mergeTail, dateDir: opts.dateDir || 'asc', sortMode: opts.sortMode || 'auto', minSupport: opts.minSupport || 0.7 },
     };
   }

@@ -161,7 +161,7 @@
       const eg = new T.BufferGeometry(); eg.setAttribute('position', new T.BufferAttribute(ep, 3));
       this.gCargo.add(new T.LineSegments(eg, new T.LineBasicMaterial({ color: this.light ? 0x1b2433 : 0x0a0d12, transparent: true, opacity: 0.38 })));
     } else this.cargoMesh = null;
-    this.refreshRowLabels();
+    this.refreshRowLabels(); this.drawGapDims();
     // nhãn nhóm (mã hàng · size · số thùng · kích thước thùng)
     const gb = {};
     vis.forEach((bi) => { const b = p.boxes[bi], gg = gb[b.group] = gb[b.group] || { n: 0, minx: 1e9, maxx: -1e9, miny: 1e9, maxy: -1e9, maxz: 0 }; gg.n++; gg.minx = Math.min(gg.minx, b.x); gg.maxx = Math.max(gg.maxx, b.x + b.dx); gg.miny = Math.min(gg.miny, b.y); gg.maxy = Math.max(gg.maxy, b.y + b.dy); gg.maxz = Math.max(gg.maxz, b.z + b.dz); });
@@ -175,6 +175,17 @@
     this.invalidate();
   };
 
+  // KHOẢNG TRỐNG vẽ thẳng trong khung 3D (theo ô "Kích thước"): mặt hàng cao nhất → trần / red line · dãy cuối → cửa · thùng đầu → vách đầu
+  P.drawGapDims = function () {
+    const p = this.plan; if (!p || !p.totals || !p.totals.gaps) return; const g = p.totals.gaps, c = p.container, L = c.L * SC, W = c.W * SC, z = W / 2 - 0.02, col = 0xf59e0b;
+    const mm = (v) => (v >= 1000 ? (v / 1000).toFixed(2) + ' m' : Math.round(v) + ' mm');
+    const line = (a, b, txt) => { const geo = new T.BufferGeometry().setFromPoints([a, b]); const ln = new T.Line(geo, new T.LineBasicMaterial({ color: col, depthTest: false })); ln.renderOrder = 9; this.gCargo.add(ln); const o = this.addLabel(txt, a.clone().add(b).multiplyScalar(0.5), 'gap', this.cargoLabels); o.el.style.display = this.opt.dims ? '' : 'none'; o.isGap = true; ln.visible = !!this.opt.dims; (this.gapLines || (this.gapLines = [])).push(ln); };
+    this.gapLines = []; let xmax = 0, xmin = 1e18; p.boxes.forEach((b) => { xmax = Math.max(xmax, b.x + b.dx); xmin = Math.min(xmin, b.x); });
+    const top = g.top * SC, H = c.H * SC;
+    line(new T.Vector3(xmax * SC - L / 2 - 0.05, top, z), new T.Vector3(xmax * SC - L / 2 - 0.05, H, z), 'Trần còn ' + mm(g.ceiling) + ' · red line còn ' + mm(g.red));
+    if (g.door > 20) line(new T.Vector3(xmax * SC - L / 2, 0.03, z), new T.Vector3(L / 2, 0.03, z), 'Dãy cuối → cửa ' + mm(g.door));
+    if (g.front > 30) line(new T.Vector3(-L / 2, 0.03, z), new T.Vector3(xmin * SC - L / 2, 0.03, z), 'Vách đầu ' + mm(g.front));
+  };
   // Số DÃY dọc mép sàn: MẶC ĐỊNH ẨN (đỡ rối mắt) — chỉ hiện dãy đang chọn; bật ô "Số dãy" mới hiện hết.
   P.refreshRowLabels = function () {
     const arr = this.cargoLabels || (this.cargoLabels = []);
@@ -230,7 +241,7 @@
   P.setOpt = function (k, on) {
     this.opt[k] = !!on;
     if (k === 'redline') { if (this.redGroup) this.redGroup.visible = !!on; if (this.redLab) this.redLab.el.style.display = on ? '' : 'none'; }
-    if (k === 'dims') { if (this.dimGroup) this.dimGroup.visible = !!on; (this.dimLabs || []).forEach((o) => { o.el.style.display = on ? '' : 'none'; }); if (this.doorLab) this.doorLab.el.style.display = on ? '' : 'none'; }
+    if (k === 'dims') { (this.cargoLabels || []).forEach((o) => { if (o.isGap) o.el.style.display = on ? '' : 'none'; }); (this.gapLines || []).forEach((l) => { l.visible = !!on; }); if (this.dimGroup) this.dimGroup.visible = !!on; (this.dimLabs || []).forEach((o) => { o.el.style.display = on ? '' : 'none'; }); if (this.doorLab) this.doorLab.el.style.display = on ? '' : 'none'; }
     if (k === 'glabels') (this.cargoLabels || []).forEach((o) => { if (!o.isRow) o.el.style.display = on ? '' : 'none'; });
     if (k === 'rowlabels') this.refreshRowLabels();
     if (k === 'usable') { this.buildContainer(); this.buildCargo(); }

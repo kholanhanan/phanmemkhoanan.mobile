@@ -10,6 +10,7 @@ html[data-theme="dark"] .c3-stage{ background:linear-gradient(180deg,#1b2530,#12
 .c3d-lab{ position:absolute; left:0; top:0; white-space:nowrap; font:600 10px/1.2 var(--font,system-ui); padding:1px 5px; border-radius:6px; will-change:transform; }
 .c3d-lab.dim{ color:#fff; background:rgba(29,95,209,.9); } .c3d-lab.door{ color:#fff; background:rgba(100,116,139,.9); } .c3d-lab.red{ color:#fff; background:rgba(220,38,38,.92); }
 .c3d-lab.grp{ color:var(--ink); background:var(--paper); border:1px solid #888; white-space:pre; text-align:center; }
+.c3d-lab.gap{ color:#1a1206; background:#f59e0b; font-weight:700; }
 .c3d-lab.bdim{ color:#1a1206; background:#ffd60a; } .c3d-lab.row{ color:var(--ink); background:var(--paper); border:1px solid var(--line); font-size:9px; padding:0 4px; }
 .c3d-lab.row.samp{ background:#f59e0b; color:#1a1206; border-color:#f59e0b; }
 .c3-top{ position:absolute; left:6px; right:6px; top:6px; display:flex; justify-content:space-between; align-items:flex-start; gap:6px; z-index:3; pointer-events:none; }

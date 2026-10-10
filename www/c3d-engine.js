@@ -348,7 +348,17 @@
         // B) phần còn lại TỰ ĐỘNG. HÀNG NHIỀU (không đủ chỗ cho hết): thử TRỘN dãy kiểu A rồi dãy kiểu B (VD x dãy đứng + y dãy nằm) bằng quy hoạch chiều dài → thường đóng thêm được thùng
         if (left > 0) {
           const best = pick(null); let steps = best && best.placed > 0 ? [{ p: best.p, count: left }] : [];
-          if (best && best.placed < left && pats.length > 1) {
+          const seq = (!opts._sample && !wallPat && sku._tierSeq && sku._tierSeq.length) ? sku._tierSeq : null;
+          if (seq && best && best.placed > 0) { // TRẢI ĐỀU: dãy thứ i chỉ chồng seq[i] tầng (số tầng các dãy chênh nhau ≤ 1)
+            const bp = best.p, cache = {}, Wu0 = sp.Wu;
+            const limitT = (cap) => {
+              cap = Math.max(1, cap); if (cap >= bp.T) return bp; if (cache[cap]) return cache[cap]; let q;
+              if (bp.kind === 'col') q = colPattern(bp.o, cap, Wu0); else if (bp.kind === 'sole') q = solePattern(bp.o, cap, Wu0, true) || colPattern(bp.o, cap, Wu0); else if (bp.cols) q = colsPattern(bp.cols.map((c) => ({ o: c.o, T: Math.min(c.T, cap) })), bp.label); else q = bp;
+              return (cache[cap] = q || bp);
+            };
+            ctx.wallPat = (wi) => limitT(seq[Math.min(wi, seq.length - 1)]);
+          }
+          if (best && !seq && best.placed < left && pats.length > 1) {
             const R0 = sp.x1 - S.cursor, cand = pats.filter((q) => q.kind === 'col' || q.kind === 'sole'); let bm = null;
             for (let i = 0; i < cand.length; i++) for (let j = 0; j < cand.length; j++) {
               if (i === j) continue; const A = cand[i], B = cand[j];
@@ -443,6 +453,7 @@
     if (sp.Lu <= 0 || sp.Wu <= 0 || sp.effH <= 0) errors.push('Khe hở đầu / cửa / hai bên lớn hơn kích thước cont — không còn chỗ chứa hàng.');
     const skus = (input.skus || []).map(normSku).filter((k) => k.qty > 0 || k.code || k.size);
     if (opts._auto) skus.forEach((k) => { if (!k.sole) { k._auto = true; k._drop = !!opts._drop; } });
+    if (opts._tierSeqs) skus.forEach((k) => { if (opts._tierSeqs[k.id]) k._tierSeq = opts._tierSeqs[k.id]; }); // TRẢI ĐỀU: số tầng từng dãy (có thể khác nhau)
     if (opts._tierCap) skus.forEach((k) => { k.maxLayers = k.maxLayers > 0 ? Math.min(k.maxLayers, opts._tierCap) : opts._tierCap; }); // chế độ TRẢI ĐỀU: giới hạn số tầng mọi mặt hàng
     const groups = skus.map((k) => ({ sku: k }));
     // thứ tự đóng: mặt hàng > size > ngày (hoặc đúng thứ tự nhập)
@@ -475,7 +486,7 @@
       const S2 = { sp, cursor: sp.x0, strip: null, top: null };
       groups.forEach((g) => {
         if (!g.ok) return; const k = g.sku, want = wLimit(k, Math.min(sampleQ, k.qty)); if (want <= 0) return;
-        const r = runGroup(S2, g, want, Object.assign({}, opts, { mergeTail: true, stackTop: false }), false);
+        const r = runGroup(S2, g, want, Object.assign({}, opts, { mergeTail: true, stackTop: false, _sample: true }), false);
         r.boxes.forEach((b) => { b.group = g.index; b.skuId = k.id; b.sample = true; }); sampBoxes.push(...r.boxes); g.sample = r.placed;
         if (Number.isFinite(weightLeft)) weightLeft -= r.placed * k.kg; if (r.placed < Math.min(sampleQ, k.qty)) addWhy(g, 'Không đủ chỗ / tải trọng cho ' + sampleQ + ' thùng mẫu hải quan.');
         if (r.soleFail) g.soleFail = r.soleFail;
@@ -582,14 +593,33 @@
   // TRẢI ĐỀU (hàng ít): thay vì đóng đặc 10 dãy cao rồi để trống phía sau, hạ số tầng (thấp hơn, chắc hàng, không đổ) để hàng trải ra tới ~spreadPct % chiều dài cont.
   // Chọn số tầng NHỎ NHẤT mà vẫn đủ hàng và không dài quá mức cho phép.
   function solveSpread(input, opts, p1) {
-    const Lu = p1.space.Lu, pct = Math.min(95, Math.max(20, num(opts.spreadPct, 70))), target = Lu * pct / 100;
-    if (!(p1.totals.requested > 0) || p1.totals.left > 0 || p1.totals.usedLength >= target - 1 || p1.maxTier < 2) return p1;
+    const Lu = p1.space.Lu, Ds = p1.totals.sampleDepth || 0, pct = Math.min(100, Math.max(20, num(opts.spreadPct, 70))), main = Lu - Ds, target = main * pct / 100;
+    if (!(p1.totals.requested > 0) || p1.totals.left > 0 || p1.maxTier < 2) return p1;
+    if (p1.totals.usedLength - Ds >= target - 1) return p1;
+    const note = (p, extra) => {
+      const rt = {}; p.boxes.forEach((b) => { if (!b.sample) rt[b.row] = Math.max(rt[b.row] || 0, b.tier); }); const ts = Object.keys(rt).map((k) => rt[k]), mn = Math.min(...ts), mx = Math.max(...ts), rws = ts.length;
+      return 'Hàng ít nên trải đều: ' + rws + ' dãy (dùng ' + Math.round((p.totals.usedLength - Ds) / main * 100) + '% chiều dài chứa hàng), mỗi dãy ' + (mn === mx ? mx : mn + '–' + mx) + ' tầng (≈ ' + Math.round(p.totals.loaded / Math.max(1, rws)) + ' thùng/dãy) — thay vì ' + p1.totals.rows + ' dãy cao ' + p1.maxTier + ' tầng.' + (extra || '');
+    };
+    // CÁCH 1 (ưu tiên): trải ra ĐỦ số dãy vừa chiều dài; số tầng từng dãy chênh nhau tối đa 1 (VD 5 tầng, 4 tầng xen nhau; dãy cao đứng trước)
+    try {
+      const info = {};
+      p1.boxes.forEach((b) => { if (b.sample || b.wall == null || b.wall < 0) return; const g = (info[b.group] = info[b.group] || { n: 0, walls: {}, t1: {} }); g.n++; const w = (g.walls[b.wall] = g.walls[b.wall] || { x0: 1e18, x1: -1e18 }); w.x0 = Math.min(w.x0, b.x); w.x1 = Math.max(w.x1, b.x + b.dx); if (b.tier === 1) g.t1[b.wall] = (g.t1[b.wall] || 0) + 1; });
+      const gi = Object.keys(info); let totalLen = 0;
+      gi.forEach((k) => { const g = info[k], ws = Object.keys(g.walls); g.wc = ws.length; g.D = Math.max(...ws.map((w) => g.walls[w].x1 - g.walls[w].x0)); g.capT = Math.max(1, ...Object.keys(g.t1).map((w) => g.t1[w])); g.Tsum = Math.ceil(g.n / g.capT); totalLen += g.wc * g.D; });
+      if (gi.length && totalLen > 0) {
+        const sc = target / totalLen, seqs = {};
+        gi.forEach((k) => {
+          const g = info[k], n = Math.min(g.Tsum, Math.max(g.wc, Math.floor(g.wc * sc + 1e-9))), base = Math.floor(g.Tsum / n), extra = g.Tsum - base * n;
+          seqs[p1.groups[+k].sku.id] = Array.from({ length: n }, (_, i) => base + (Math.ceil((i + 1) * extra / n - 1e-9) - Math.ceil(i * extra / n - 1e-9)));
+        });
+        const p2 = solveBest(input, Object.assign({}, opts, { _tierSeqs: seqs, spread: false, compare: false }));
+        if (p2.totals.left === 0 && p2.verify.ok && !p2.errors.length && p2.totals.usedLength - (p2.totals.sampleDepth || 0) <= target + 1 && p2.totals.rows > p1.totals.rows) { p2.spreadNote = note(p2); return p2; }
+      }
+    } catch (e) { /* thử cách 2 */ }
+    // CÁCH 2 (dự phòng): hạ ĐỀU số tầng của mọi dãy tới mức nhỏ nhất vẫn vừa mục tiêu
     for (let t = 1; t < p1.maxTier; t++) {
       let p; try { p = solveBest(input, Object.assign({}, opts, { _tierCap: t, spread: false, compare: false })); } catch (e) { continue; }
-      if (p.totals.left === 0 && p.verify.ok && !p.errors.length && p.totals.usedLength <= target + 1) {
-        p.spreadNote = 'Hàng ít nên trải đều: mỗi dãy tối đa ' + t + ' tầng (≈ ' + Math.round(p.totals.loaded / Math.max(1, p.totals.rows)) + ' thùng/dãy), ' + p.totals.rows + ' dãy, dùng ' + Math.round(p.totals.usedLength / Lu * 100) + '% chiều dài — thay vì ' + p1.totals.rows + ' dãy cao ' + p1.maxTier + ' tầng.';
-        p.spreadTier = t; return p;
-      }
+      if (p.totals.left === 0 && p.verify.ok && !p.errors.length && p.totals.usedLength - (p.totals.sampleDepth || 0) <= target + 1) { p.spreadNote = note(p); p.spreadTier = t; return p; }
     }
     return p1;
   }

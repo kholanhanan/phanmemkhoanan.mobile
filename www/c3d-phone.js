@@ -19,7 +19,7 @@
 
   // ------------------------------------------------------------------ nạp thư viện (lần đầu)
   function loadScript(src) {
-    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src + '?v=4.19'; s.onload = res; s.onerror = () => rej(new Error('Không nạp được ' + src)); document.head.appendChild(s); });
+    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src + '?v=4.20'; s.onload = res; s.onerror = () => rej(new Error('Không nạp được ' + src)); document.head.appendChild(s); });
   }
   function ensure() {
     if (!ready) ready = (async () => {
@@ -230,7 +230,7 @@
     if (t.id === 'c3Unit') { S.unit = t.value; renderPane(); schedSave(); return; }
     if (t.id === 'c3Spread') { S.opts.spread = t.checked; renderPane(); sched(0); return; }
     if (t.id === 'c3Auto') { S.opts.autoLayout = t.checked; sched(0); return; }
-    if (t.id === 'c3SpreadPct') { S.opts.spreadPct = Math.min(95, Math.max(20, E.num(t.value) || 70)); sched(); return; }
+    if (t.id === 'c3SpreadPct') { S.opts.spreadPct = Math.min(100, Math.max(20, E.num(t.value) || 70)); sched(); return; }
     if (t.id === 'c3Merge') { S.opts.mergeTail = t.checked; sched(0); return; } if (t.id === 'c3Stack') { S.opts.stackTop = t.checked; sched(0); return; }
     if (t.id === 'c3Sort') { S.opts.sortMode = t.value; sched(0); return; } if (t.id === 'c3Date') { S.opts.dateDir = t.value; sched(0); return; }
     if (t.dataset.s && t.dataset.f === 'orient') { const k = S.skus.find((x) => x.id === t.dataset.s); if (k) { k.orient = t.value; renderPane(); sched(0); } return; }

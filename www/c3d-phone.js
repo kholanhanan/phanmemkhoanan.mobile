@@ -18,7 +18,7 @@
 
   // ------------------------------------------------------------------ nạp thư viện (lần đầu)
   function loadScript(src) {
-    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src + '?v=4.16'; s.onload = res; s.onerror = () => rej(new Error('Không nạp được ' + src)); document.head.appendChild(s); });
+    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src + '?v=4.17'; s.onload = res; s.onerror = () => rej(new Error('Không nạp được ' + src)); document.head.appendChild(s); });
   }
   function ensure() {
     if (!ready) ready = (async () => {
@@ -68,8 +68,10 @@
   }
   function groupColors(plan) { const seen = {}, VAR = [0, 0.1, -0.1, 0.18, -0.16]; return plan.groups.map((g) => { const k = String(g.sku.code || '').trim() || '(trống)'; seen[k] = seen[k] || 0; const v = VAR[seen[k] % VAR.length]; seen[k]++; return shade(colorFor(k), v); }); }
   const ONAME = { L: 'Dài', W: 'Rộng', H: 'Cao' };
-  const oriLabel = (p) => ONAME[p[0]] + ' dọc cont · ' + ONAME[p[1]] + ' ngang · ' + ONAME[p[2]] + ' đứng';
-  const oriOpts = (cur) => '<option value=""' + (!cur ? ' selected' : '') + '>Tự động (hệ thống chọn)</option>' + E.PERMS.map((p) => '<option value="' + p + '"' + (cur === p ? ' selected' : '') + '>' + oriLabel(p) + '</option>').join('');
+  // Tên hướng theo CHIỀU CAO THÙNG khi đặt: cao nhỏ nhất = NẰM, vừa = ĐỨNG, lớn nhất = DỰNG CAO
+  const vname = (dz, sk) => { const v = [sk.L, sk.W, sk.H].slice().sort((a, b) => a - b); return Math.abs(dz - v[0]) < 0.01 ? 'nằm' : (Math.abs(dz - v[1]) < 0.01 ? 'đứng' : 'dựng cao'); };
+  const oriLabel = (p, sk) => { if (!sk) return ONAME[p[0]] + ' dọc cont · ' + ONAME[p[1]] + ' ngang · ' + ONAME[p[2]] + ' đứng'; const m = { L: sk.L, W: sk.W, H: sk.H }; return vname(m[p[2]], sk).toUpperCase() + ' · cao ' + Math.round(m[p[2]]) + ' (dọc ' + Math.round(m[p[0]]) + ' · ngang ' + Math.round(m[p[1]]) + ')'; };
+  const oriOpts = (cur, sk) => '<option value=""' + (!cur ? ' selected' : '') + '>Tự động (hệ thống chọn)</option>' + E.PERMS.map((p) => '<option value="' + p + '"' + (cur === p ? ' selected' : '') + '>' + oriLabel(p, sk) + '</option>').join('');
   const permOfBox = (b, k) => { const m = { L: k.L, W: k.W, H: k.H }; return E.PERMS.find((p) => Math.abs(m[p[0]] - b.dx) < 0.01 && Math.abs(m[p[1]] - b.dy) < 0.01 && Math.abs(m[p[2]] - b.dz) < 0.01) || ''; };
 
   // ------------------------------------------------------------------ khởi tạo giao diện (1 lần)
@@ -147,9 +149,9 @@
       '<label class="c3-f"><span>Size</span><input type="text" ' + a + ' data-f="size" value="' + esc(k.size) + '" placeholder="31/40"></label><label class="c3-f"><span>Date</span><input type="text" ' + a + ' data-f="date" value="' + esc(k.date) + '" placeholder="dd/mm/yyyy"></label></div>' +
       '<div class="c3-g3">' + fld('Dài (' + uu + ')', a + ' data-f="L" data-len="1"', toU(k.L)) + fld('Rộng', a + ' data-f="W" data-len="1"', toU(k.W)) + fld('Cao', a + ' data-f="H" data-len="1"', toU(k.H)) + '</div>' +
       '<div class="c3-g2">' + fld('kg / thùng', a + ' data-f="kg"', k.kg) + fld('Chồng tối đa (tầng, 0 = không giới hạn)', a + ' data-f="maxLayers"', k.maxLayers || 0) + '</div>' +
-      '<label class="c3-f"><span>Hướng đặt thùng (tự xoay cho khớp thực tế)</span><select ' + a + ' data-f="orient">' + oriOpts(k.orient) + '</select></label>' +
-      '<label class="c3-f"><span>Kế hoạch dãy (VD: 4 đứng 3 nằm 5 đứng; còn lại tự động)</span><input type="text" ' + a + ' data-f="rowPlan" value="' + esc(k.rowPlan || '') + '" placeholder="để trống = tự động"></label>' +
-      '<div class="c3-flags">' + chk('allowRotate', 'Cho xoay') + chk('allowStand', 'Dựng đứng') + chk('allowLay', 'Đặt nằm') + chk('sole', 'Xếp sole') + '</div>' +
+      '<label class="c3-f"><span>Hướng đặt thùng (tự xoay cho khớp thực tế)</span><select ' + a + ' data-f="orient">' + oriOpts(k.orient, k) + '</select></label>' +
+      '<label class="c3-f"><span>Dãy mẫu — trong 1 LỚP của 1 dãy (VD: 6 nằm 2 đứng; mọi dãy lặp lại; trống = tự động)</span><input type="text" ' + a + ' data-f="rowPlan" value="' + esc(k.rowPlan || '') + '" placeholder="VD: 6 nằm 2 đứng"></label>' +
+      '<div class="c3-flags">' + chk('allowRotate', 'Cho xoay') + chk('allowStand', 'Giữ cao gốc') + chk('allowLay', 'Cho lật') + chk('sole', 'Xếp sole') + '</div>' +
       '<label class="c3-f"><span>Ghi chú đóng hàng</span><input type="text" ' + a + ' data-f="note" value="' + esc(k.note) + '"></label>' +
       '<div class="c3-btns"><button type="button" class="c3-b" ' + a + ' data-act="sDup">Nhân bản</button><button type="button" class="c3-b dng" ' + a + ' data-act="sDel">Xóa dòng</button></div></div></div>';
   }
@@ -172,6 +174,7 @@
     let h = '<div class="c3-kpis">' + kp('Đã xếp / yêu cầu', fmt(t.loaded) + ' / ' + fmt(t.requested), 'thùng', t.left ? '' : 'ok') + kp('Rớt lại kho', fmt(t.left), t.left ? 'thùng không đóng được' : 'đủ hàng', t.left ? 'bad' : 'ok') +
       kp('Khối lượng', fmt(t.kg, 0) + ' kg', t.payload > 0 ? fmt(pay, 1) + '% tải trọng' : '') + kp('Lấp đầy', fmt(t.fillUsablePct, 1) + '%', 'vùng chứa hàng') + kp('Số dãy', fmt(t.rows), 'dài đã dùng ' + fmt(t.usedLength / 1000, 2) + ' m') + kp('Mẫu hải quan', fmt(t.sample), t.sample ? 'dãy sát cửa' : 'tắt') + '</div>';
     const msg = (cls, tx) => '<div class="c3-msg ' + cls + '">' + tx + '</div>';
+    if (t.gaps) { const g = t.gaps; h += '<div class="c3-msg"><b>Khoảng trống còn lại</b> (mm)<br>thùng → vách đầu <b>' + fmt(g.front) + '</b> · → cửa <b>' + fmt(g.door) + '</b><br>→ vách phải <b>' + fmt(g.right) + '</b> · → vách trái <b>' + fmt(g.left) + '</b><br>thùng cao nhất → trần <b>' + fmt(g.ceiling) + '</b> · → red line <b>' + fmt(g.red) + '</b></div>'; }
     p.errors.forEach((m) => { h += msg('err', '⛔ ' + esc(m)); });
     (p.hints || []).forEach((hh, i) => { h += '<div class="c3-msg tip">💡 <b>' + esc(hh.text) + '</b><br>→ đóng thêm <b>+' + fmt(hh.gain) + ' thùng</b> (' + fmt(hh.loaded) + '/' + fmt(t.requested) + ')<br><button type="button" class="c3-b sm pri" data-act="hint" data-i="' + i + '" style="margin-top:6px">Áp dụng</button></div>'; });
     if (p.layoutNote) h += msg('tip', '🌬 ' + esc(p.layoutNote));
@@ -299,12 +302,12 @@
   function onPick(bi) {
     const el = $('c3dSel'); if (bi == null || !S.plan) { el.hidden = true; return; }
     const p = S.plan, b = p.boxes[bi], sk = p.groups[b.group].sku, sp = p.space, cur = sk.orient || permOfBox(b, sk);
-    el.innerHTML = '<button type="button" class="c3-x" id="c3SelX">✕</button><b>#' + b.seq + ' · ' + esc(sk.code || 'Mặt hàng') + '</b> ' + esc(sk.size || '') + (sk.date ? ' · ' + esc(sk.date) : '') + '<br>Dãy <b>' + b.row + '</b>' + (p.rows[b.row - 1] && p.rows[b.row - 1].sample ? ' (mẫu HQ)' : '') + ' · Lớp <b>' + b.tier + '</b> · ' + Math.round(b.dx) + '×' + Math.round(b.dy) + '×' + Math.round(b.dz) + ' mm' +
-      '<br><small>cách vách đầu ' + fmt((b.x - sp.x0) / 1000, 2) + ' m · cao ' + fmt(b.z / 1000, 2) + ' m</small><select id="c3SelOri">' + oriOpts(sk.orient) + '</select><button type="button" class="c3-b sm" id="c3SelRot">↻ Xoay 90° trên sàn</button>';
+    el.innerHTML = '<button type="button" class="c3-x" id="c3SelX">✕</button><b>#' + b.seq + ' · ' + esc(sk.code || 'Mặt hàng') + '</b> ' + esc(sk.size || '') + (sk.date ? ' · ' + esc(sk.date) : '') + '<br>Dãy <b>' + b.row + '</b>' + (p.rows[b.row - 1] && p.rows[b.row - 1].sample ? ' (mẫu HQ)' : '') + ' · Lớp <b>' + b.tier + '</b> · ' + vname(b.dz, sk) + ' (cao ' + Math.round(b.dz) + ') · ' + Math.round(b.dx) + '×' + Math.round(b.dy) + '×' + Math.round(b.dz) + ' mm' +
+      '<br><small>cách vách đầu ' + fmt((b.x - sp.x0) / 1000, 2) + ' m · cao ' + fmt(b.z / 1000, 2) + ' m</small>' + (p.rows[b.row - 1] && p.rows[b.row - 1].gaps ? '<br><small>dãy này còn trống: trần ' + fmt(p.rows[b.row - 1].gaps.ceiling) + ' · red line ' + fmt(p.rows[b.row - 1].gaps.red) + ' · phải ' + fmt(p.rows[b.row - 1].gaps.right) + ' · trái ' + fmt(p.rows[b.row - 1].gaps.left) + ' mm</small>' : '') + '<select id="c3SelOri">' + oriOpts(sk.orient, sk) + '</select><button type="button" class="c3-b sm" id="c3SelRot">↻ Xoay 90° trên sàn</button>';
     el.hidden = false; $('c3SelX').onclick = () => V.select(null);
     const setOri = (v, msg) => { const k = S.skus.find((x) => x.id === sk.id); if (!k) return; k.orient = v; calc(); schedSave(); toast(msg); };
-    $('c3SelOri').onchange = (e) => setOri(e.target.value, e.target.value ? 'Đã chốt: ' + oriLabel(e.target.value) : 'Về tự động.');
-    $('c3SelRot').onclick = () => { const q = cur || 'LWH', np = q[1] + q[0] + q[2]; setOri(np, 'Đã xoay: ' + oriLabel(np)); };
+    $('c3SelOri').onchange = (e) => setOri(e.target.value, e.target.value ? 'Đã chốt: ' + oriLabel(e.target.value, sk) : 'Về tự động.');
+    $('c3SelRot').onclick = () => { const q = cur || 'LWH', np = q[1] + q[0] + q[2]; setOri(np, 'Đã xoay: ' + oriLabel(np, sk)); };
   }
 
   // ------------------------------------------------------------------ phương án / xuất file

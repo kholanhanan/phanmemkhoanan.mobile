@@ -182,28 +182,74 @@
     return pats;
   }
 
-  // ---- KẾ HOẠCH DÃY do người dùng chọn: "4 đứng 3 nằm 5 đứng" = 4 dãy đầu (trong cùng) xếp ĐỨNG, 3 dãy kế NẰM, 5 dãy kế ĐỨNG; các dãy còn lại TỰ ĐỘNG.
-  // Mỗi mục: số dãy + (đứng | nằm | 1 trong 6 hướng LWH…). Ngoài ra rowSet {số_thứ_tự_dãy_của_mặt_hàng (từ 0): hướng} chỉnh riêng từng dãy (ưu tiên hơn kế hoạch).
+  // ---- DÃY MẪU do người dùng chọn: "6 nằm 2 đứng" = trong MỖI LỚP của 1 dãy xếp cạnh nhau 6 thùng NẰM + 2 thùng ĐỨNG (mỗi cột chồng lên tới red line).
+  // "nằm / đứng / dựng cao" = chiều cao thùng khi đặt nhỏ nhất / vừa / lớn nhất. Có thể ghi số tầng từng nhóm cột: "6 nằm x10 2 đứng x8". Hoặc 1 trong 6 hướng (LWH…).
+  // Dãy mẫu LẶP LẠI cho mọi dãy của mặt hàng; rowSet {thứ_tự_dãy_từ_0: "mẫu riêng" | nằm | đứng | dựng cao | hướng} chỉnh riêng từng dãy.
   const stripVn = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
-  function parseRowPlan(str) {
-    const out = [], t = stripVn(str), re = /(\d+)\s*(dung|nam|[lwh]{3})/g; let m;
-    while ((m = re.exec(t))) { const tok = (m[2] === 'dung' || m[2] === 'nam') ? m[2] : m[2].toUpperCase(); if (tok === 'dung' || tok === 'nam' || PERMS.includes(tok)) out.push({ tok, n: Math.min(500, +m[1]) }); }
+  function parseColPlan(str) {
+    const out = [], t = stripVn(str), re = /(\d+)\s*(dung\s*cao|dung|nam|cao|[lwh]{3})(?:\s*(?:x|\*)\s*(\d+))?/g; let m;
+    while ((m = re.exec(t))) { let tok = m[2].replace(/\s+/g, ''); tok = tok === 'dungcao' ? 'cao' : tok; tok = (tok === 'dung' || tok === 'nam' || tok === 'cao') ? tok : tok.toUpperCase(); if (tok === 'dung' || tok === 'nam' || tok === 'cao' || PERMS.includes(tok)) out.push({ tok, n: Math.min(60, +m[1]), t: m[3] ? +m[3] : 0 }); }
     return out;
   }
-  function makeWallPat(sku, sp, Tof, Wu) {
-    const seq = []; parseRowPlan(sku.rowPlan).forEach((t) => { for (let i = 0; i < t.n; i++) seq.push(t.tok); });
-    const set = sku.rowSet || {}; if (!seq.length && !Object.keys(set).length) return null;
-    const cache = {};
-    const orient = (perm) => { const m = { L: sku.L, W: sku.W, H: sku.H }, c = perm.split(''), o = { dx: m[c[0]], dy: m[c[1]], dz: m[c[2]], kind: c[2] === 'H' ? 'dung' : 'nam', rot: ['WLH', 'HLW', 'HWL'].includes(perm) ? 1 : 0 }; return (o.dx <= sp.Lu + EPS && o.dy <= Wu + EPS && o.dz <= sp.effH + EPS) ? o : null; };
-    const resolve = (tok) => {
-      if (cache[tok] !== undefined) return cache[tok];
-      const perms = tok === 'dung' ? ['LWH', 'WLH'] : tok === 'nam' ? ['LHW', 'HLW', 'WHL', 'HWL'] : [tok]; let best = null;
-      perms.forEach((pm) => { const o = orient(pm); if (!o) return; const T = Tof(o), p = (sku.sole && T >= 2 && solePattern(o, T, Wu, true)) || colPattern(o, T, Wu); if (p && (!best || p.cap / p.D > best.cap / best.D + 1e-9)) best = p; });
-      return (cache[tok] = best);
+  const tokName = { nam: 'nằm', dung: 'đứng', cao: 'dựng cao' };
+  // token → hướng đặt (ưu tiên cạnh DÀI nằm dọc cont để dãy sâu bằng nhau, cạnh ngắn ngang cont cho nhiều cột)
+  function tokOrient(tok, sku, sp, Wu) {
+    const m = { L: sku.L, W: sku.W, H: sku.H }, v = [sku.L, sku.W, sku.H].slice().sort((a, b) => a - b); let best = null;
+    PERMS.forEach((pm) => {
+      const c = pm.split(''), o = { dx: m[c[0]], dy: m[c[1]], dz: m[c[2]], kind: c[2] === 'H' ? 'dung' : 'nam', rot: ['WLH', 'HLW', 'HWL'].includes(pm) ? 1 : 0, perm: pm };
+      const ok = PERMS.includes(tok) ? tok === pm : Math.abs(o.dz - v[{ nam: 0, dung: 1, cao: 2 }[tok]]) < 1e-6;
+      if (!ok || o.dx > sp.Lu + EPS || o.dy > Wu + EPS || o.dz > sp.effH + EPS) return;
+      if (!best || o.dx > best.dx + EPS || (Math.abs(o.dx - best.dx) <= EPS && o.dy < best.dy - EPS)) best = o;
+    });
+    return best;
+  }
+  // 1 dãy gồm nhiều cột, mỗi cột 1 hướng + số tầng riêng (cột trái → phải)
+  function colsPattern(cols, label) {
+    if (!cols.length) return null; const cap = cols.reduce((a, c) => a + c.T, 0), TT = Math.max(...cols.map((c) => c.T));
+    return {
+      kind: 'cols', label, o: cols[0].o, D: Math.max(...cols.map((c) => c.o.dx)), cap, cols, T: TT,
+      build(count, style, ox, oy) {
+        const out = []; let k = 0, y = oy; const pos = cols.map((c) => { const q = y; y += c.o.dy; return q; });
+        if (style === 'tall') { cols.forEach((c, i) => { for (let t = 0; t < c.T && k < count; t++, k++) out.push(mk(ox, pos[i], t * c.o.dz, c.o, t + 1)); }); }
+        else { for (let t = 0; t < TT && k < count; t++) cols.forEach((c, i) => { if (t < c.T && k < count) { out.push(mk(ox, pos[i], t * c.o.dz, c.o, t + 1)); k++; } }); }
+        return out;
+      },
     };
-    const fn = (wi) => { const tok = (set[wi] != null && set[wi] !== '') ? set[wi] : seq[wi]; return tok ? resolve(tok) : null; };
-    fn.K = Math.max(seq.length, ...Object.keys(set).filter((k) => set[k] !== '' && set[k] != null).map((k) => (+k) + 1), 0); // số dãy đầu chịu chi phối của kế hoạch; sau đó TỰ ĐỘNG
+  }
+  // dựng dãy từ chuỗi mẫu; trả { pat, info:{cols:[{tok,n,t,o,T,ok}], width, over, cap, top} }
+  function buildTpl(str, sku, sp, Tmax, Wu) {
+    const specs = parseColPlan(str); if (!specs.length) return null; const cols = [], det = []; let width = 0, over = false, top = 0;
+    specs.forEach((sp0) => {
+      const o = tokOrient(sp0.tok, sku, sp, Wu); const T = o ? Math.min(Tmax(o), sp0.t > 0 ? sp0.t : Infinity) : 0; let used = 0;
+      if (o && T >= 1) for (let i = 0; i < sp0.n; i++) { if (width + o.dy > Wu + EPS) { over = true; break; } cols.push({ o, T }); width += o.dy; used++; top = Math.max(top, T * o.dz); }
+      det.push({ tok: sp0.tok, n: sp0.n, t: sp0.t, o, T, used, ok: !!o && T >= 1 });
+    });
+    const label = specs.map((q) => q.n + ' ' + (tokName[q.tok] || q.tok) + (q.t ? ' x' + q.t : '')).join(' + ');
+    return { pat: colsPattern(cols, label), info: { cols: det, width, over, cap: cols.reduce((a, c) => a + c.T, 0), top, Wu } };
+  }
+  function makeWallPat(sku, sp, Tof, Wu) {
+    const set = sku.rowSet || {}, setKeys = Object.keys(set).filter((k) => set[k] !== '' && set[k] != null), hasTpl = !!parseColPlan(sku.rowPlan).length;
+    if (!hasTpl && !setKeys.length) return null;
+    const cache = {}, bestFull = (tok) => { // cả dãy 1 hướng: hướng nào cho nhiều thùng / sâu nhất
+      const perms = PERMS.includes(tok) ? [tok] : PERMS.filter((pm) => { const o = tokOrient(pm, sku, sp, Wu); return o && Math.abs(o.dz - [sku.L, sku.W, sku.H].slice().sort((a, b) => a - b)[{ nam: 0, dung: 1, cao: 2 }[tok]]) < 1e-6; });
+      let best = null; perms.forEach((pm) => { const o = tokOrient(pm, sku, sp, Wu); if (!o) return; const T = Tof(o), p = (sku.sole && T >= 2 && solePattern(o, T, Wu, true)) || colPattern(o, T, Wu); if (p && (!best || p.cap / p.D > best.cap / best.D + 1e-9)) best = p; });
+      return best;
+    };
+    const resolve = (v) => {
+      v = String(v); if (cache[v] !== undefined) return cache[v]; let p = null;
+      if (/\d/.test(v)) { const r = buildTpl(v, sku, sp, Tof, Wu); p = r && r.pat; } else { const t = stripVn(v).replace(/\s+/g, ''); const tok = t === 'dungcao' ? 'cao' : (t === 'dung' || t === 'nam' || t === 'cao') ? t : v.toUpperCase(); p = bestFull(tok); }
+      return (cache[v] = p);
+    };
+    const fn = (wi) => { if (set[wi] != null && set[wi] !== '') return resolve(set[wi]); return hasTpl ? resolve(sku.rowPlan) : null; };
+    fn.K = hasTpl ? 1e9 : Math.max(...setKeys.map((k) => (+k) + 1), 0); // có dãy mẫu → áp cho MỌI dãy; chỉ chỉnh riêng → N dãy đầu rồi tự động
     return fn;
+  }
+  // xem trước dãy mẫu (cho bảng sắp dãy trên giao diện)
+  function previewTpl(skuRaw, contRaw, str) {
+    const c = normContainer(contRaw), sp = makeSpace(c), sku = normSku(skuRaw, 0);
+    const Tmax = (o) => Math.min(Math.floor((sp.effH + EPS) / o.dz), sku.maxLayers > 0 ? sku.maxLayers : Infinity);
+    const r = buildTpl(str, sku, sp, Tmax, sp.Wu); if (!r) return { cols: [], width: 0, Wu: sp.Wu, cap: 0, top: 0, effH: sp.effH, red: sp.red, H: c.H, over: false };
+    return { cols: r.pat ? r.pat.cols.map((q) => ({ dy: q.o.dy, dz: q.o.dz, dx: q.o.dx, T: q.T, name: vName(q.o.dz, sku) })) : [], detail: r.info.cols, width: r.info.width, Wu: sp.Wu, cap: r.info.cap, top: r.info.top, effH: sp.effH, red: sp.red, H: c.H, over: r.info.over, depth: r.pat ? r.pat.D : 0, W: c.W, clearSide: c.clearSide };
   }
 
   // xếp liên tiếp các vách của 1 kiểu; vách cuối có thể thiếu thùng. ctx (tuỳ chọn): { wallPat(wi) → kiểu riêng cho dãy thứ wi của mặt hàng, wi, mark }
@@ -228,7 +274,10 @@
     return { boxes, placed, end: cur, tail, left };
   }
   const prefOf = (p) => (p.o.kind === 'dung' ? 0 : 1) * 2 + (p.kind === 'mix' ? 1 : 0);
-  const orientText = (o) => (o.kind === 'dung' ? 'dựng đứng' : 'đặt nằm') + (o.rot ? ' (xoay 90°)' : '');
+  // Tên hướng đặt theo CHIỀU CAO THÙNG khi đặt (cách gọi ngoài kho): cao nhỏ nhất = NẰM (dẹt), cao vừa = ĐỨNG, cao lớn nhất = DỰNG CAO
+  const vRank = (dz, k) => { const v = [k.L, k.W, k.H].slice().sort((a, b) => a - b); return Math.abs(dz - v[0]) < 1e-6 ? 0 : (Math.abs(dz - v[1]) < 1e-6 ? 1 : 2); };
+  const vName = (dz, k) => ['nằm', 'đứng', 'dựng cao'][vRank(dz, k)];
+  const orientText = (o, k) => vName(o.dz, k) + ' (cao ' + r1(o.dz) + ')' + (o.rot ? ' · xoay 90°' : '');
 
   // ---------------------------------------------------------------- xếp 1 nhóm vào cont
   function runGroup(S, g, nWant, opts, isLast) {
@@ -237,7 +286,7 @@
     if (!ors.length) { out.reason = 'khong-vua'; return out; }
     let left = nWant; const style = (opts.mergeTail && !isLast) ? 'tall' : 'wide';
     const note = (p) => { const tx = describe(p) + (sku._auto && p.kind === 'sole' ? ' [tự động]' : ''); if (!out.patterns.some((q) => q.text === tx)) out.patterns.push({ text: tx, kind: p.kind, o: p.o }); };
-    const describe = (p) => orientText(p.o) + ' · ' + r1(p.o.dx) + '×' + r1(p.o.dy) + '×' + r1(p.o.dz) + (p.kind === 'sole' ? ' · sole (so le trái/phải từng tầng, khe ' + r1(p.gap) + ' mm)' : (p.kind === 'mix' ? ' · trộn hướng cùng chiều sâu' : ''));
+    const describe = (p) => p.kind === 'cols' ? 'dãy mẫu: ' + p.label + ' · sâu ' + r1(p.D) + ' mm' : orientText(p.o, sku) + ' · ' + r1(p.o.dx) + '×' + r1(p.o.dy) + '×' + r1(p.o.dz) + (p.kind === 'sole' ? ' · sole (so le trái/phải từng tầng, khe ' + r1(p.gap) + ' mm)' : (p.kind === 'mix' ? ' · trộn hướng cùng chiều sâu' : ''));
     let lastTail = null;
     // 1) lấp phần trống cạnh vách cuối của nhóm trước (nếu bật "ghép")
     if (opts.mergeTail && S.strip && !(sku.sole || sku._auto) && left > 0) {
@@ -288,7 +337,7 @@
         };
         const run = (p, count) => { // xếp 1 bước, cập nhật trạng thái
           const res = placeWalls(p, Math.min(left, count), S.cursor, sp.x1, style, sp.y0, false, ctx);
-          out.boxes.push(...res.boxes); left -= res.placed; S.cursor = res.end; lastTail = res.tail; note(p); used += res.placed; return res;
+          out.boxes.push(...res.boxes); left -= res.placed; S.cursor = res.end; lastTail = res.tail; used += res.placed; return res;
         };
         // A) các dãy đầu do NGƯỜI DÙNG chọn hướng (kế hoạch "4 đứng 3 nằm…" / chỉnh riêng từng dãy); dãy chưa chỉ định trong đoạn này dùng kiểu tốt nhất
         if (wallPat && wallPat.K > 0) {
@@ -458,8 +507,8 @@
     // đánh số DÃY: dãy = lát cắt liên tiếp theo chiều dài cont (từ vách đầu ra cửa); các thùng chồng lấn về chiều dọc thuộc cùng 1 dãy
     const rows = (() => {
       const ix = boxes.map((_, i) => i).sort((a, b) => boxes[a].x - boxes[b].x), info = []; let end = -1e18;
-      ix.forEach((i) => { const b = boxes[i]; if (b.x >= end - 1e-3) { info.push({ row: info.length + 1, x0: b.x, x1: b.x + b.dx, n: 0, sample: false, gs: {}, ws: {} }); end = b.x + b.dx; } else end = Math.max(end, b.x + b.dx); const r = info[info.length - 1]; r.x1 = Math.max(r.x1, b.x + b.dx); r.n++; if (b.sample) r.sample = true; r.gs[b.group] = 1; r.ws[b.wall == null ? -1 : b.wall] = 1; b.row = r.row; });
-      info.forEach((r) => { const g = Object.keys(r.gs), w = Object.keys(r.ws); r.group = g.length === 1 ? +g[0] : -1; r.wall = (g.length === 1 && w.length === 1 && +w[0] >= 0 && !r.sample) ? +w[0] : -1; delete r.gs; delete r.ws; }); // wall ≥ 0 → dãy này chỉnh được hướng (thuộc 1 mặt hàng, vách chính)
+      ix.forEach((i) => { const b = boxes[i]; if (b.x >= end - 1e-3) { info.push({ row: info.length + 1, x0: b.x, x1: b.x + b.dx, n: 0, sample: false, gs: {}, ws: {}, y0: 1e18, y1: -1e18, top: 0 }); end = b.x + b.dx; } else end = Math.max(end, b.x + b.dx); const r = info[info.length - 1]; r.x1 = Math.max(r.x1, b.x + b.dx); r.n++; if (b.sample) r.sample = true; r.gs[b.group] = 1; r.ws[b.wall == null ? -1 : b.wall] = 1; r.y0 = Math.min(r.y0, b.y); r.y1 = Math.max(r.y1, b.y + b.dy); r.top = Math.max(r.top, b.z + b.dz); b.row = r.row; });
+      info.forEach((r) => { const g = Object.keys(r.gs), w = Object.keys(r.ws); r.group = g.length === 1 ? +g[0] : -1; r.wall = (g.length === 1 && w.length === 1 && +w[0] >= 0 && !r.sample) ? +w[0] : -1; delete r.gs; delete r.ws; r.gaps = { right: r.y0, left: c.W - r.y1, top: r.top, ceiling: c.H - r.top, red: sp.red - r.top, eff: sp.effH - r.top }; }); // wall ≥ 0 → dãy này chỉnh được hướng (thuộc 1 mặt hàng, vách chính)
       return info;
     })();
     // tầng hiển thị ("lớp")
@@ -470,6 +519,8 @@
     let cx = 0, cy = 0, kgSum = 0;
     boxes.forEach((b) => { const k = skus.find((s) => s.id === b.skuId), w = k ? k.kg : 0; cx += w * (b.x + b.dx / 2); cy += w * (b.y + b.dy / 2); kgSum += w; });
     const cog = kgSum > 0 ? { x: cx / kgSum, y: cy / kgSum, xPct: cx / kgSum / c.L * 100, yPct: cy / kgSum / c.W * 100 } : null;
+    // KHOẢNG TRỐNG CÒN LẠI (mm): thùng gần nhất → vách đầu / cửa / vách phải / vách trái, thùng CAO NHẤT → trần / red line / giới hạn xếp
+    const gaps = boxes.length ? (() => { let mnx = 1e18, mxx = -1e18, mny = 1e18, mxy = -1e18, top = 0; boxes.forEach((b) => { mnx = Math.min(mnx, b.x); mxx = Math.max(mxx, b.x + b.dx); mny = Math.min(mny, b.y); mxy = Math.max(mxy, b.y + b.dy); top = Math.max(top, b.z + b.dz); }); return { front: mnx, door: c.L - mxx, right: mny, left: c.W - mxy, top, ceiling: c.H - top, red: sp.red - top, eff: sp.effH - top }; })() : null;
     const mainEnd = mainBoxes.length ? Math.max(...mainBoxes.map((b) => b.x + b.dx)) - sp.x0 : 0, usedLen = mainEnd + Ds, gapSample = (sampBoxes.length && mainBoxes.length) ? Math.max(0, (spM.x1 - sp.x0) - mainEnd) : 0;
     const reqTotal = groups.reduce((s, g) => s + g.requested, 0), loadTotal = groups.reduce((s, g) => s + g.loaded, 0);
     if (!ver.ok) errors.push('Kiểm tra độc lập phát hiện ' + ver.violations.length + ' lỗi trong phương án (xem chi tiết).');
@@ -482,7 +533,7 @@
     return {
       ok: errors.length === 0, errors, warnings, container: c, space: sp, groups, boxes, skus, rows,
       verify: ver, maxTier,
-      totals: { rows: rows.length, gapSample, sample: sampBoxes.length, sampleDepth: Ds, requested: reqTotal, loaded: loadTotal, left: reqTotal - loadTotal, kg: loadedKg, payload: c.maxPayload, volBox, volUsable: volUse, volInternal: volIn, fillUsablePct: volUse > 0 ? volBox / volUse * 100 : 0, fillInternalPct: volIn > 0 ? volBox / volIn * 100 : 0, usedLength: usedLen, freeLength: sp.Lu - usedLen, effH: sp.effH, cog },
+      totals: { gaps, rows: rows.length, gapSample, sample: sampBoxes.length, sampleDepth: Ds, requested: reqTotal, loaded: loadTotal, left: reqTotal - loadTotal, kg: loadedKg, payload: c.maxPayload, volBox, volUsable: volUse, volInternal: volIn, fillUsablePct: volUse > 0 ? volBox / volUse * 100 : 0, fillInternalPct: volIn > 0 ? volBox / volIn * 100 : 0, usedLength: usedLen, freeLength: sp.Lu - usedLen, effH: sp.effH, cog },
       options: { sampleQty: sampleQ, stackTop: !!opts.stackTop, mergeTail: !!opts.mergeTail, dateDir: opts.dateDir || 'asc', sortMode: opts.sortMode || 'auto', minSupport: opts.minSupport || 0.7 },
     };
   }
@@ -533,5 +584,5 @@
     return plan;
   }
 
-  return { PERMS, PRESETS, solve, verify, normContainer, makeSpace, normSku, orientationsOf, passDoor, natCmp, dateVal, num, EPS };
+  return { PERMS, previewTpl, parseColPlan, PRESETS, solve, verify, normContainer, makeSpace, normSku, orientationsOf, passDoor, natCmp, dateVal, num, EPS };
 });

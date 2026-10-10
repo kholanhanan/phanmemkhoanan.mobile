@@ -18,7 +18,7 @@
 
   // ------------------------------------------------------------------ nạp thư viện (lần đầu)
   function loadScript(src) {
-    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src + '?v=4.15'; s.onload = res; s.onerror = () => rej(new Error('Không nạp được ' + src)); document.head.appendChild(s); });
+    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src + '?v=4.16'; s.onload = res; s.onerror = () => rej(new Error('Không nạp được ' + src)); document.head.appendChild(s); });
   }
   function ensure() {
     if (!ready) ready = (async () => {
@@ -148,6 +148,7 @@
       '<div class="c3-g3">' + fld('Dài (' + uu + ')', a + ' data-f="L" data-len="1"', toU(k.L)) + fld('Rộng', a + ' data-f="W" data-len="1"', toU(k.W)) + fld('Cao', a + ' data-f="H" data-len="1"', toU(k.H)) + '</div>' +
       '<div class="c3-g2">' + fld('kg / thùng', a + ' data-f="kg"', k.kg) + fld('Chồng tối đa (tầng, 0 = không giới hạn)', a + ' data-f="maxLayers"', k.maxLayers || 0) + '</div>' +
       '<label class="c3-f"><span>Hướng đặt thùng (tự xoay cho khớp thực tế)</span><select ' + a + ' data-f="orient">' + oriOpts(k.orient) + '</select></label>' +
+      '<label class="c3-f"><span>Kế hoạch dãy (VD: 4 đứng 3 nằm 5 đứng; còn lại tự động)</span><input type="text" ' + a + ' data-f="rowPlan" value="' + esc(k.rowPlan || '') + '" placeholder="để trống = tự động"></label>' +
       '<div class="c3-flags">' + chk('allowRotate', 'Cho xoay') + chk('allowStand', 'Dựng đứng') + chk('allowLay', 'Đặt nằm') + chk('sole', 'Xếp sole') + '</div>' +
       '<label class="c3-f"><span>Ghi chú đóng hàng</span><input type="text" ' + a + ' data-f="note" value="' + esc(k.note) + '"></label>' +
       '<div class="c3-btns"><button type="button" class="c3-b" ' + a + ' data-act="sDup">Nhân bản</button><button type="button" class="c3-b dng" ' + a + ' data-act="sDel">Xóa dòng</button></div></div></div>';
@@ -172,6 +173,7 @@
       kp('Khối lượng', fmt(t.kg, 0) + ' kg', t.payload > 0 ? fmt(pay, 1) + '% tải trọng' : '') + kp('Lấp đầy', fmt(t.fillUsablePct, 1) + '%', 'vùng chứa hàng') + kp('Số dãy', fmt(t.rows), 'dài đã dùng ' + fmt(t.usedLength / 1000, 2) + ' m') + kp('Mẫu hải quan', fmt(t.sample), t.sample ? 'dãy sát cửa' : 'tắt') + '</div>';
     const msg = (cls, tx) => '<div class="c3-msg ' + cls + '">' + tx + '</div>';
     p.errors.forEach((m) => { h += msg('err', '⛔ ' + esc(m)); });
+    (p.hints || []).forEach((hh, i) => { h += '<div class="c3-msg tip">💡 <b>' + esc(hh.text) + '</b><br>→ đóng thêm <b>+' + fmt(hh.gain) + ' thùng</b> (' + fmt(hh.loaded) + '/' + fmt(t.requested) + ')<br><button type="button" class="c3-b sm pri" data-act="hint" data-i="' + i + '" style="margin-top:6px">Áp dụng</button></div>'; });
     if (p.layoutNote) h += msg('tip', '🌬 ' + esc(p.layoutNote));
     if (p.verify.ok && t.loaded) h += msg('ok', '✔ <b>Đã kiểm tra độc lập ' + fmt(t.loaded) + ' thùng</b>: không chồng, trong cont, dưới red line, đủ điểm đỡ, thứ tự đóng không bị chắn.');
     p.warnings.forEach((m) => { h += msg('warn', '⚠ ' + esc(m)); });
@@ -247,6 +249,7 @@
     else if (act === 'sClear') { if (!S.skus.length || confirm('Xóa toàn bộ danh sách hàng?')) { S.skus = []; renderPane(); sched(0); schedSave(); } }
     else if (act === 'sDemo') { if (S.skus.length && !confirm('Thay danh sách hiện tại bằng ví dụ mẫu?')) return; S.skus = demo(); S.open = new Set(); renderPane(); sched(0); schedSave(); }
     else if (act === 'cSave') saveCont(false); else if (act === 'cNew') saveCont(true); else if (act === 'cDel') delCont();
+    else if (act === 'hint') { const hh = ((S.plan && S.plan.hints) || [])[+b.dataset.i]; if (hh) { Object.keys(hh.patch.skus || {}).forEach((id) => { const k = S.skus.find((x) => x.id === id); if (k) Object.assign(k, clone(hh.patch.skus[id])); }); Object.assign(S.cont, hh.patch.container || {}); calc(); schedSave(); toast('Đã áp dụng gợi ý.'); } }
     else if (act === 'xXlsx') exportXlsx(); else if (act === 'xPng') exportPng(); else if (act === 'pSave') savePlan(); else if (act === 'pOpen') openPlans();
   }
   function demo() { const mk = (o) => newSku(Object.assign({ L: 520, W: 280, H: 190, kg: 10 }, o)); return [mk({ code: 'VRHLCK', size: '31/40', date: '15/09/2026', qty: 420 }), mk({ code: 'VRHLCK', size: '41/50', date: '20/09/2026', qty: 480 }), mk({ code: 'VRPDTO', size: '51/60', date: '18/09/2026', qty: 300, L: 600, W: 400, H: 220, kg: 12, sole: true, note: 'Xếp sole' })]; }

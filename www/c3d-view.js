@@ -28,8 +28,8 @@
     this.gCont = new T.Group(); this.gCargo = new T.Group(); this.gHL = new T.Group(); this.scene.add(this.gCont, this.gCargo, this.gHL);
     this.labels = []; this.selLabels = [];
     this.plan = null; this.colors = []; this.filter = { tiers: null, groups: null, rows: null, seqMax: null };
-    this.opt = { walls: { right: true, left: false, ceil: false, front: true }, redline: true, dims: true, glabels: true, rowlabels: true, wallOpacity: 0.16, usable: true };
-    this.visible = []; this.selected = null; this.hover = null; this.onPick = null; this.onHover = null;
+    this.opt = { walls: { right: true, left: false, ceil: false, front: true }, redline: true, dims: true, glabels: true, rowlabels: false, wallOpacity: 0.16, usable: true };
+    this.visible = []; this.selected = null; this.selRow = null; this.hover = null; this.onPick = null; this.onHover = null; this.onRowPick = null;
     this._dirty = true; this._raf = 0; this._pickReq = null;
     this.light = false;
     this._ro = new ResizeObserver(() => this.resize()); this._ro.observe(host);
@@ -120,6 +120,7 @@
   P.setPlan = function (plan, colors) {
     const first = !this.plan; // chỉ đặt góc nhìn lần đầu; sau đó giữ nguyên góc người dùng đang xem (đổi cont thì bấm nút góc nhìn)
     this.plan = plan; this.colors = colors || []; this.selected = null;
+    if (this.selRow != null && !((plan && plan.rows) || []).some((r) => r.row === this.selRow)) this.selRow = null; // giữ dãy đang chọn qua các lần tính lại
     this.filter = { tiers: null, groups: null, rows: null, seqMax: null };
     this.buildContainer(); this.buildCargo(); if (first) this.setPreset('iso');
   };
@@ -160,9 +161,7 @@
       const eg = new T.BufferGeometry(); eg.setAttribute('position', new T.BufferAttribute(ep, 3));
       this.gCargo.add(new T.LineSegments(eg, new T.LineBasicMaterial({ color: this.light ? 0x1b2433 : 0x0a0d12, transparent: true, opacity: 0.38 })));
     } else this.cargoMesh = null;
-    // số DÃY dọc mép sàn (bên trái nhìn từ cửa)
-    { const rs = {}; vis.forEach((bi) => { rs[p.boxes[bi].row] = 1; }); const list = (p.rows || []).filter((r) => rs[r.row]), stepK = Math.max(1, Math.ceil(list.length / 18));
-      list.forEach((r, i) => { if (i % stepK) return; const o = this.addLabel((r.sample ? '🛃 ' : '') + 'Dãy ' + r.row, new T.Vector3(((r.x0 + r.x1) / 2) * SC - L / 2, 0.02, W / 2 + 0.16), 'row' + (r.sample ? ' samp' : ''), this.cargoLabels); o.el.style.display = this.opt.rowlabels ? '' : 'none'; o.isRow = true; }); }
+    this.refreshRowLabels();
     // nhãn nhóm (mã hàng · size · số thùng · kích thước thùng)
     const gb = {};
     vis.forEach((bi) => { const b = p.boxes[bi], gg = gb[b.group] = gb[b.group] || { n: 0, minx: 1e9, maxx: -1e9, miny: 1e9, maxy: -1e9, maxz: 0 }; gg.n++; gg.minx = Math.min(gg.minx, b.x); gg.maxx = Math.max(gg.maxx, b.x + b.dx); gg.miny = Math.min(gg.miny, b.y); gg.maxy = Math.max(gg.maxy, b.y + b.dy); gg.maxz = Math.max(gg.maxz, b.z + b.dz); });
@@ -176,6 +175,20 @@
     this.invalidate();
   };
 
+  // Số DÃY dọc mép sàn: MẶC ĐỊNH ẨN (đỡ rối mắt) — chỉ hiện dãy đang chọn; bật ô "Số dãy" mới hiện hết.
+  P.refreshRowLabels = function () {
+    const arr = this.cargoLabels || (this.cargoLabels = []);
+    for (let i = arr.length - 1; i >= 0; i--) if (arr[i].isRow) { arr[i].el.remove(); arr.splice(i, 1); }
+    const p = this.plan; if (!p) { this.invalidate(); return; }
+    const L = p.container.L * SC, W = p.container.W * SC, vis = {}; this.visible.forEach((bi) => { vis[p.boxes[bi].row] = 1; });
+    let list = (p.rows || []).filter((r) => vis[r.row]);
+    if (this.opt.rowlabels) { const k = Math.max(1, Math.ceil(list.length / 18)); list = list.filter((r, i) => i % k === 0 || r.row === this.selRow); }
+    else list = list.filter((r) => r.row === this.selRow);
+    list.forEach((r) => { const o = this.addLabel((r.sample ? '🛃 ' : '') + 'Dãy ' + r.row, new T.Vector3(((r.x0 + r.x1) / 2) * SC - L / 2, 0.02, W / 2 + 0.16), 'row' + (r.sample ? ' samp' : '') + (r.row === this.selRow ? ' sel' : ''), arr); o.isRow = true; });
+    this.invalidate();
+  };
+  P.setSelRow = function (r, silent) { this.selRow = r; this.refreshRowLabels(); this.drawSelection(); if (!silent && this.onRowPick) this.onRowPick(r); this.invalidate(); };
+
   // ------------------------------------------------------------ chọn / rê chuột
   P.pickAt = function (e) {
     if (!this.cargoMesh) return null;
@@ -188,7 +201,7 @@
     if (this.hover === bi) return; this.hover = bi; this.canvas.style.cursor = bi != null ? 'pointer' : 'grab';
     if (!silent && this.onHover) this.onHover(bi, this._lastEv); this.drawSelection(); this.invalidate();
   };
-  P.select = function (bi) { this.selected = bi; this.drawSelection(); if (this.onPick) this.onPick(bi); this.invalidate(); };
+  P.select = function (bi) { this.selected = bi; this.selRow = (bi != null && this.plan) ? this.plan.boxes[bi].row : null; this.refreshRowLabels(); this.drawSelection(); if (this.onPick) this.onPick(bi); if (this.onRowPick) this.onRowPick(this.selRow); this.invalidate(); };
   P.drawSelection = function () {
     clearGroup(this.gHL); this.clearLabels(this.selLabels); const p = this.plan; if (!p) return;
     const L = p.container.L * SC, W = p.container.W * SC;
@@ -197,6 +210,10 @@
       const m = new T.LineSegments(g, new T.LineBasicMaterial({ color: col })); m.position.set((b.x + b.dx / 2) * SC - L / 2, (b.z + b.dz / 2) * SC, (b.y + b.dy / 2) * SC - W / 2); this.gHL.add(m);
       if (w) { const q = new T.Mesh(new T.BoxGeometry(b.dx * SC * 1.01, b.dz * SC * 1.01, b.dy * SC * 1.01), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.18, depthWrite: false })); q.position.copy(m.position); this.gHL.add(q); }
     };
+    if (this.selRow != null) { // khung quanh DÃY đang chọn
+      let x0 = 1e18, x1 = -1e18, y0 = 1e18, y1 = -1e18, z1 = 0; p.boxes.forEach((b) => { if (b.row === this.selRow) { x0 = Math.min(x0, b.x); x1 = Math.max(x1, b.x + b.dx); y0 = Math.min(y0, b.y); y1 = Math.max(y1, b.y + b.dy); z1 = Math.max(z1, b.z + b.dz); } });
+      if (x1 > x0) { const fr = new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry((x1 - x0) * SC * 1.004, z1 * SC * 1.004, (y1 - y0) * SC * 1.004)), new T.LineBasicMaterial({ color: 0x22e0a0 })); fr.position.set(((x0 + x1) / 2) * SC - L / 2, z1 * SC / 2, ((y0 + y1) / 2) * SC - W / 2); this.gHL.add(fr); }
+    }
     if (this.hover != null && this.hover !== this.selected) mkBox(this.hover, 0xffffff, false);
     if (this.selected != null) {
       mkBox(this.selected, 0xffd60a, true);
@@ -215,7 +232,7 @@
     if (k === 'redline') { if (this.redGroup) this.redGroup.visible = !!on; if (this.redLab) this.redLab.el.style.display = on ? '' : 'none'; }
     if (k === 'dims') { if (this.dimGroup) this.dimGroup.visible = !!on; (this.dimLabs || []).forEach((o) => { o.el.style.display = on ? '' : 'none'; }); if (this.doorLab) this.doorLab.el.style.display = on ? '' : 'none'; }
     if (k === 'glabels') (this.cargoLabels || []).forEach((o) => { if (!o.isRow) o.el.style.display = on ? '' : 'none'; });
-    if (k === 'rowlabels') (this.cargoLabels || []).forEach((o) => { if (o.isRow) o.el.style.display = on ? '' : 'none'; });
+    if (k === 'rowlabels') this.refreshRowLabels();
     if (k === 'usable') { this.buildContainer(); this.buildCargo(); }
     this.invalidate();
   };

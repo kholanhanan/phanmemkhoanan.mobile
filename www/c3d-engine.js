@@ -75,7 +75,7 @@
       id: String(s.id || ('s' + i)), code: String(s.code == null ? '' : s.code).trim(), name: String(s.name || '').trim(), size: String(s.size == null ? '' : s.size).trim(), date: String(s.date == null ? '' : s.date).trim(),
       qty: Math.max(0, Math.floor(num(s.qty))), L: num(s.L), W: num(s.W), H: num(s.H), kg: Math.max(0, num(s.kg)),
       allowRotate: flag(s.allowRotate, true), allowStand: flag(s.allowStand, true), allowLay: flag(s.allowLay, false), sole: flag(s.sole, false),
-      maxLayers: Math.max(0, Math.floor(num(s.maxLayers))), orient: PERMS.includes(s.orient) ? s.orient : '', note: String(s.note || ''), color: String(s.color || ''), _idx: i,
+      maxLayers: Math.max(0, Math.floor(num(s.maxLayers))), orient: PERMS.includes(s.orient) ? s.orient : '', rowPlan: String(s.rowPlan || '').trim(), rowSet: (s.rowSet && typeof s.rowSet === 'object') ? s.rowSet : {}, note: String(s.note || ''), color: String(s.color || ''), _idx: i,
     };
     if (!o.allowStand && !o.allowLay) o.allowStand = true; // không chọn gì → mặc định dựng đứng
     return o;
@@ -182,10 +182,37 @@
     return pats;
   }
 
-  // xếp liên tiếp các vách của 1 kiểu; vách cuối có thể thiếu thùng
-  function placeWalls(p, n, x0, Lend, style, oy, dry) {
+  // ---- KẾ HOẠCH DÃY do người dùng chọn: "4 đứng 3 nằm 5 đứng" = 4 dãy đầu (trong cùng) xếp ĐỨNG, 3 dãy kế NẰM, 5 dãy kế ĐỨNG; các dãy còn lại TỰ ĐỘNG.
+  // Mỗi mục: số dãy + (đứng | nằm | 1 trong 6 hướng LWH…). Ngoài ra rowSet {số_thứ_tự_dãy_của_mặt_hàng (từ 0): hướng} chỉnh riêng từng dãy (ưu tiên hơn kế hoạch).
+  const stripVn = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+  function parseRowPlan(str) {
+    const out = [], t = stripVn(str), re = /(\d+)\s*(dung|nam|[lwh]{3})/g; let m;
+    while ((m = re.exec(t))) { const tok = (m[2] === 'dung' || m[2] === 'nam') ? m[2] : m[2].toUpperCase(); if (tok === 'dung' || tok === 'nam' || PERMS.includes(tok)) out.push({ tok, n: Math.min(500, +m[1]) }); }
+    return out;
+  }
+  function makeWallPat(sku, sp, Tof, Wu) {
+    const seq = []; parseRowPlan(sku.rowPlan).forEach((t) => { for (let i = 0; i < t.n; i++) seq.push(t.tok); });
+    const set = sku.rowSet || {}; if (!seq.length && !Object.keys(set).length) return null;
+    const cache = {};
+    const orient = (perm) => { const m = { L: sku.L, W: sku.W, H: sku.H }, c = perm.split(''), o = { dx: m[c[0]], dy: m[c[1]], dz: m[c[2]], kind: c[2] === 'H' ? 'dung' : 'nam', rot: ['WLH', 'HLW', 'HWL'].includes(perm) ? 1 : 0 }; return (o.dx <= sp.Lu + EPS && o.dy <= Wu + EPS && o.dz <= sp.effH + EPS) ? o : null; };
+    const resolve = (tok) => {
+      if (cache[tok] !== undefined) return cache[tok];
+      const perms = tok === 'dung' ? ['LWH', 'WLH'] : tok === 'nam' ? ['LHW', 'HLW', 'WHL', 'HWL'] : [tok]; let best = null;
+      perms.forEach((pm) => { const o = orient(pm); if (!o) return; const T = Tof(o), p = (sku.sole && T >= 2 && solePattern(o, T, Wu, true)) || colPattern(o, T, Wu); if (p && (!best || p.cap / p.D > best.cap / best.D + 1e-9)) best = p; });
+      return (cache[tok] = best);
+    };
+    const fn = (wi) => { const tok = (set[wi] != null && set[wi] !== '') ? set[wi] : seq[wi]; return tok ? resolve(tok) : null; };
+    fn.K = Math.max(seq.length, ...Object.keys(set).filter((k) => set[k] !== '' && set[k] != null).map((k) => (+k) + 1), 0); // số dãy đầu chịu chi phối của kế hoạch; sau đó TỰ ĐỘNG
+    return fn;
+  }
+
+  // xếp liên tiếp các vách của 1 kiểu; vách cuối có thể thiếu thùng. ctx (tuỳ chọn): { wallPat(wi) → kiểu riêng cho dãy thứ wi của mặt hàng, wi, mark }
+  function placeWalls(p0, n, x0, Lend, style, oy, dry, ctx) {
+    let p = p0;
     let cur = x0, left = n, placed = 0, tail = null; const boxes = [];
     while (left > 0) {
+      if (ctx && ctx.maxWalls != null && ctx.wi >= ctx.maxWalls) break;
+      p = p0; if (ctx && ctx.wallPat) { const q = ctx.wallPat(ctx.wi); if (q) p = q; }
       if (cur + p.D > Lend + EPS) break;
       const take = Math.min(left, p.cap), part = take < p.cap, st = part ? style : 'wide';
       const bx = (dry && !part) ? null : p.build(take, st, cur, oy);
@@ -193,7 +220,8 @@
       if (part) { let mx = cur; for (const b of bx) mx = Math.max(mx, b.x + b.dx); used = mx - cur; }
       if (cur + used > Lend + EPS) break;
       placed += take; left -= take;
-      if (!dry && bx) for (const b of bx) boxes.push(b);
+      if (!dry && bx) for (const b of bx) { if (ctx && ctx.mark) b.wall = ctx.wi; boxes.push(b); }
+      if (ctx) { ctx.wi++; if (ctx.used && !ctx.used.includes(p)) ctx.used.push(p); }
       if (part) tail = { x0: cur, used, count: take, cap: p.cap, style: st, boxes: dry ? null : bx, kind: p.kind, pat: p };
       cur += used;
     }
@@ -244,28 +272,54 @@
     let used = 0;
     if (left > 0) {
       const pats = buildPatterns(sku, ors, sp, sp.Wu, out.info);
+      const TofW = (o) => Math.min(Math.floor((sp.effH + EPS) / o.dz), sku.maxLayers > 0 ? sku.maxLayers : Infinity);
+      const wallPat = makeWallPat(sku, sp, TofW, sp.Wu), ctx = { wallPat, wi: 0, mark: true, used: [], maxWalls: null };
+      if (!pats.length && wallPat) { const q = wallPat(0); if (q) pats.push(q); }
       if (!pats.length) { if (!out.boxes.length) out.reason = 'khong-vua'; }
       else {
-        let best = null;
-        pats.forEach((p) => {
-          const r = placeWalls(p, left, S.cursor, sp.x1, style, sp.y0, true), cand = { p, placed: r.placed, end: r.end };
-          const airy = !!opts._airflow; // cont còn trống nhiều: ưu tiên DỰNG ĐỨNG + thoáng khí trước, tiết kiệm chiều dài sau
-          if (!best || cand.placed > best.placed || (cand.placed === best.placed && (airy ? (prefOf(p) < prefOf(best.p) || (prefOf(p) === prefOf(best.p) && cand.end < best.end - EPS)) : (cand.end < best.end - EPS || (Math.abs(cand.end - best.end) <= EPS && prefOf(p) < prefOf(best.p)))))) best = cand;
-        });
-        if (best && best.placed > 0) {
-          const res = placeWalls(best.p, left, S.cursor, sp.x1, style, sp.y0, false);
-          out.boxes.push(...res.boxes); left -= res.placed; S.cursor = res.end; lastTail = res.tail; note(best.p); used += res.placed;
-          // phần còn dư ở cuối cont: thử kiểu khác có chiều sâu nhỏ hơn
-          let guard = 0;
-          while (left > 0 && guard++ < 4) {
-            const R = sp.x1 - S.cursor; let b2 = null;
-            pats.forEach((p) => { if (p.D > R + EPS) return; const r = placeWalls(p, left, S.cursor, sp.x1, 'wide', sp.y0, true); if (r.placed > 0 && (!b2 || r.placed > b2.placed || (r.placed === b2.placed && r.end < b2.end))) b2 = { p, placed: r.placed, end: r.end }; });
-            if (!b2) break;
-            const r2 = placeWalls(b2.p, left, S.cursor, sp.x1, 'wide', sp.y0, false);
-            if (!r2.placed) break;
-            out.boxes.push(...r2.boxes); left -= r2.placed; S.cursor = r2.end; lastTail = r2.tail; note(b2.p); used += r2.placed;
-          }
+        const airy = !!opts._airflow; // cont còn trống nhiều: ưu tiên DỰNG ĐỨNG + thoáng khí trước, tiết kiệm chiều dài sau
+        const pick = (cx) => { // kiểu xếp tốt nhất cho phần còn lại (mô phỏng khô)
+          let best = null;
+          pats.forEach((p) => {
+            const r = placeWalls(p, left, S.cursor, sp.x1, style, sp.y0, true, cx ? { wallPat: cx.wallPat, wi: 0, maxWalls: cx.maxWalls } : null), cand = { p, placed: r.placed, end: r.end };
+            if (!best || cand.placed > best.placed || (cand.placed === best.placed && (airy ? (prefOf(p) < prefOf(best.p) || (prefOf(p) === prefOf(best.p) && cand.end < best.end - EPS)) : (cand.end < best.end - EPS || (Math.abs(cand.end - best.end) <= EPS && prefOf(p) < prefOf(best.p)))))) best = cand;
+          });
+          return best;
+        };
+        const run = (p, count) => { // xếp 1 bước, cập nhật trạng thái
+          const res = placeWalls(p, Math.min(left, count), S.cursor, sp.x1, style, sp.y0, false, ctx);
+          out.boxes.push(...res.boxes); left -= res.placed; S.cursor = res.end; lastTail = res.tail; note(p); used += res.placed; return res;
+        };
+        // A) các dãy đầu do NGƯỜI DÙNG chọn hướng (kế hoạch "4 đứng 3 nằm…" / chỉnh riêng từng dãy); dãy chưa chỉ định trong đoạn này dùng kiểu tốt nhất
+        if (wallPat && wallPat.K > 0) {
+          ctx.maxWalls = wallPat.K; const bA = pick({ wallPat, maxWalls: wallPat.K });
+          if (bA && bA.placed > 0) run(bA.p, left);
+          ctx.maxWalls = null; ctx.wallPat = null; // từ đây TỰ ĐỘNG
         }
+        // B) phần còn lại TỰ ĐỘNG. HÀNG NHIỀU (không đủ chỗ cho hết): thử TRỘN dãy kiểu A rồi dãy kiểu B (VD x dãy đứng + y dãy nằm) bằng quy hoạch chiều dài → thường đóng thêm được thùng
+        if (left > 0) {
+          const best = pick(null); let steps = best && best.placed > 0 ? [{ p: best.p, count: left }] : [];
+          if (best && best.placed < left && pats.length > 1) {
+            const R0 = sp.x1 - S.cursor, cand = pats.filter((q) => q.kind === 'col' || q.kind === 'sole'); let bm = null;
+            for (let i = 0; i < cand.length; i++) for (let j = 0; j < cand.length; j++) {
+              if (i === j) continue; const A = cand[i], B = cand[j];
+              for (let a = 1; a * A.D <= R0 + EPS; a++) { const b = Math.floor((R0 - a * A.D + EPS) / B.D), tot = a * A.cap + b * B.cap; if (b >= 1 && tot > best.placed && (!bm || tot > bm.total)) bm = { pi: A, pj: B, a, b, total: tot }; }
+            }
+            if (bm) steps = [{ p: bm.pi, count: bm.a * bm.pi.cap }, { p: bm.pj, count: left }];
+          }
+          steps.forEach((st0) => { if (left > 0) run(st0.p, st0.count); });
+        }
+        // C) phần còn dư ở cuối cont: thử kiểu khác có chiều sâu nhỏ hơn
+        let guard = 0;
+        while (left > 0 && guard++ < 4) {
+          const R = sp.x1 - S.cursor; let b2 = null;
+          pats.forEach((p) => { if (p.D > R + EPS) return; const r = placeWalls(p, left, S.cursor, sp.x1, 'wide', sp.y0, true, null); if (r.placed > 0 && (!b2 || r.placed > b2.placed || (r.placed === b2.placed && r.end < b2.end))) b2 = { p, placed: r.placed, end: r.end }; });
+          if (!b2) break;
+          const r2 = placeWalls(b2.p, left, S.cursor, sp.x1, 'wide', sp.y0, false, ctx);
+          if (!r2.placed) break;
+          out.boxes.push(...r2.boxes); left -= r2.placed; S.cursor = r2.end; lastTail = r2.tail; note(b2.p); used += r2.placed;
+        }
+        ctx.used.forEach(note);
       }
     }
     out.placed = nWant - left;
@@ -404,7 +458,8 @@
     // đánh số DÃY: dãy = lát cắt liên tiếp theo chiều dài cont (từ vách đầu ra cửa); các thùng chồng lấn về chiều dọc thuộc cùng 1 dãy
     const rows = (() => {
       const ix = boxes.map((_, i) => i).sort((a, b) => boxes[a].x - boxes[b].x), info = []; let end = -1e18;
-      ix.forEach((i) => { const b = boxes[i]; if (b.x >= end - 1e-3) { info.push({ row: info.length + 1, x0: b.x, x1: b.x + b.dx, n: 0, sample: false }); end = b.x + b.dx; } else end = Math.max(end, b.x + b.dx); const r = info[info.length - 1]; r.x1 = Math.max(r.x1, b.x + b.dx); r.n++; if (b.sample) r.sample = true; b.row = r.row; });
+      ix.forEach((i) => { const b = boxes[i]; if (b.x >= end - 1e-3) { info.push({ row: info.length + 1, x0: b.x, x1: b.x + b.dx, n: 0, sample: false, gs: {}, ws: {} }); end = b.x + b.dx; } else end = Math.max(end, b.x + b.dx); const r = info[info.length - 1]; r.x1 = Math.max(r.x1, b.x + b.dx); r.n++; if (b.sample) r.sample = true; r.gs[b.group] = 1; r.ws[b.wall == null ? -1 : b.wall] = 1; b.row = r.row; });
+      info.forEach((r) => { const g = Object.keys(r.gs), w = Object.keys(r.ws); r.group = g.length === 1 ? +g[0] : -1; r.wall = (g.length === 1 && w.length === 1 && +w[0] >= 0 && !r.sample) ? +w[0] : -1; delete r.gs; delete r.ws; }); // wall ≥ 0 → dãy này chỉnh được hướng (thuộc 1 mặt hàng, vách chính)
       return info;
     })();
     // tầng hiển thị ("lớp")
@@ -445,6 +500,26 @@
     p2.layoutNote = spare ? 'Cont còn trống nhiều → tự đóng so le (sole) trái/phải từng tầng + ưu tiên dựng đứng để khí lạnh lưu thông hai bên.' : 'Khe dư bề ngang không xếp thêm được thùng → tự đóng so le trái/phải từng tầng (không mất chỗ) để có đường khí hai bên và chống nghiêng.';
     return p2;
   }
+  // GỢI Ý ĐÓNG THÊM khi còn hàng rớt: thử (1) bỏ chốt hướng + cho đặt nằm, (2) giảm khe vách đầu / cửa về 0, (3) cả hai → báo số thùng đóng thêm được. Chỉ GỢI Ý — người dùng bấm "Áp dụng" mới đổi.
+  function buildHints(input, opts, plan) {
+    const out = []; if (!(plan.totals.left > 0)) return out; const base = plan.totals.loaded, c = plan.container;
+    const idsOK = (input.skus || []).every((k) => k && k.id != null && k.id !== ''); if (!idsOK) return out;
+    const cl = () => JSON.parse(JSON.stringify(input)), tryRun = (inp) => { try { return solveOnce(inp, Object.assign({}, opts, { compare: false, _auto: false, _airflow: false, _drop: false })); } catch (e) { return null; } };
+    const need = plan.groups.filter((g) => g.left > 0 && g.ok && (!g.sku.allowLay || g.sku.orient || g.sku.rowPlan || Object.keys(g.sku.rowSet || {}).length)).map((g) => g.sku.id);
+    const skuPatch = { allowLay: true, allowRotate: true, allowStand: true, orient: '', rowPlan: '', rowSet: {} }, contPatch = {};
+    const hasGap = c.clearFront > 0 || c.clearRear > 0; if (hasGap) { contPatch.clearFront = 0; contPatch.clearRear = 0; }
+    const nm = (ids) => plan.groups.filter((g) => ids.includes(g.sku.id)).map((g) => (g.sku.code || 'mặt hàng') + (g.sku.size ? ' ' + g.sku.size : '')).join(', ');
+    const variants = [];
+    if (need.length) variants.push({ id: 'lay', skus: need, cont: {}, text: 'Bỏ chốt hướng + cho phép đặt nằm / xoay cho ' + nm(need) });
+    if (hasGap) variants.push({ id: 'gap', skus: [], cont: contPatch, text: 'Giảm khe vách đầu / khe cửa từ ' + Math.round(c.clearFront) + ' / ' + Math.round(c.clearRear) + ' mm về 0 (đóng sát)' });
+    if (need.length && hasGap) variants.push({ id: 'both', skus: need, cont: contPatch, text: 'Cả hai: bỏ chốt hướng + cho đặt nằm cho ' + nm(need) + ' và đóng sát đầu / cửa' });
+    variants.forEach((v) => {
+      const inp = cl(); inp.skus.forEach((k) => { if (v.skus.includes(k.id)) Object.assign(k, skuPatch); }); Object.assign(inp.container, v.cont);
+      const r = tryRun(inp); if (!r || !r.verify.ok) return; const gain = r.totals.loaded - base;
+      if (gain > 0) out.push({ id: v.id, gain, loaded: r.totals.loaded, left: r.totals.left, text: v.text, patch: { skus: Object.fromEntries(v.skus.map((id) => [id, skuPatch])), container: v.cont } });
+    });
+    return out.sort((a, b) => b.gain - a.gain).slice(0, 3);
+  }
   function solve(input, options) {
     const opts = Object.assign({ mergeTail: false, stackTop: true, sampleQty: 10, autoLayout: true, dateDir: 'asc', sortMode: 'auto', minSupport: 0.7, compare: true }, options || {});
     const plan = solveBest(input, opts);
@@ -454,6 +529,7 @@
         plan.compare = { mergeTail: !opts.mergeTail, loaded: alt.totals.loaded, kg: alt.totals.kg, ok: alt.ok, usedLength: alt.totals.usedLength, delta: alt.totals.loaded - plan.totals.loaded };
       } catch (e) { /* bỏ qua */ }
     }
+    if (opts.hints !== false) { try { plan.hints = buildHints(input, opts, plan); } catch (e) { plan.hints = []; } }
     return plan;
   }
 

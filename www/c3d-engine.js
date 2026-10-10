@@ -443,6 +443,7 @@
     if (sp.Lu <= 0 || sp.Wu <= 0 || sp.effH <= 0) errors.push('Khe hở đầu / cửa / hai bên lớn hơn kích thước cont — không còn chỗ chứa hàng.');
     const skus = (input.skus || []).map(normSku).filter((k) => k.qty > 0 || k.code || k.size);
     if (opts._auto) skus.forEach((k) => { if (!k.sole) { k._auto = true; k._drop = !!opts._drop; } });
+    if (opts._tierCap) skus.forEach((k) => { k.maxLayers = k.maxLayers > 0 ? Math.min(k.maxLayers, opts._tierCap) : opts._tierCap; }); // chế độ TRẢI ĐỀU: giới hạn số tầng mọi mặt hàng
     const groups = skus.map((k) => ({ sku: k }));
     // thứ tự đóng: mặt hàng > size > ngày (hoặc đúng thứ tự nhập)
     if (opts.sortMode !== 'manual') {
@@ -554,7 +555,13 @@
   }
   // GỢI Ý ĐÓNG THÊM khi còn hàng rớt: thử (1) bỏ chốt hướng + cho đặt nằm, (2) giảm khe vách đầu / cửa về 0, (3) cả hai → báo số thùng đóng thêm được. Chỉ GỢI Ý — người dùng bấm "Áp dụng" mới đổi.
   function buildHints(input, opts, plan) {
-    const out = []; if (!(plan.totals.left > 0)) return out; const base = plan.totals.loaded, c = plan.container;
+    const out = [];
+    // hàng ÍT (mới dùng < 50% chiều dài): gợi ý TRẢI ĐỀU thành nhiều dãy thấp thay vì ít dãy cao + trống phía sau
+    if (!opts.spread && plan.totals.left === 0 && plan.totals.requested > 0 && plan.totals.usedLength < 0.5 * plan.space.Lu) {
+      const sp = solveSpread(input, Object.assign({}, opts, { spread: true, compare: false }), plan);
+      if (sp !== plan && sp.spreadNote) out.push({ id: 'spread', gain: 0, loaded: sp.totals.loaded, left: 0, text: 'Hàng ít (mới dùng ' + Math.round(plan.totals.usedLength / plan.space.Lu * 100) + '% chiều dài): trải đều thành ' + sp.totals.rows + ' dãy thấp thay vì ' + plan.totals.rows + ' dãy cao', note: sp.spreadNote, patch: { opts: { spread: true } } });
+    }
+    if (!(plan.totals.left > 0)) return out; const base = plan.totals.loaded, c = plan.container;
     const idsOK = (input.skus || []).every((k) => k && k.id != null && k.id !== ''); if (!idsOK) return out;
     const cl = () => JSON.parse(JSON.stringify(input)), tryRun = (inp) => { try { return solveOnce(inp, Object.assign({}, opts, { compare: false, _auto: false, _airflow: false, _drop: false })); } catch (e) { return null; } };
     const need = plan.groups.filter((g) => g.left > 0 && g.ok && (!g.sku.allowLay || g.sku.orient || g.sku.rowPlan || Object.keys(g.sku.rowSet || {}).length)).map((g) => g.sku.id);
@@ -572,10 +579,25 @@
     });
     return out.sort((a, b) => b.gain - a.gain).slice(0, 3);
   }
+  // TRẢI ĐỀU (hàng ít): thay vì đóng đặc 10 dãy cao rồi để trống phía sau, hạ số tầng (thấp hơn, chắc hàng, không đổ) để hàng trải ra tới ~spreadPct % chiều dài cont.
+  // Chọn số tầng NHỎ NHẤT mà vẫn đủ hàng và không dài quá mức cho phép.
+  function solveSpread(input, opts, p1) {
+    const Lu = p1.space.Lu, pct = Math.min(95, Math.max(20, num(opts.spreadPct, 70))), target = Lu * pct / 100;
+    if (!(p1.totals.requested > 0) || p1.totals.left > 0 || p1.totals.usedLength >= target - 1 || p1.maxTier < 2) return p1;
+    for (let t = 1; t < p1.maxTier; t++) {
+      let p; try { p = solveBest(input, Object.assign({}, opts, { _tierCap: t, spread: false, compare: false })); } catch (e) { continue; }
+      if (p.totals.left === 0 && p.verify.ok && !p.errors.length && p.totals.usedLength <= target + 1) {
+        p.spreadNote = 'Hàng ít nên trải đều: mỗi dãy tối đa ' + t + ' tầng (≈ ' + Math.round(p.totals.loaded / Math.max(1, p.totals.rows)) + ' thùng/dãy), ' + p.totals.rows + ' dãy, dùng ' + Math.round(p.totals.usedLength / Lu * 100) + '% chiều dài — thay vì ' + p1.totals.rows + ' dãy cao ' + p1.maxTier + ' tầng.';
+        p.spreadTier = t; return p;
+      }
+    }
+    return p1;
+  }
   function solve(input, options) {
-    const opts = Object.assign({ mergeTail: false, stackTop: true, sampleQty: 10, autoLayout: true, dateDir: 'asc', sortMode: 'auto', minSupport: 0.7, compare: true }, options || {});
-    const plan = solveBest(input, opts);
-    if (opts.compare && plan.totals.requested > 0) {
+    const opts = Object.assign({ mergeTail: false, stackTop: true, sampleQty: 10, autoLayout: true, spread: false, spreadPct: 70, dateDir: 'asc', sortMode: 'auto', minSupport: 0.7, compare: true }, options || {});
+    let plan = solveBest(input, opts);
+    if (opts.spread) plan = solveSpread(input, opts, plan);
+    if (opts.compare && plan.totals.requested > 0 && !plan.spreadNote) {
       try {
         const alt = solveBest(input, Object.assign({}, opts, { mergeTail: !opts.mergeTail }));
         plan.compare = { mergeTail: !opts.mergeTail, loaded: alt.totals.loaded, kg: alt.totals.kg, ok: alt.ok, usedLength: alt.totals.usedLength, delta: alt.totals.loaded - plan.totals.loaded };

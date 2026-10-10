@@ -19,7 +19,7 @@
 
   // ------------------------------------------------------------------ nạp thư viện (lần đầu)
   function loadScript(src) {
-    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src + '?v=4.18'; s.onload = res; s.onerror = () => rej(new Error('Không nạp được ' + src)); document.head.appendChild(s); });
+    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src + '?v=4.19'; s.onload = res; s.onerror = () => rej(new Error('Không nạp được ' + src)); document.head.appendChild(s); });
   }
   function ensure() {
     if (!ready) ready = (async () => {
@@ -78,7 +78,7 @@
   // ------------------------------------------------------------------ khởi tạo giao diện (1 lần)
   function init() {
     const st = loadLS(LS, null) || {};
-    S = { unit: st.unit || 'mm', cid: st.cid || 'rf40hc', cont: st.cont || null, saved: st.saved || [], skus: st.skus || [], colors: st.colors || {}, opts: Object.assign({ mergeTail: false, stackTop: true, sampleQty: 10, dateDir: 'asc', sortMode: 'auto' }, st.opts || {}),
+    S = { unit: st.unit || 'mm', cid: st.cid || 'rf40hc', cont: st.cont || null, saved: st.saved || [], skus: st.skus || [], colors: st.colors || {}, opts: Object.assign({ mergeTail: false, stackTop: true, sampleQty: 10, spread: false, spreadPct: 70, dateDir: 'asc', sortMode: 'auto' }, st.opts || {}),
       plan: null, tab: 'hang', open: new Set(), hidden: { tiers: new Set(), groups: new Set(), rows: new Set() }, seqMax: null, playing: 0, full: false, viewName: 'iso', gcolors: [] };
     if (!S.cont || !(S.cont.L > 0)) pick(S.cid);
     const root = $('c3dRoot');
@@ -163,6 +163,7 @@
       (S.skus.length ? S.skus.map(skuCard).join('') : '<div class="c3-empty">Chưa có mặt hàng. Bấm “+ Thêm mặt hàng” hoặc “Ví dụ mẫu”.</div>') +
       '<details class="c3-opt"' + (S.skus.length ? '' : ' open') + '><summary>Cách xếp & hàng mẫu hải quan</summary><div class="c3-sec">' +
       '<label class="c3-chk big"><input type="checkbox" id="c3Merge"' + (o.mergeTail ? ' checked' : '') + '> Ghép lấp chỗ trống cạnh vách cuối (tiết kiệm chỗ)</label>' +
+      '<label class="c3-chk big"><input type="checkbox" id="c3Spread"' + (o.spread ? ' checked' : '') + '> Hàng ít: trải đều nhiều dãy thấp (chắc hàng, không để dãy cao đứng riêng)</label>' + (o.spread ? fld('Trải tối đa (% chiều dài cont)', 'id="c3SpreadPct"', o.spreadPct || 70) : '') +
       '<label class="c3-chk big"><input type="checkbox" id="c3Auto"' + (o.autoLayout !== false ? ' checked' : '') + '> Tự sắp xếp hợp lý khi trống một bên (so le trái/phải, ưu tiên thoáng khí)</label>' +
       '<label class="c3-chk big"><input type="checkbox" id="c3Stack"' + (o.stackTop !== false ? ' checked' : '') + '> Cho mặt hàng sau chồng lên khoảng trống phía trên mặt hàng trước</label>' +
       fld('Hàng mẫu hải quan (thùng / mỗi loại, 0 = tắt)', 'id="c3Samp"', o.sampleQty == null ? 10 : o.sampleQty) +
@@ -178,7 +179,8 @@
     const msg = (cls, tx) => '<div class="c3-msg ' + cls + '">' + tx + '</div>';
     if (t.gaps) { const g = t.gaps; h += '<div class="c3-msg"><b>Khoảng trống còn lại</b> (mm)<br>thùng → vách đầu <b>' + fmt(g.front) + '</b> · → cửa <b>' + fmt(g.door) + '</b><br>→ vách phải <b>' + fmt(g.right) + '</b> · → vách trái <b>' + fmt(g.left) + '</b><br>thùng cao nhất → trần <b>' + fmt(g.ceiling) + '</b> · → red line <b>' + fmt(g.red) + '</b></div>'; }
     p.errors.forEach((m) => { h += msg('err', '⛔ ' + esc(m)); });
-    (p.hints || []).forEach((hh, i) => { h += '<div class="c3-msg tip">💡 <b>' + esc(hh.text) + '</b><br>→ đóng thêm <b>+' + fmt(hh.gain) + ' thùng</b> (' + fmt(hh.loaded) + '/' + fmt(t.requested) + ')<br><button type="button" class="c3-b sm pri" data-act="hint" data-i="' + i + '" style="margin-top:6px">Áp dụng</button></div>'; });
+    (p.hints || []).forEach((hh, i) => { h += '<div class="c3-msg tip">💡 <b>' + esc(hh.text) + '</b><br>' + (hh.gain > 0 ? '→ đóng thêm <b>+' + fmt(hh.gain) + ' thùng</b> (' + fmt(hh.loaded) + '/' + fmt(t.requested) + ')' : esc(hh.note || '')) + '<br><button type="button" class="c3-b sm pri" data-act="hint" data-i="' + i + '" style="margin-top:6px">Áp dụng</button></div>'; });
+    if (p.spreadNote) h += msg('tip', '🧱 ' + esc(p.spreadNote));
     if (p.layoutNote) h += msg('tip', '🌬 ' + esc(p.layoutNote));
     if (p.verify.ok && t.loaded) h += msg('ok', '✔ <b>Đã kiểm tra độc lập ' + fmt(t.loaded) + ' thùng</b>: không chồng, trong cont, dưới red line, đủ điểm đỡ, thứ tự đóng không bị chắn.');
     p.warnings.forEach((m) => { h += msg('warn', '⚠ ' + esc(m)); });
@@ -226,7 +228,9 @@
     const t = e.target;
     if (t.id === 'c3Sel') { pick(t.value); renderPane(); sched(0); schedSave(); return; }
     if (t.id === 'c3Unit') { S.unit = t.value; renderPane(); schedSave(); return; }
+    if (t.id === 'c3Spread') { S.opts.spread = t.checked; renderPane(); sched(0); return; }
     if (t.id === 'c3Auto') { S.opts.autoLayout = t.checked; sched(0); return; }
+    if (t.id === 'c3SpreadPct') { S.opts.spreadPct = Math.min(95, Math.max(20, E.num(t.value) || 70)); sched(); return; }
     if (t.id === 'c3Merge') { S.opts.mergeTail = t.checked; sched(0); return; } if (t.id === 'c3Stack') { S.opts.stackTop = t.checked; sched(0); return; }
     if (t.id === 'c3Sort') { S.opts.sortMode = t.value; sched(0); return; } if (t.id === 'c3Date') { S.opts.dateDir = t.value; sched(0); return; }
     if (t.dataset.s && t.dataset.f === 'orient') { const k = S.skus.find((x) => x.id === t.dataset.s); if (k) { k.orient = t.value; renderPane(); sched(0); } return; }
@@ -254,7 +258,7 @@
     else if (act === 'sClear') { if (!S.skus.length || confirm('Xóa toàn bộ danh sách hàng?')) { S.skus = []; renderPane(); sched(0); schedSave(); } }
     else if (act === 'sDemo') { if (S.skus.length && !confirm('Thay danh sách hiện tại bằng ví dụ mẫu?')) return; S.skus = demo(); S.open = new Set(); renderPane(); sched(0); schedSave(); }
     else if (act === 'cSave') saveCont(false); else if (act === 'cNew') saveCont(true); else if (act === 'cDel') delCont();
-    else if (act === 'hint') { const hh = ((S.plan && S.plan.hints) || [])[+b.dataset.i]; if (hh) { Object.keys(hh.patch.skus || {}).forEach((id) => { const k = S.skus.find((x) => x.id === id); if (k) Object.assign(k, clone(hh.patch.skus[id])); }); Object.assign(S.cont, hh.patch.container || {}); calc(); schedSave(); toast('Đã áp dụng gợi ý.'); } }
+    else if (act === 'hint') { const hh = ((S.plan && S.plan.hints) || [])[+b.dataset.i]; if (hh) { Object.keys(hh.patch.skus || {}).forEach((id) => { const k = S.skus.find((x) => x.id === id); if (k) Object.assign(k, clone(hh.patch.skus[id])); }); Object.assign(S.cont, hh.patch.container || {}); Object.assign(S.opts, hh.patch.opts || {}); renderPane(); calc(); schedSave(); toast('Đã áp dụng gợi ý.'); } }
     else if (act === 'xXlsx') exportXlsx(); else if (act === 'xPng') exportPng(); else if (act === 'pSave') savePlan(); else if (act === 'pOpen') openPlans();
   }
   function demo() { const mk = (o) => newSku(Object.assign({ L: 520, W: 280, H: 190, kg: 10 }, o)); return [mk({ code: 'VRHLCK', size: '31/40', date: '15/09/2026', qty: 420 }), mk({ code: 'VRHLCK', size: '41/50', date: '20/09/2026', qty: 480 }), mk({ code: 'VRPDTO', size: '51/60', date: '18/09/2026', qty: 300, L: 600, W: 400, H: 220, kg: 12, sole: true, note: 'Xếp sole' })]; }

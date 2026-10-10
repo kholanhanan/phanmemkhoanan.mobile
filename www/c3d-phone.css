@@ -1,0 +1,75 @@
+/* "XẾP CONT 3D" trên điện thoại (bản 4.13) — xem c3d-phone.js. Dùng biến màu của app (--paper --ink --line --cobalt …) nên tự theo Sáng / Tối. */
+.c3-root{ position:fixed; left:0; right:0; z-index:10; display:flex; flex-direction:column; background:var(--frost); overflow:hidden; }
+.c3-root.is-full{ padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+body.c3d-full .topbar, body.c3d-full .tabbar{ display:none !important; }
+.c3-stage{ position:relative; flex:0 0 42%; min-height:150px; background:linear-gradient(180deg,#dbeafb,#eaf3fd); border-bottom:1px solid var(--line); overflow:hidden; }
+html[data-theme="dark"] .c3-stage{ background:linear-gradient(180deg,#1b2530,#12171d); }
+.c3-vp{ position:absolute; inset:0; }
+.c3d-canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none; }
+.c3d-labels{ position:absolute; inset:0; pointer-events:none; overflow:hidden; }
+.c3d-lab{ position:absolute; left:0; top:0; white-space:nowrap; font:600 10px/1.2 var(--font,system-ui); padding:1px 5px; border-radius:6px; will-change:transform; }
+.c3d-lab.dim{ color:#fff; background:rgba(29,95,209,.9); } .c3d-lab.door{ color:#fff; background:rgba(100,116,139,.9); } .c3d-lab.red{ color:#fff; background:rgba(220,38,38,.92); }
+.c3d-lab.grp{ color:var(--ink); background:var(--paper); border:1px solid #888; white-space:pre; text-align:center; }
+.c3d-lab.bdim{ color:#1a1206; background:#ffd60a; } .c3d-lab.row{ color:var(--ink); background:var(--paper); border:1px solid var(--line); font-size:9px; padding:0 4px; }
+.c3d-lab.row.samp{ background:#f59e0b; color:#1a1206; border-color:#f59e0b; }
+.c3-top{ position:absolute; left:6px; right:6px; top:6px; display:flex; justify-content:space-between; align-items:flex-start; gap:6px; z-index:3; pointer-events:none; }
+.c3-top > *{ pointer-events:auto; }
+.c3-views{ display:flex; gap:4px; background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:3px; }
+.c3-views button{ border:0; background:transparent; min-width:44px; height:36px; padding:0 8px; border-radius:9px; font-size:13px; font-weight:700; color:var(--muted); }
+.c3-views button.on{ background:var(--cobalt); color:var(--on-cobalt); }
+.c3-ib{ width:44px; height:44px; border-radius:12px; border:1px solid var(--line); background:var(--paper); color:var(--ink); font-size:20px; font-weight:700; display:grid; place-items:center; }
+.c3-ib.sm{ width:36px; height:36px; font-size:15px; flex:none; }
+.c3-seq{ position:absolute; left:6px; right:6px; bottom:6px; z-index:3; display:flex; align-items:center; gap:8px; background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:4px 8px; font-size:12px; font-weight:700; color:var(--ink); font-variant-numeric:tabular-nums; }
+.c3-seq input[type=range]{ flex:1; min-width:60px; accent-color:var(--cobalt); height:28px; }
+.c3-sel{ position:absolute; left:6px; bottom:52px; z-index:4; width:min(300px,calc(100% - 12px)); max-height:70%; overflow:auto; background:var(--paper); border:2px solid #f5c400; border-radius:12px; padding:8px 10px; font-size:13px; line-height:1.45; color:var(--ink); }
+.c3-sel select{ width:100%; min-height:42px; margin-top:6px; border:1.5px solid var(--line); border-radius:10px; background:var(--field-bg); font-size:15px; padding:0 8px; }
+.c3-x{ float:right; border:0; background:transparent; font-size:18px; width:34px; height:34px; color:var(--muted); }
+.c3-pane{ flex:1 1 0; min-height:0; display:flex; flex-direction:column; background:var(--frost); }
+.c3-ptabs{ flex:none; display:grid; grid-template-columns:repeat(4,1fr); gap:4px; padding:6px; background:var(--paper); border-bottom:1px solid var(--line); }
+.c3-ptabs button{ min-height:42px; border:0; border-radius:10px; background:var(--seg-bg); color:var(--muted); font-size:14px; font-weight:700; }
+.c3-ptabs button.on{ background:var(--cobalt); color:var(--on-cobalt); }
+.c3-stat{ flex:none; padding:5px 12px; font-size:13px; color:var(--muted); background:var(--paper); border-bottom:1px solid var(--line); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.c3-stat b{ color:var(--ink); } .c3-stat .bad{ color:var(--red); font-weight:800; } .c3-stat .ok{ color:var(--green); font-weight:700; }
+.c3-pbody{ flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:10px 10px 18px; }
+.c3-sec{ background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:10px; margin-bottom:10px; display:flex; flex-direction:column; gap:8px; }
+.c3-f{ display:flex; flex-direction:column; gap:3px; font-size:12px; font-weight:700; color:var(--muted); min-width:0; }
+.c3-f input, .c3-f select{ width:100%; min-height:46px; border:1.5px solid var(--line); border-radius:10px; background:var(--field-bg); color:var(--ink); font-size:16px; padding:0 10px; min-width:0; }
+.c3-f input:focus, .c3-f select:focus{ border-color:var(--cobalt); outline:none; }
+.c3-g2{ display:grid; grid-template-columns:1fr 1fr; gap:8px; } .c3-g3{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.c3-note{ margin:0; font-size:12px; line-height:1.5; color:var(--muted); }
+.c3-btns{ display:flex; flex-wrap:wrap; gap:8px; margin:6px 0; } .c3-btns.top{ margin-top:0; } .c3-btns.col{ flex-direction:column; }
+.c3-b{ min-height:46px; padding:0 14px; border-radius:12px; border:1.5px solid var(--line); background:var(--paper); color:var(--ink); font-size:14px; font-weight:700; flex:1 1 auto; }
+.c3-b.pri{ background:var(--cobalt); border-color:var(--cobalt); color:var(--on-cobalt); } .c3-b.dng{ color:var(--red); } .c3-b.sm{ min-height:38px; font-size:13px; flex:none; }
+.c3-sku{ background:var(--paper); border:1px solid var(--line); border-radius:14px; margin-bottom:8px; overflow:hidden; }
+.c3-sku.open{ border-left:5px solid var(--sk,#4a90d9); }
+.c3-sh{ width:100%; display:flex; align-items:center; gap:8px; min-height:52px; padding:6px 12px; border:0; background:transparent; text-align:left; color:var(--ink); font-size:14px; }
+.c3-sh i{ width:12px; height:12px; border-radius:4px; flex:none; } .c3-sh b{ white-space:nowrap; } .c3-sh span{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); font-size:13px; } .c3-sh em{ font-style:normal; font-weight:700; white-space:nowrap; } .c3-sh u{ text-decoration:none; color:var(--muted); }
+.c3-sb{ padding:2px 12px 12px; display:flex; flex-direction:column; gap:8px; }
+.c3-flags{ display:flex; flex-wrap:wrap; gap:6px 14px; }
+.c3-chk{ display:flex; align-items:center; gap:7px; min-height:36px; font-size:14px; font-weight:600; color:var(--ink); }
+.c3-chk input{ width:22px; height:22px; accent-color:var(--cobalt); flex:none; } .c3-chk.big{ min-height:44px; align-items:flex-start; padding-top:6px; line-height:1.35; }
+.c3-opt{ background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:4px 10px 8px; margin-bottom:10px; } .c3-opt summary{ min-height:46px; display:flex; align-items:center; font-weight:700; font-size:14px; }
+.c3-empty{ padding:22px 14px; text-align:center; color:var(--muted); font-size:14px; border:1.5px dashed var(--line); border-radius:14px; margin-bottom:10px; }
+.c3-kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; margin-bottom:10px; }
+.c3-kpi{ background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:7px 10px; } .c3-kpi small{ display:block; font-size:11px; color:var(--muted); font-weight:700; } .c3-kpi b{ font-size:18px; color:var(--ink); } .c3-kpi em{ display:block; font-style:normal; font-size:11px; color:var(--muted); }
+.c3-kpi.bad{ border-color:var(--red); } .c3-kpi.bad b{ color:var(--red); } .c3-kpi.ok b{ color:var(--green); }
+.c3-msg{ padding:8px 11px; border-radius:11px; font-size:13px; line-height:1.45; margin-bottom:7px; border:1px solid var(--line); background:var(--paper); color:var(--ink); }
+.c3-msg.ok{ background:var(--green-soft); border-color:var(--green); } .c3-msg.warn{ background:var(--amber-soft); border-color:var(--amber); } .c3-msg.err{ background:var(--red-soft); border-color:var(--red); } .c3-msg.tip{ background:var(--cobalt-soft); border-color:var(--cobalt); }
+.c3-gc{ background:var(--paper); border:1px solid var(--line); border-left:5px solid var(--sk); border-radius:12px; padding:8px 11px; margin-bottom:8px; font-size:13px; color:var(--ink); } .c3-gc > span{ color:var(--muted); }
+.c3-gn{ display:flex; flex-wrap:wrap; gap:4px 14px; margin:3px 0; } .c3-gn .lf b{ color:var(--red); } .c3-gc small{ display:block; color:var(--muted); font-size:12px; line-height:1.4; } .c3-gc small.why{ color:var(--amber); }
+.c3-h{ display:flex; justify-content:space-between; align-items:center; font-size:13px; color:var(--cobalt); margin-top:2px; } .c3-h span{ display:flex; gap:6px; }
+.c3-mini{ min-height:32px; padding:0 10px; border-radius:9px; border:1.5px solid var(--line); background:var(--field-bg); color:var(--ink); font-size:12px; font-weight:700; }
+.c3-ly{ display:flex; align-items:center; gap:8px; min-height:40px; font-size:14px; color:var(--ink); } .c3-ly input{ width:22px; height:22px; accent-color:var(--cobalt); flex:none; } .c3-ly i{ width:12px; height:12px; border-radius:4px; flex:none; } .c3-ly span{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .c3-ly em{ font-style:normal; color:var(--muted); font-size:12px; }
+.c3-cols{ display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:0 12px; }
+.c3-modal{ position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.5); display:flex; align-items:flex-end; justify-content:center; }
+.c3-dlg{ width:100%; max-width:520px; max-height:85vh; overflow:auto; background:var(--paper); color:var(--ink); border-radius:18px 18px 0 0; padding:16px; } .c3-dlg h3{ margin:0 0 10px; font-size:17px; }
+.c3-plan{ display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid var(--line); } .c3-plan > div{ flex:1; min-width:0; } .c3-plan small{ display:block; color:var(--muted); }
+.c3-err{ padding:20px; color:var(--red); }
+/* ĐIỆN THOẠI NGANG: 3D bên trái (to), bảng điều khiển bên phải */
+@media (orientation:landscape){
+  .c3-root{ flex-direction:row; }
+  .c3-stage{ flex:1 1 0; min-width:0; min-height:0; border-bottom:0; border-right:1px solid var(--line); }
+  .c3-pane{ flex:0 0 clamp(310px,42%,460px); }
+  .c3-sel{ bottom:50px; width:min(280px,calc(100% - 12px)); }
+  .c3-kpis{ grid-template-columns:repeat(2,1fr); }
+}

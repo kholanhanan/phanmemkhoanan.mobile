@@ -10,8 +10,9 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
   <title>Kho Lạnh An An</title>
-<link rel="stylesheet" href="fonts.css?v=4.12-20261010"><!-- font trong máy (offline) -->
-  <link rel="stylesheet" href="app.css?v=4.12-20261010">
+<link rel="stylesheet" href="fonts.css?v=4.13-20261010"><!-- font trong máy (offline) -->
+  <link rel="stylesheet" href="app.css?v=4.13-20261010">
+  <link rel="stylesheet" href="c3d-phone.css?v=4.13-20261010">
 </head>
 <body>
   <header class="topbar">
@@ -147,6 +148,11 @@
     </section>
 
     <!-- PHIẾU: mọi phiếu ở 1 chỗ — Đang soạn / Chờ PC / Đã nhận / Đã hủy -->
+    <!-- XẾP CONT 3D (bản 4.13): bản rút gọn của module PC "Container Loading 3D" — c3d-phone.js (thư viện 3D nạp lần đầu mở tab) -->
+    <section class="view" id="view-c3d" data-view="c3d" hidden>
+      <div class="c3-root" id="c3dRoot"><p class="c3-err" style="color:var(--muted)">Đang nạp khung 3D…</p></div>
+    </section>
+
     <section class="view" id="view-phieu" data-view="phieu" hidden>
       <div class="pseg" id="phieuSeg" role="tablist" aria-label="Nhóm phiếu">
         <button type="button" role="tab" data-pseg="soan">Đang soạn <b id="pc-soan"></b></button>
@@ -206,6 +212,10 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
       <span>Tra cứu</span>
     </button>
+    <button type="button" class="tab" data-tab="c3d" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 21 7v10l-9 4.5L3 17V7z"/><path d="M3 7l9 4.5L21 7M12 11.5v10"/></svg>
+      <span>Xếp cont</span>
+    </button>
   </nav>
 
   <!-- Bảng trượt từ dưới lên (dùng chung: nhập số lượng / phiếu đang soạn / cài đặt) -->
@@ -217,11 +227,12 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="live-update.js?v=4.12-20261010"></script><!-- tự cập nhật giao diện APK (đặt ĐẦU TIÊN: báo app đã chạy tốt) -->
-  <script src="export.js?v=4.12-20261010"></script>
-  <script src="size-label.js?v=4.12-20261010"></script>
-  <script src="ks-rules.js?v=4.12-20261010"></script>
-  <script src="app-config.js?v=4.12-20261010"></script><!-- đường dẫn Web App cố định (ẩn ô nhập link trên điện thoại) -->
-  <script src="app.js?v=4.12-20261010"></script>
+  <script src="live-update.js?v=4.13-20261010"></script><!-- tự cập nhật giao diện APK (đặt ĐẦU TIÊN: báo app đã chạy tốt) -->
+  <script src="export.js?v=4.13-20261010"></script>
+  <script src="size-label.js?v=4.13-20261010"></script>
+  <script src="ks-rules.js?v=4.13-20261010"></script>
+  <script src="app-config.js?v=4.13-20261010"></script><!-- đường dẫn Web App cố định (ẩn ô nhập link trên điện thoại) -->
+  <script src="c3d-phone.js?v=4.13-20261010"></script><!-- Xếp cont 3D: chỉ là phần giao diện nhỏ; three.js nạp khi mở tab -->
+  <script src="app.js?v=4.13-20261010"></script>
 </body>
 </html>

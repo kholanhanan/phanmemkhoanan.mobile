@@ -1,0 +1,445 @@
+/* MODULE "CONTAINER LOADING 3D" — LÕI THUẬT TOÁN XẾP HÀNG (PC 8.57, 10/2026). KHÔNG đụng DOM → chạy được trong Node để kiểm thử.
+   Hệ toạ độ (mm): x = dọc cont, 0 ở VÁCH ĐẦU (phía máy lạnh) → L ở CỬA · y = ngang cont (0 = vách PHẢI khi đứng ở cửa nhìn vào, tăng dần sang trái) · z = cao (0 = sàn).
+   Cách làm (xếp theo "vách" từ trong ra ngoài, giống cách công nhân đóng hàng thật):
+   1. Mỗi dòng hàng (mã hàng · size · ngày) là 1 NHÓM, sắp theo mã hàng > size > ngày. Nhóm đầu vào SÂU NHẤT (sát vách đầu), nhóm cuối sát cửa.
+   2. Mỗi nhóm được xếp thành các VÁCH liên tiếp (vách = 1 lát cắt ngang cont, từ sàn lên đường red line). Thử mọi hướng đặt hợp lệ
+      (dựng / nằm / xoay), kiểu cột thẳng, kiểu trộn cột cùng chiều sâu, kiểu SOLE (tầng lẻ xoay 90° so với tầng chẵn) rồi chọn phương án
+      xếp được nhiều nhất / tốn ít chiều dài cont nhất.
+   3. Mọi thùng đều có số thứ tự đóng (seq). Sau khi xếp, hàm verify() KIỂM LẠI độc lập: nằm trong cont, không chồng nhau, không vượt red line,
+      mỗi thùng được đỡ đủ bên dưới (và thùng đỡ phải được đóng TRƯỚC), và không thùng nào bị thùng đóng trước chắn đường trượt từ cửa vào.
+   4. Tải trọng: nhóm nào quá tải thì giảm số thùng; báo số thùng rớt lại kho + lý do. */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.C3DEngine = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+  const EPS = 1e-6;
+
+  // ---------------------------------------------------------------- danh sách container lạnh mẫu (THAM KHẢO — sửa theo cont thực tế)
+  const PRESETS = [
+    { id: 'rf20', name: "Cont lạnh 20' RF", type: '20RF', L: 5450, W: 2290, H: 2270, doorW: 2290, doorH: 2260, maxPayload: 27400, redLine: 2170, clearFront: 50, clearRear: 50, clearSide: 10, note: 'Thông số tham khảo hãng tàu — kiểm tra lại cont thực tế.' },
+    { id: 'rf40', name: "Cont lạnh 40' RF (thấp)", type: '40RF', L: 11560, W: 2290, H: 2250, doorW: 2290, doorH: 2180, maxPayload: 29000, redLine: 2150, clearFront: 50, clearRear: 50, clearSide: 10, note: 'Thông số tham khảo hãng tàu — kiểm tra lại cont thực tế.' },
+    { id: 'rf40hc', name: "Cont lạnh 40' HC RF (cao)", type: '40HC', L: 11560, W: 2290, H: 2550, doorW: 2290, doorH: 2500, maxPayload: 29500, redLine: 2450, clearFront: 50, clearRear: 50, clearSide: 10, note: 'Thông số tham khảo hãng tàu — kiểm tra lại cont thực tế.' },
+  ];
+
+  // ---------------------------------------------------------------- tiện ích
+  const num = (v, d) => { const n = typeof v === 'number' ? v : parseFloat(String(v == null ? '' : v).replace(',', '.')); return Number.isFinite(n) ? n : (d || 0); };
+  const flag = (v, d) => (v === undefined || v === null || v === '' ? d : (v === true || v === 1 || v === '1' || v === 'true'));
+  const natKey = (s) => String(s == null ? '' : s).toLowerCase().match(/\d+|\D+/g) || [];
+  function natCmp(a, b) {
+    const A = natKey(a), B = natKey(b);
+    for (let i = 0; i < Math.max(A.length, B.length); i++) {
+      const x = A[i], y = B[i];
+      if (x === undefined) return -1; if (y === undefined) return 1;
+      const nx = /^\d+$/.test(x), ny = /^\d+$/.test(y);
+      if (nx && ny) { const d = parseInt(x, 10) - parseInt(y, 10); if (d) return d; } else if (x !== y) return x < y ? -1 : 1;
+    }
+    return 0;
+  }
+  // ngày dd/mm/yyyy · dd-mm-yyyy · dd.mm.yyyy · yyyy-mm-dd · dd/mm (không năm → năm hiện tại). Không đọc được → NaN.
+  function dateVal(s) {
+    const t = String(s == null ? '' : s).trim(); if (!t) return NaN;
+    let m = t.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3]);
+    m = t.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/);
+    if (m) { let y = +m[3]; if (y < 100) y += 2000; return Date.UTC(y, +m[2] - 1, +m[1]); }
+    m = t.match(/^(\d{1,2})[-/.](\d{1,2})$/);
+    if (m) return Date.UTC(new Date().getFullYear(), +m[2] - 1, +m[1]);
+    return NaN;
+  }
+  const r1 = (n) => Math.round(n * 10) / 10;
+  // Hướng đặt do người dùng chọn: 3 chữ = (dọc cont, ngang cont, đứng) lấy từ Dài (L) / Rộng (W) / Cao (H) của thùng
+  const PERMS = ['LWH', 'WLH', 'LHW', 'HLW', 'WHL', 'HWL'];
+
+  // ---------------------------------------------------------------- chuẩn hoá đầu vào
+  function normContainer(c) {
+    c = c || {};
+    const L = num(c.L), W = num(c.W), H = num(c.H);
+    const o = {
+      id: String(c.id || ''), name: String(c.name || ''), type: String(c.type || ''), L, W, H,
+      doorW: num(c.doorW, W) || W, doorH: num(c.doorH, H) || H,
+      maxPayload: num(c.maxPayload), redLine: num(c.redLine), clearFront: Math.max(0, num(c.clearFront)), clearRear: Math.max(0, num(c.clearRear)), clearSide: Math.max(0, num(c.clearSide)),
+      note: String(c.note || ''),
+    };
+    return o;
+  }
+  function makeSpace(c) {
+    const red = c.redLine > 0 ? c.redLine : c.H;
+    const effH = Math.min(c.H, red, c.doorH > 0 ? c.doorH : c.H);
+    const x0 = c.clearFront, x1 = c.L - c.clearRear, y0 = c.clearSide, y1 = c.W - c.clearSide;
+    return { x0, x1, y0, y1, Lu: x1 - x0, Wu: y1 - y0, effH, red, L: c.L, W: c.W, H: c.H };
+  }
+  function normSku(s, i) {
+    s = s || {};
+    const o = {
+      id: String(s.id || ('s' + i)), code: String(s.code == null ? '' : s.code).trim(), name: String(s.name || '').trim(), size: String(s.size == null ? '' : s.size).trim(), date: String(s.date == null ? '' : s.date).trim(),
+      qty: Math.max(0, Math.floor(num(s.qty))), L: num(s.L), W: num(s.W), H: num(s.H), kg: Math.max(0, num(s.kg)),
+      allowRotate: flag(s.allowRotate, true), allowStand: flag(s.allowStand, true), allowLay: flag(s.allowLay, false), sole: flag(s.sole, false),
+      maxLayers: Math.max(0, Math.floor(num(s.maxLayers))), orient: PERMS.includes(s.orient) ? s.orient : '', note: String(s.note || ''), color: String(s.color || ''), _idx: i,
+    };
+    if (!o.allowStand && !o.allowLay) o.allowStand = true; // không chọn gì → mặc định dựng đứng
+    return o;
+  }
+
+  // ---------------------------------------------------------------- hướng đặt hợp lệ của 1 loại thùng
+  // dx = theo chiều DÀI cont, dy = theo chiều NGANG cont, dz = chiều CAO. L (dài) mặc định nằm dọc cont khi KHÔNG cho xoay.
+  function orientationsOf(k, sp) {
+    if (k.orient) { // người dùng đã chốt hướng đặt → chỉ dùng đúng hướng đó
+      const m = { L: k.L, W: k.W, H: k.H }, p = k.orient.split(''), o = { dx: m[p[0]], dy: m[p[1]], dz: m[p[2]], kind: p[2] === 'H' ? 'dung' : 'nam', rot: ['WLH', 'HLW', 'HWL'].includes(k.orient) ? 1 : 0 };
+      return (o.dx <= sp.Lu + EPS && o.dy <= sp.Wu + EPS && o.dz <= sp.effH + EPS) ? [o] : [];
+    }
+    const l = k.L, w = k.W, h = k.H, all = [];
+    const add = (dx, dy, dz, kind, rot) => { if (!all.some((o) => Math.abs(o.dx - dx) < EPS && Math.abs(o.dy - dy) < EPS && Math.abs(o.dz - dz) < EPS)) all.push({ dx, dy, dz, kind, rot }); };
+    if (k.allowStand) { add(l, w, h, 'dung', 0); if (k.allowRotate) add(w, l, h, 'dung', 1); }
+    if (k.allowLay) {
+      add(l, h, w, 'nam', 0); if (k.allowRotate) add(h, l, w, 'nam', 1);
+      add(w, h, l, 'nam', 0); if (k.allowRotate) add(h, w, l, 'nam', 1);
+    }
+    return all.filter((o) => o.dx <= sp.Lu + EPS && o.dy <= sp.Wu + EPS && o.dz <= sp.effH + EPS);
+  }
+  // thùng có đưa lọt cửa cont (xoay tay khi khiêng) không
+  function passDoor(k, c) {
+    const s = [k.L, k.W, k.H].sort((a, b) => a - b), d = [Math.min(c.doorW, c.doorH), Math.max(c.doorW, c.doorH)];
+    return s[0] <= d[0] + EPS && s[1] <= d[1] + EPS;
+  }
+
+  // ---------------------------------------------------------------- các kiểu xếp 1 "vách"
+  const mk = (x, y, z, o, tier) => ({ x, y, z, dx: o.dx, dy: o.dy, dz: o.dz, tier, ori: o.kind, rot: o.rot });
+
+  // CỘT THẲNG: cả vách cùng 1 hướng; vách dày đúng 1 thùng (dx). style 'wide' = lên từng tầng, 'tall' = từng cột đầy.
+  function colPattern(o, T, Wu) {
+    const nc = Math.floor((Wu + EPS) / o.dy); if (nc < 1 || T < 1) return null;
+    return {
+      kind: 'col', o, D: o.dx, cap: nc * T, nc, T,
+      build(count, style, ox, oy) {
+        const out = []; let k = 0;
+        if (style === 'tall') { for (let c = 0; c < nc && k < count; c++) for (let t = 0; t < T && k < count; t++, k++) out.push(mk(ox, oy + c * o.dy, t * o.dz, o, t + 1)); }
+        else { for (let t = 0; t < T && k < count; t++) for (let c = 0; c < nc && k < count; c++, k++) out.push(mk(ox, oy + c * o.dy, t * o.dz, o, t + 1)); }
+        return out;
+      },
+    };
+  }
+  // TRỘN CỘT: các hướng cùng chiều sâu dx nhưng khác (dy, dz) trong cùng vách (VD nằm + dựng) — quy hoạch động theo bề ngang.
+  function mixPattern(os, Tof, Wu) {
+    const types = os.map((o) => ({ o, T: Tof(o) })).filter((t) => t.T >= 1 && t.o.dy <= Wu + EPS);
+    if (types.length < 2) return null;
+    const W = Math.floor(Wu + EPS), dp = new Array(W + 1).fill(0), ch = new Array(W + 1).fill(-1);
+    for (let w = 1; w <= W; w++) {
+      dp[w] = dp[w - 1]; ch[w] = -1;
+      types.forEach((t, i) => { const d = Math.ceil(t.o.dy - EPS); if (w >= d && dp[w - d] + t.T > dp[w]) { dp[w] = dp[w - d] + t.T; ch[w] = i; } });
+    }
+    const cols = []; let w = W;
+    while (w > 0) { if (ch[w] === -1) { w--; continue; } const t = types[ch[w]]; cols.push(t); w -= Math.ceil(t.o.dy - EPS); }
+    if (new Set(cols.map((t) => t.o)).size < 2) return null;
+    cols.sort((a, b) => (a.o.dz - b.o.dz) || (a.o.dy - b.o.dy)); // cột thấp-nhiều-tầng gom 1 phía cho gọn
+    const cap = cols.reduce((s, t) => s + t.T, 0);
+    return {
+      kind: 'mix', o: cols[0].o, D: cols[0].o.dx, cap, cols, T: Math.max(...cols.map((c) => c.T)),
+      build(count, style, ox, oy) {
+        const out = []; let k = 0, y = oy; const pos = cols.map((c) => { const p = y; y += c.o.dy; return p; });
+        if (style === 'tall') { cols.forEach((c, i) => { for (let t = 0; t < c.T && k < count; t++, k++) out.push(mk(ox, pos[i], t * c.o.dz, c.o, t + 1)); }); }
+        else { const TT = Math.max(...cols.map((c) => c.T)); for (let t = 0; t < TT && k < count; t++) cols.forEach((c, i) => { if (t < c.T && k < count) { out.push(mk(ox, pos[i], t * c.o.dz, c.o, t + 1)); k++; } }); }
+        return out;
+      },
+    };
+  }
+  // SOLE (so le trái / phải): trong 1 dãy, tầng lẻ dồn sát vách này chừa khe ở vách kia, tầng chẵn làm ngược lại → mỗi tầng có 1 đường trống sát vách
+  // cho hơi lạnh chạy từ đầu cont xuống cuối cont. Độ lệch giữa 2 tầng d = min(khe dư, nửa thùng) → thùng đầu/cuối hàng được đỡ ≥ 50% (trọng tâm vẫn nằm trên điểm đỡ).
+  // Hướng nhìn từ cửa vào: y = 0 là vách PHẢI. Tầng 1: khe nằm ở vách phải (thùng dồn sang trái); tầng 2: khe ở vách trái.
+  function solePattern(o, T, Wu) {
+    if (T < 2) return null;
+    let n = Math.floor((Wu + EPS) / o.dy); if (n < 1) return null;
+    let g = Wu - n * o.dy;
+    if (g < 0.1 * o.dy) { n -= 1; g += o.dy; } // vừa khít → bỏ 1 cột để có khe thoáng
+    if (n < 1) return null;
+    const d = Math.min(g, o.dy / 2); if (d < 1) return null;
+    return {
+      kind: 'sole', o, D: o.dx, cap: n * T, nc: n, T, shift: d, gap: g,
+      build(count, style, ox, oy) {
+        const out = []; let k = 0;
+        for (let t = 0; t < T && k < count; t++) for (let c = 0; c < n && k < count; c++, k++) { const b = mk(ox, oy + (t % 2 === 0 ? d : 0) + c * o.dy, t * o.dz, o, t + 1); b.sole = true; out.push(b); }
+        return out;
+      },
+    };
+  }
+
+  // ---------------------------------------------------------------- dựng danh sách kiểu xếp cho 1 nhóm
+  function buildPatterns(sku, ors, sp, Wu, info) {
+    const Tof = (o) => Math.min(Math.floor((sp.effH + EPS) / o.dz), sku.maxLayers > 0 ? sku.maxLayers : Infinity);
+    let pats = [];
+    if (sku.sole) {
+      ors.forEach((o) => { const p = solePattern(o, Tof(o), Wu); if (p) pats.push(p); });
+      if (!pats.length && info) info.soleFail = ors.every((o) => Tof(o) < 2) ? 'mot-tang' : 'khong-khe';
+    }
+    if (!pats.length) {
+      ors.forEach((o) => { const p = colPattern(o, Tof(o), Wu); if (p) pats.push(p); });
+      const byDx = {}; ors.forEach((o) => { (byDx[Math.round(o.dx * 2)] = byDx[Math.round(o.dx * 2)] || []).push(o); });
+      Object.keys(byDx).forEach((key) => {
+        const g = byDx[key]; if (g.length < 2) return; const p = mixPattern(g, Tof, Wu);
+        if (p) { const bestCol = Math.max(0, ...pats.filter((q) => q.kind === 'col' && Math.abs(q.D - p.D) < EPS).map((q) => q.cap)); if (p.cap > bestCol) pats.push(p); }
+      });
+    }
+    return pats;
+  }
+
+  // xếp liên tiếp các vách của 1 kiểu; vách cuối có thể thiếu thùng
+  function placeWalls(p, n, x0, Lend, style, oy, dry) {
+    let cur = x0, left = n, placed = 0, tail = null; const boxes = [];
+    while (left > 0) {
+      if (cur + p.D > Lend + EPS) break;
+      const take = Math.min(left, p.cap), part = take < p.cap, st = part ? style : 'wide';
+      const bx = (dry && !part) ? null : p.build(take, st, cur, oy);
+      let used = p.D;
+      if (part) { let mx = cur; for (const b of bx) mx = Math.max(mx, b.x + b.dx); used = mx - cur; }
+      if (cur + used > Lend + EPS) break;
+      placed += take; left -= take;
+      if (!dry && bx) for (const b of bx) boxes.push(b);
+      if (part) tail = { x0: cur, used, count: take, cap: p.cap, style: st, boxes: dry ? null : bx, kind: p.kind, pat: p };
+      cur += used;
+    }
+    return { boxes, placed, end: cur, tail, left };
+  }
+  const prefOf = (p) => (p.o.kind === 'dung' ? 0 : 1) * 2 + (p.kind === 'mix' ? 1 : 0);
+  const orientText = (o) => (o.kind === 'dung' ? 'dựng đứng' : 'đặt nằm') + (o.rot ? ' (xoay 90°)' : '');
+
+  // ---------------------------------------------------------------- xếp 1 nhóm vào cont
+  function runGroup(S, g, nWant, opts, isLast) {
+    const sp = S.sp, sku = g.sku, out = { boxes: [], placed: 0, info: { soleFail: '' }, patterns: [] };
+    const ors = orientationsOf(sku, sp);
+    if (!ors.length) { out.reason = 'khong-vua'; return out; }
+    let left = nWant; const style = (opts.mergeTail && !isLast) ? 'tall' : 'wide';
+    const note = (p) => { if (!out.patterns.some((q) => q.text === describe(p))) out.patterns.push({ text: describe(p), kind: p.kind, o: p.o }); };
+    const describe = (p) => orientText(p.o) + ' · ' + r1(p.o.dx) + '×' + r1(p.o.dy) + '×' + r1(p.o.dz) + (p.kind === 'sole' ? ' · sole (so le trái/phải từng tầng, khe ' + r1(p.gap) + ' mm)' : (p.kind === 'mix' ? ' · trộn hướng cùng chiều sâu' : ''));
+    let lastTail = null;
+    // 1) lấp phần trống cạnh vách cuối của nhóm trước (nếu bật "ghép")
+    if (opts.mergeTail && S.strip && !sku.sole && left > 0) {
+      const st = S.strip;
+      const pats = buildPatterns(sku, ors, sp, st.w, null).filter((p) => p.kind !== 'cross');
+      pats.sort((a, b) => (b.cap / b.D) - (a.cap / a.D) || prefOf(a) - prefOf(b));
+      const ps = pats[0];
+      if (ps) {
+        const D = ps.D, fl = Math.floor((st.depth + EPS) / D), ce = Math.ceil((st.depth - EPS) / D) || 1;
+        const vFl = fl >= 1 ? (st.depth - fl * D) * st.w : Infinity, vCe = (ce * D - st.depth) * st.aW;
+        let rows = (fl >= 1 && vFl <= vCe) ? fl : ce;
+        while (rows > 0 && st.x0 + rows * D > sp.x1 + EPS) rows--;
+        if (rows >= 1) {
+          const want = Math.min(left, rows * ps.cap), res = placeWalls(ps, want, st.x0, st.x0 + rows * D, 'wide', st.y0, false);
+          if (res.placed > 0) { out.boxes.push(...res.boxes); left -= res.placed; S.cursor = Math.max(S.cursor, res.end); note(ps); out.stripUsed = res.placed; }
+        }
+      }
+    }
+    // 1b) chồng lên khoảng trống phía trên vách cuối của nhóm trước (nếu cho phép)
+    if (opts.stackTop && !opts.mergeTail && S.top && !sku.sole && left > 0) {
+      const t = S.top, sp2 = Object.assign({}, sp, { Lu: t.depth, Wu: t.w, effH: sp.effH - t.z });
+      const o2 = orientationsOf(sku, sp2), pats2 = o2.length ? buildPatterns(sku, o2, sp2, t.w, null).filter((p) => p.kind !== 'sole') : [];
+      let bst = null;
+      pats2.forEach((p) => { const rows = Math.floor((t.depth + EPS) / p.D); if (rows < 1) return; const r = placeWalls(p, Math.min(left, rows * p.cap), t.x0, t.x0 + rows * p.D, 'wide', t.y0, true); if (r.placed > 0 && (!bst || r.placed > bst.placed || (r.placed === bst.placed && prefOf(p) < prefOf(bst.p)))) bst = { p, rows, placed: r.placed }; });
+      if (bst) {
+        const res = placeWalls(bst.p, Math.min(left, bst.rows * bst.p.cap), t.x0, t.x0 + bst.rows * bst.p.D, 'wide', t.y0, false);
+        res.boxes.forEach((b) => { b.z += t.z; b.tier += t.tiers; b.onPrev = true; });
+        out.boxes.push(...res.boxes); left -= res.placed; out.stackedOn = res.placed; note(bst.p);
+      }
+    }
+    // 2) các vách chính
+    let used = 0;
+    if (left > 0) {
+      const pats = buildPatterns(sku, ors, sp, sp.Wu, out.info);
+      if (!pats.length) { if (!out.boxes.length) out.reason = 'khong-vua'; }
+      else {
+        let best = null;
+        pats.forEach((p) => {
+          const r = placeWalls(p, left, S.cursor, sp.x1, style, sp.y0, true), cand = { p, placed: r.placed, end: r.end };
+          if (!best || cand.placed > best.placed || (cand.placed === best.placed && (cand.end < best.end - EPS || (Math.abs(cand.end - best.end) <= EPS && prefOf(p) < prefOf(best.p))))) best = cand;
+        });
+        if (best && best.placed > 0) {
+          const res = placeWalls(best.p, left, S.cursor, sp.x1, style, sp.y0, false);
+          out.boxes.push(...res.boxes); left -= res.placed; S.cursor = res.end; lastTail = res.tail; note(best.p); used += res.placed;
+          // phần còn dư ở cuối cont: thử kiểu khác có chiều sâu nhỏ hơn
+          let guard = 0;
+          while (left > 0 && guard++ < 4) {
+            const R = sp.x1 - S.cursor; let b2 = null;
+            pats.forEach((p) => { if (p.D > R + EPS) return; const r = placeWalls(p, left, S.cursor, sp.x1, 'wide', sp.y0, true); if (r.placed > 0 && (!b2 || r.placed > b2.placed || (r.placed === b2.placed && r.end < b2.end))) b2 = { p, placed: r.placed, end: r.end }; });
+            if (!b2) break;
+            const r2 = placeWalls(b2.p, left, S.cursor, sp.x1, 'wide', sp.y0, false);
+            if (!r2.placed) break;
+            out.boxes.push(...r2.boxes); left -= r2.placed; S.cursor = r2.end; lastTail = r2.tail; note(b2.p); used += r2.placed;
+          }
+        }
+      }
+    }
+    out.placed = nWant - left;
+    // 3) ghi lại phần trống bên cạnh vách cuối để nhóm sau lấp (chỉ khi ghép + vách cuối đang xếp "cột đầy")
+    S.strip = null;
+    if (opts.mergeTail && !isLast && left === 0 && lastTail && lastTail.style === 'tall' && lastTail.boxes && lastTail.kind === 'col' && Math.abs(S.cursor - (lastTail.x0 + lastTail.used)) < EPS) {
+      let yEnd = sp.y0; lastTail.boxes.forEach((b) => { yEnd = Math.max(yEnd, b.y + b.dy); });
+      const w = sp.y1 - yEnd; if (w > 1) S.strip = { x0: lastTail.x0, depth: lastTail.used, y0: yEnd, w, aW: yEnd - sp.y0 };
+    }
+    // 4) ghi lại mặt phẳng trống phía trên vách cuối (chỉ khi vách cuối xếp "từng tầng" và ở chế độ tách riêng)
+    S.top = null;
+    if (opts.stackTop && !opts.mergeTail && !isLast && left === 0 && lastTail && lastTail.kind === 'col' && lastTail.boxes && Math.abs(S.cursor - (lastTail.x0 + lastTail.used)) < EPS) {
+      const pt = lastTail.pat, tops = []; for (let c = 0; c < pt.nc; c++) tops.push(0);
+      lastTail.boxes.forEach((b) => { const c = Math.round((b.y - sp.y0) / pt.o.dy); if (c >= 0 && c < pt.nc) tops[c] = Math.max(tops[c], b.z + b.dz); });
+      const mn = Math.min(...tops); let bestRun = null, i0 = 0;
+      while (i0 < tops.length) { if (Math.abs(tops[i0] - mn) > EPS) { i0++; continue; } let i1 = i0; while (i1 + 1 < tops.length && Math.abs(tops[i1 + 1] - mn) <= EPS) i1++; if (!bestRun || i1 - i0 > bestRun.i1 - bestRun.i0) bestRun = { i0, i1 }; i0 = i1 + 1; }
+      if (bestRun && sp.effH - mn > 1) S.top = { x0: lastTail.x0, depth: lastTail.used, y0: sp.y0 + bestRun.i0 * pt.o.dy, w: (bestRun.i1 - bestRun.i0 + 1) * pt.o.dy, z: mn, tiers: Math.round(mn / pt.o.dz) };
+    }
+    out.soleFail = out.info.soleFail || '';
+    return out;
+  }
+
+  // ---------------------------------------------------------------- KIỂM TRA ĐỘC LẬP phương án (chống "đúng trên hình nhưng không làm được")
+  function verify(boxes, sp, opts) {
+    const minSup = (opts && opts.minSupport) || 0.7, v = [], push = (type, i, msg) => { if (v.length < 200) v.push({ type, box: i, msg }); };
+    boxes.forEach((b, i) => {
+      if (b.x < sp.x0 - 1e-3 || b.x + b.dx > sp.x1 + 1e-3 || b.y < sp.y0 - 1e-3 || b.y + b.dy > sp.y1 + 1e-3) push('ngoai-cont', i, 'Thùng #' + b.seq + ' nằm ngoài vùng chứa hàng của cont.');
+      if (b.z < -1e-3 || b.z + b.dz > sp.effH + 1e-3) push('vuot-redline', i, 'Thùng #' + b.seq + ' vượt chiều cao cho phép (red line).');
+    });
+    // chồng nhau
+    const ix = boxes.map((_, i) => i).sort((p, q) => boxes[p].x - boxes[q].x);
+    for (let a = 0; a < ix.length; a++) {
+      const A = boxes[ix[a]];
+      for (let b = a + 1; b < ix.length; b++) {
+        const B = boxes[ix[b]]; if (B.x >= A.x + A.dx - 1e-3) break;
+        if (B.y < A.y + A.dy - 1e-3 && A.y < B.y + B.dy - 1e-3 && B.z < A.z + A.dz - 1e-3 && A.z < B.z + B.dz - 1e-3) push('chong-nhau', ix[a], 'Thùng #' + A.seq + ' chồng lên thùng #' + B.seq + '.');
+      }
+    }
+    // được đỡ bên dưới + thùng đỡ phải đóng trước
+    const byTop = new Map();
+    boxes.forEach((b, i) => { const k = Math.round((b.z + b.dz) * 100); if (!byTop.has(k)) byTop.set(k, []); byTop.get(k).push(i); });
+    boxes.forEach((b, i) => {
+      if (b.z < 1e-3) return;
+      const cand = byTop.get(Math.round(b.z * 100)) || []; let area = 0, cx = 0, cy = 0, cover = false; const sup = [];
+      cand.forEach((j) => {
+        const c = boxes[j]; if (j === i) return;
+        const ox = Math.min(b.x + b.dx, c.x + c.dx) - Math.max(b.x, c.x), oy = Math.min(b.y + b.dy, c.y + c.dy) - Math.max(b.y, c.y);
+        if (ox > 1e-3 && oy > 1e-3) { area += ox * oy; sup.push(j); }
+      });
+      const ratio = area / (b.dx * b.dy); cx = b.x + b.dx / 2; cy = b.y + b.dy / 2;
+      cover = sup.some((j) => { const c = boxes[j]; return cx >= c.x - 1e-3 && cx <= c.x + c.dx + 1e-3 && cy >= c.y - 1e-3 && cy <= c.y + c.dy + 1e-3; });
+      if (ratio < (b.sole ? 0.5 : minSup) - 1e-6 || !cover) push('thieu-do', i, 'Thùng #' + b.seq + ' chỉ được đỡ ' + Math.round(ratio * 100) + '% bên dưới.');
+      if (sup.some((j) => boxes[j].seq > b.seq)) push('thu-tu-do', i, 'Thùng #' + b.seq + ' được đóng trước thùng đỡ nó.');
+    });
+    // thùng đóng trước chắn đường trượt từ cửa vào
+    const ord = boxes.map((_, i) => i).sort((p, q) => boxes[p].seq - boxes[q].seq);
+    for (let a = 0; a < ord.length; a++) {
+      const J = boxes[ord[a]];
+      for (let b = 0; b < a; b++) {
+        const I = boxes[ord[b]];
+        if (I.x >= J.x + J.dx - 1e-3 && I.y < J.y + J.dy - 1e-3 && J.y < I.y + I.dy - 1e-3 && I.z < J.z + J.dz - 1e-3 && J.z < I.z + I.dz - 1e-3) { push('chan-duong', ord[a], 'Thùng #' + J.seq + ' không đưa vào được: thùng #' + I.seq + ' (đóng trước) chắn phía cửa.'); break; }
+      }
+    }
+    return { ok: v.length === 0, violations: v };
+  }
+
+  // ---------------------------------------------------------------- GIẢI
+  function solveOnce(input, opts) {
+    const c = normContainer(input.container), sp = makeSpace(c);
+    const warnings = [], errors = [];
+    if (!(c.L > 0 && c.W > 0 && c.H > 0)) errors.push('Container chưa có kích thước bên trong (dài / rộng / cao).');
+    if (sp.Lu <= 0 || sp.Wu <= 0 || sp.effH <= 0) errors.push('Khe hở đầu / cửa / hai bên lớn hơn kích thước cont — không còn chỗ chứa hàng.');
+    const skus = (input.skus || []).map(normSku).filter((k) => k.qty > 0 || k.code || k.size);
+    const groups = skus.map((k) => ({ sku: k }));
+    // thứ tự đóng: mặt hàng > size > ngày (hoặc đúng thứ tự nhập)
+    if (opts.sortMode !== 'manual') {
+      const dir = opts.dateDir === 'desc' ? -1 : 1;
+      groups.sort((a, b) => {
+        const x = a.sku, y = b.sku; let d = natCmp(x.code, y.code); if (d) return d;
+        d = natCmp(x.size, y.size); if (d) return d;
+        const dx = dateVal(x.date), dy = dateVal(y.date), nx = Number.isNaN(dx), ny = Number.isNaN(dy);
+        if (nx !== ny) return nx ? 1 : -1; if (!nx && dx !== dy) return (dx - dy) * dir;
+        d = natCmp(x.date, y.date); if (d) return d * dir;
+        return x._idx - y._idx;
+      });
+    }
+    let weightLeft = c.maxPayload > 0 ? c.maxPayload : Infinity, loadedKg = 0;
+    const sampleQ = Math.max(0, Math.floor(num(opts.sampleQty)));
+    const SOLE_WHY = { 'mot-tang': 'chỉ xếp được 1 tầng', 'khong-khe': 'bề ngang không còn khe để so le' };
+    groups.forEach((g, gi) => {
+      const k = g.sku; g.index = gi; g.requested = k.qty; g.loaded = 0; g.left = k.qty; g.sample = 0; g.reasons = []; g.patterns = []; g.xStart = null; g.xEnd = null; g.kg = 0; g.ok = false;
+      if (errors.length || k.qty <= 0) return;
+      if (!(k.L > 0 && k.W > 0 && k.H > 0)) { g.reasons.push('Thiếu kích thước thùng.'); return; }
+      if (!passDoor(k, c)) { g.reasons.push('Thùng quá lớn, không đưa lọt cửa cont (' + r1(c.doorW) + '×' + r1(c.doorH) + ' mm).'); return; }
+      g.ok = true;
+    });
+    const boxes = [], mainBoxes = [], sampBoxes = [], wLimit = (k, n) => { if (k.kg > 0 && Number.isFinite(weightLeft)) return Math.min(n, Math.floor((weightLeft + 1e-6) / k.kg)); return n; };
+    const addWhy = (g, t) => { if (!g.reasons.includes(t)) g.reasons.push(t); };
+    // A) HÀNG MẪU HẢI QUAN: mỗi dòng (mã · size · ngày) giữ lại ~sampleQty thùng, gom thành 1–2 dãy ngay sát cửa (các nhóm đứng cạnh nhau trong cùng dãy)
+    let Ds = 0;
+    if (sampleQ > 0) {
+      const S2 = { sp, cursor: sp.x0, strip: null, top: null };
+      groups.forEach((g) => {
+        if (!g.ok) return; const k = g.sku, want = wLimit(k, Math.min(sampleQ, k.qty)); if (want <= 0) return;
+        const r = runGroup(S2, g, want, Object.assign({}, opts, { mergeTail: true, stackTop: false }), false);
+        r.boxes.forEach((b) => { b.group = g.index; b.skuId = k.id; b.sample = true; }); sampBoxes.push(...r.boxes); g.sample = r.placed;
+        if (Number.isFinite(weightLeft)) weightLeft -= r.placed * k.kg; if (r.placed < Math.min(sampleQ, k.qty)) addWhy(g, 'Không đủ chỗ / tải trọng cho ' + sampleQ + ' thùng mẫu hải quan.');
+        if (r.soleFail) g.soleFail = r.soleFail;
+      });
+      if (sampBoxes.length) { Ds = S2.cursor - sp.x0; const delta = sp.x1 - S2.cursor; sampBoxes.forEach((b) => { b.x += delta; }); }
+    }
+    // B) HÀNG CHÍNH: từ vách đầu ra tới trước dãy mẫu
+    const spM = Object.assign({}, sp, { x1: sp.x1 - Ds, Lu: sp.Lu - Ds }), S = { sp: spM, cursor: sp.x0, strip: null, top: null };
+    const lastIdx = (() => { let li = -1; groups.forEach((g, i) => { if (g.ok && g.requested - g.sample > 0) li = i; }); return li; })();
+    groups.forEach((g, gi) => {
+      if (!g.ok) return; const k = g.sku; const n0 = k.qty - g.sample; if (n0 <= 0) return;
+      let n = wLimit(k, n0); if (n < n0) addWhy(g, 'Hết tải trọng cho phép (' + Math.round(c.maxPayload) + ' kg).'); if (n <= 0) return;
+      const r = runGroup(S, g, n, opts, gi === lastIdx);
+      if (r.reason === 'khong-vua') { addWhy(g, k.orient ? 'Hướng đặt bạn chọn không vừa cont (so với bề ngang / red line). Đổi hướng hoặc chọn “Tự động”.' : 'Không có hướng đặt nào vừa trong cont (kích thước thùng so với bề ngang / red line). Thử bật xoay / đặt nằm.'); return; }
+      r.boxes.forEach((b) => { b.group = gi; b.skuId = k.id; }); mainBoxes.push(...r.boxes);
+      g.loaded = r.placed; g.patterns = r.patterns; g.soleFail = r.soleFail || g.soleFail; g.stripUsed = r.stripUsed || 0; g.stackedOn = r.stackedOn || 0;
+      if (r.placed < n) addWhy(g, 'Hết chỗ trong cont (đã tới dãy mẫu / cửa / red line).');
+      if (Number.isFinite(weightLeft)) weightLeft -= r.placed * k.kg;
+    });
+    groups.forEach((g) => {
+      const mine = sampBoxes.filter((b) => b.group === g.index);
+      g.loaded += g.sample; g.left = g.requested - g.loaded; g.kg = g.loaded * g.sku.kg; loadedKg += g.kg;
+      const all = mainBoxes.filter((b) => b.group === g.index).concat(mine);
+      if (all.length) { g.xStart = Math.min(...all.map((b) => b.x)); g.xEnd = Math.max(...all.map((b) => b.x + b.dx)); }
+      if (mine.length && !g.patterns.length) g.patterns = [{ text: 'chỉ có thùng mẫu hải quan', kind: 'col' }];
+      if (g.soleFail) addWhy(g, 'Không xếp SOLE được: ' + (SOLE_WHY[g.soleFail] || '') + ' → xếp thẳng hàng.');
+    });
+    boxes.push(...mainBoxes, ...sampBoxes);
+    boxes.forEach((b, i) => { b.seq = i + 1; });
+    // đánh số DÃY: dãy = lát cắt liên tiếp theo chiều dài cont (từ vách đầu ra cửa); các thùng chồng lấn về chiều dọc thuộc cùng 1 dãy
+    const rows = (() => {
+      const ix = boxes.map((_, i) => i).sort((a, b) => boxes[a].x - boxes[b].x), info = []; let end = -1e18;
+      ix.forEach((i) => { const b = boxes[i]; if (b.x >= end - 1e-3) { info.push({ row: info.length + 1, x0: b.x, x1: b.x + b.dx, n: 0, sample: false }); end = b.x + b.dx; } else end = Math.max(end, b.x + b.dx); const r = info[info.length - 1]; r.x1 = Math.max(r.x1, b.x + b.dx); r.n++; if (b.sample) r.sample = true; b.row = r.row; });
+      return info;
+    })();
+    // tầng hiển thị ("lớp")
+    const maxTier = boxes.reduce((m, b) => Math.max(m, b.tier), 0);
+    const ver = verify(boxes, sp, opts);
+    // tổng hợp
+    const volBox = boxes.reduce((s, b) => s + b.dx * b.dy * b.dz, 0), volUse = sp.Lu * sp.Wu * sp.effH, volIn = c.L * c.W * c.H;
+    let cx = 0, cy = 0, kgSum = 0;
+    boxes.forEach((b) => { const k = skus.find((s) => s.id === b.skuId), w = k ? k.kg : 0; cx += w * (b.x + b.dx / 2); cy += w * (b.y + b.dy / 2); kgSum += w; });
+    const cog = kgSum > 0 ? { x: cx / kgSum, y: cy / kgSum, xPct: cx / kgSum / c.L * 100, yPct: cy / kgSum / c.W * 100 } : null;
+    const mainEnd = mainBoxes.length ? Math.max(...mainBoxes.map((b) => b.x + b.dx)) - sp.x0 : 0, usedLen = mainEnd + Ds, gapSample = (sampBoxes.length && mainBoxes.length) ? Math.max(0, (spM.x1 - sp.x0) - mainEnd) : 0;
+    const reqTotal = groups.reduce((s, g) => s + g.requested, 0), loadTotal = groups.reduce((s, g) => s + g.loaded, 0);
+    if (!ver.ok) errors.push('Kiểm tra độc lập phát hiện ' + ver.violations.length + ' lỗi trong phương án (xem chi tiết).');
+    if (cog && (Math.abs(cog.xPct - 50) > 12)) warnings.push('Trọng tâm hàng lệch dọc cont: ' + cog.xPct.toFixed(0) + '% chiều dài tính từ vách đầu (nên 40–60%).');
+    if (cog && (Math.abs(cog.yPct - 50) > 6)) warnings.push('Trọng tâm hàng lệch ngang cont: ' + cog.yPct.toFixed(0) + '% bề ngang (nên gần 50%).');
+    if (c.maxPayload > 0 && loadedKg > c.maxPayload + 1e-6) errors.push('Vượt tải trọng cho phép.');
+    if (!(c.redLine > 0)) warnings.push('Chưa nhập red line — đang lấy chiều cao trong của cont làm giới hạn.');
+    if (c.redLine > 0 && c.doorH > 0 && c.doorH < c.redLine) warnings.push('Cao cửa (' + r1(c.doorH) + ' mm) thấp hơn red line (' + r1(c.redLine) + ' mm) → giới hạn chiều cao xếp lấy theo cao cửa.');
+    groups.forEach((g) => { if (g.sku.note) g.note = g.sku.note; });
+    return {
+      ok: errors.length === 0, errors, warnings, container: c, space: sp, groups, boxes, skus, rows,
+      verify: ver, maxTier,
+      totals: { rows: rows.length, gapSample, sample: sampBoxes.length, sampleDepth: Ds, requested: reqTotal, loaded: loadTotal, left: reqTotal - loadTotal, kg: loadedKg, payload: c.maxPayload, volBox, volUsable: volUse, volInternal: volIn, fillUsablePct: volUse > 0 ? volBox / volUse * 100 : 0, fillInternalPct: volIn > 0 ? volBox / volIn * 100 : 0, usedLength: usedLen, freeLength: sp.Lu - usedLen, effH: sp.effH, cog },
+      options: { sampleQty: sampleQ, stackTop: !!opts.stackTop, mergeTail: !!opts.mergeTail, dateDir: opts.dateDir || 'asc', sortMode: opts.sortMode || 'auto', minSupport: opts.minSupport || 0.7 },
+    };
+  }
+  function solve(input, options) {
+    const opts = Object.assign({ mergeTail: false, stackTop: true, sampleQty: 10, dateDir: 'asc', sortMode: 'auto', minSupport: 0.7, compare: true }, options || {});
+    const plan = solveOnce(input, opts);
+    if (opts.compare && plan.totals.requested > 0) {
+      try {
+        const alt = solveOnce(input, Object.assign({}, opts, { mergeTail: !opts.mergeTail }));
+        plan.compare = { mergeTail: !opts.mergeTail, loaded: alt.totals.loaded, kg: alt.totals.kg, ok: alt.ok, usedLength: alt.totals.usedLength, delta: alt.totals.loaded - plan.totals.loaded };
+      } catch (e) { /* bỏ qua */ }
+    }
+    return plan;
+  }
+
+  return { PERMS, PRESETS, solve, verify, normContainer, makeSpace, normSku, orientationsOf, passDoor, natCmp, dateVal, num, EPS };
+});

@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '4.12 (10/10/2026)';
+  const APP_VERSION = '4.13 (10/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -230,6 +230,8 @@
   };
   // Sửa / xóa phiếu: quản lý = mọi phiếu; tài khoản "Tạo phiếu" = phiếu của chính mình (máy chủ kiểm tra lại).
   const canEditPhieu = (p) => isAdmin() || (canCreate() && (!p || isMyPhieu(p)));
+  // Xếp cont 3D (module PC 12, quyền M14): mã chung / Web App cũ chưa có danh sách quyền PC → đủ quyền
+  const canC3d = () => !state.me || !Array.isArray(state.me.pc) || state.me.pc.includes('M14');
   const canView = (k) => !state.me || (state.me.kho || []).includes(TABLE_OF[k]);
   // Quyền xem trang Báo cáo của từng nguồn (mã BC01 / BC02 trong "Kho được dùng").
   const canReport = (src) => !state.me || (state.me.kho || []).includes(REPORT_CFG[src].perm);
@@ -272,9 +274,10 @@
     if (t === 'phieu') return hasKho && canCreate();
     if (t === 'baocao') return REPORT_SRCS.some(canReport);
     if (t === 'm8') return canView('m08');
+    if (t === 'c3d') return canC3d();
     return false;
   }
-  const firstTab = () => ['home', 'xuat', 'phieu', 'baocao', 'm8'].find(tabOk) || 'home';
+  const firstTab = () => ['home', 'xuat', 'phieu', 'baocao', 'm8', 'c3d'].find(tabOk) || 'home';
   function showTabUi() {
     document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('is-on', b.dataset.tab === state.tab));
     document.querySelectorAll('.view').forEach((v) => { v.hidden = v.dataset.view !== state.tab; });
@@ -2025,6 +2028,7 @@
     if (state.tab === 'phieu') renderPhieu();
     if (state.tab === 'm8') renderM8();
     if (state.tab === 'baocao') renderBaoCao();
+    if (window.C3DPhone) { if (state.tab === 'c3d') window.C3DPhone.show(); else window.C3DPhone.hide(); }
     if (state.tab !== 'xuat') updateTotalBar(null);
     renderCartBar();
     renderMultiBar();
@@ -2617,6 +2621,7 @@
     return false;
   }
 
+  window.KLShare = { saveToPhone, shareFile, toast: (t, e) => toast(t, e) }; // dùng chung cho Xếp cont 3D (c3d-phone.js)
   function openExportSheet(doc, message) {
     let file = null;
     const render = (busy, notice) => {
@@ -3404,6 +3409,7 @@
     if (tab === 'xuat') return state.xuatSrc === 'tong' ? SOURCES.slice() : [state.xuatSrc]; // Tổng: cần mọi kho
     if (tab === 'ton') return [state.tonMode];
     if (tab === 'm8') return ['m08'];
+    if (tab === 'c3d') return []; // Xếp cont 3D chạy tại chỗ, không tải gì
     if (tab === 'baocao') return []; // báo cáo tải riêng (loadReports), không cần bảng kho
     return ['phieu', 'm02'];
   }
@@ -3871,7 +3877,7 @@
     if (b.dataset.tab === 'phieu' && state.cart && state.cart.items.length) state.phieuSeg = 'soan';
     switchTab(b.dataset.tab);
   });
-  $('refreshBtn').addEventListener('click', () => { if (state.tab === 'baocao') loadReports(true); else { if (state.tab === 'home') loadLx(true); refresh(); } });
+  $('refreshBtn').addEventListener('click', () => { if (state.tab === 'c3d') return; if (state.tab === 'baocao') loadReports(true); else { if (state.tab === 'home') loadLx(true); refresh(); } });
   $('homeLx').addEventListener('click', (e) => {
     if (e.target.closest('[data-lxbadx]')) { lxBadDismiss(); return; }
     if (e.target.closest('[data-lxadd]')) { openLxQuick(lxq.loai); return; }

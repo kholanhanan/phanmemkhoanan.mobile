@@ -3,45 +3,45 @@
    Điểm nhấn duy nhất: con số "còn lại" của từng lô — to, đậm, căn phải. Mọi thứ khác giữ yên. */
 
 :root {
-  /* ===== CHẾ ĐỘ SÁNG (mặc định) — mẫu "Rượu vang" (ĐT 4.28, 10/2026; thanh trên nền nhạt, nút phụ viền trắng) =====
-     Chọn từ trang mẫu dien-thoai-theme-mau.html (mẫu 14). Mọi cặp chữ/nền ≥ 4,5:1 (WCAG AA).
+  /* ===== CHẾ ĐỘ SÁNG (mặc định) — giao diện "Kho Lạnh" 5.0 (11/10/2026): nền xám-xanh nhạt, hành động chính xanh dương,
+     màu trạng thái cố định (xanh lá = đủ / xong · vàng cam = chờ / sắp hết · đỏ = lỗi / xoá). Chữ / nền ≥ 4,5:1 (WCAG AA).
      Đổi chế độ: html[data-theme="dark"] (khối ngay dưới). Mọi màu trong file dùng các biến này —
-     KHÔNG viết mã màu cứng mới, thêm biến ở cả 2 khối. */
-  --frost: #FEF8F9;     /* nền trang */
+     KHÔNG viết mã màu cứng mới, thêm biến ở cả 2 khối. Tên biến (--cobalt…) giữ nguyên cho đỡ phải sửa code. */
+  --frost: #F2F5F9;     /* nền trang */
   --paper: #FFFFFF;     /* nền thẻ / ô */
-  --ink: #3A0F1D;       /* chữ chính (15,8:1) */
-  --muted: #764150;     /* chữ phụ (7,6:1) */
-  --line: #F3D5DD;      /* viền */
-  --cobalt: #881337;    /* hành động chính (tên biến giữ nguyên cho đỡ phải sửa code) */
-  --on-cobalt: #FFFFFF; /* chữ trên nền --cobalt (9,6:1) */
-  --cobalt-soft: #F9E0E7;
-  --amber: #1D5FA8;     /* đang chờ PC nhận — xanh dương, khác hẳn màu nhấn đỏ rượu */
-  --amber-soft: #E3EEFA;
+  --ink: #0F1B2D;       /* chữ chính */
+  --muted: #4B5B70;     /* chữ phụ (7,0:1) */
+  --line: #E1E7EF;      /* viền */
+  --cobalt: #1257D6;    /* hành động chính (6,4:1 trên trắng) */
+  --on-cobalt: #FFFFFF;
+  --cobalt-soft: #EAF1FD;
+  --amber: #9A5B00;     /* chờ / sắp hết — vàng cam */
+  --amber-soft: #FFF1D6;
   --on-amber: #FFFFFF;
-  --green: #1D7446;
-  --green-soft: #DDF1E5;
+  --green: #14663F;
+  --green-soft: #E3F4EA;
   --red: #B42318;
-  --red-soft: #FBE4E1;
-  /* thanh trên cùng — nền nhạt, chữ đậm */
-  --top-bg: #FBEBEF; --top-text: #3A0F1D; --top-muted: #764150; --top-warn: #8A4B00; --top-press: rgba(58,15,29,.10); --top-line: #F3D5DD;
-  --brand-a: #881337; --brand-b: #BE7D91;
+  --red-soft: #FDE8E8;
+  /* thanh trên cùng — nền trắng, chữ đậm */
+  --top-bg: #FFFFFF; --top-text: #0F1B2D; --top-muted: #4B5B70; --top-warn: #8A4B00; --top-press: rgba(15,27,45,.08); --top-line: #E1E7EF;
+  --brand-a: #1257D6; --brand-b: #5FA0FF;
   /* khối "đảo màu" (thông báo nổi, chip đang chọn, thanh chọn nhiều) */
-  --inverse-bg: #3A0F1D; --inverse-text: #FFFFFF;
-  --seg-bg: #F6DAE2;        /* nền nhóm nút chuyển (segmented) */
-  --chip-bg: #FAE6EB;       /* nhãn nhỏ (size…) */
-  --field-bg: #FFFCFD;      /* ô nhập */
-  --field-ph: #764150;      /* chữ gợi ý ô nhập (6,9:1) */
-  --picked-bg: #F9E0E7;     /* dòng đang được chọn */
-  --muted-bg: #FAE6EB;      /* ô mờ / không chọn được */
-  --empty-text: #764150;    /* số của dòng hết hàng */
-  --totalbar-bg: #FBEBEF;   /* thanh tổng dưới cùng */
-  --btn-disabled: #EBD3DA; --btn-disabled-text: #764150;
-  --check-border: #A07C87;
-  --shadow-rgb: 58,15,29;   /* bóng đổ */
+  --inverse-bg: #0F1B2D; --inverse-text: #FFFFFF;
+  --seg-bg: #EAEFF5;        /* nền nhóm nút chuyển (segmented) */
+  --chip-bg: #EAEFF5;       /* nhãn nhỏ (size…) */
+  --field-bg: #FFFFFF;      /* ô nhập */
+  --field-ph: #5B6B80;      /* chữ gợi ý ô nhập (5,6:1) */
+  --picked-bg: #EAF1FD;     /* dòng đang được chọn */
+  --muted-bg: #EEF2F7;      /* ô mờ / không chọn được */
+  --empty-text: #5B6B80;    /* số của dòng hết hàng */
+  --totalbar-bg: #FFFFFF;   /* thanh tổng dưới cùng */
+  --btn-disabled: #D3DCE8; --btn-disabled-text: #4B5B70;
+  --check-border: #7C8CA0;
+  --shadow-rgb: 15,27,45;   /* bóng đổ */
   --ks-pass-border: #9ED9B8; --ks-pass-bg: #EAF8F0; --ks-fail-border: #F2B1AA; --ks-fail-bg: #FDEDEB;
-  --ks-none-bg: #FAF3F5; --ks-pill-bg: #FAE6EB; --ks-pill-nd-bg: #FAF3F5; --ks-pill-nd-text: #764150;
+  --ks-none-bg: #F2F5F9; --ks-pill-bg: #EAEFF5; --ks-pill-nd-bg: #F2F5F9; --ks-pill-nd-text: #4B5B70;
   --ks-pill-bad-bg: #FBE3E0; --ks-pill-bad-text: #B42318;
-  --ks-pass: #1A7A43; --ks-fail: #C2362B; --ks-none: #764150;
+  --ks-pass: #1A7A43; --ks-fail: #C2362B; --ks-none: #4B5B70;
   --radius-sm: 8px;
   --radius-lg: 18px;
   --font: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -858,3 +858,30 @@ body.has-totalbar .multibar { bottom: calc(var(--tabbar-h) + var(--safe-bottom) 
 .lxq-ck.dup{ color:#9a6a00; background:rgba(224,165,61,.18); }
 .lxq-ck.chg{ color:#c62828; background:rgba(229,72,77,.10); }
 .lxq-act{ display:block; margin-top:6px; width:100%; max-width:100%; min-height:38px; font-size:14px; border-radius:10px; }
+
+
+/* ===================== 5.0 — GIAO DIỆN MỚI (11/10/2026) ===================== */
+/* Thanh trên: logo vuông bo góc xanh + bông tuyết */
+.topbar { box-shadow: 0 1px 0 var(--top-line); }
+.brand-mark { width: 32px; height: 32px; border-radius: 9px; background: var(--cobalt) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v18M4.2 7.5l15.6 9M19.8 7.5l-15.6 9M9.5 4.5 12 7l2.5-2.5M9.5 19.5 12 17l2.5 2.5'/%3E%3C/svg%3E") center / 20px no-repeat; }
+.brand-name { font-size: 17px; }
+.icon-btn { width: 44px; height: 44px; background: var(--frost); }
+/* Thanh tab dưới: chữ 11,5px, mục đang chọn có vạch trên */
+.tab { font-size: 11.5px; min-height: 52px; }
+.tab.is-on { font-weight: 700; }
+.tab.is-on::before { content: ""; position: absolute; top: 0; left: 24%; right: 24%; height: 3px; border-radius: 0 0 3px 3px; background: var(--cobalt); }
+/* STT trong lịch xuất nhập (đánh lại từ 1 mỗi ngày, nhập + xuất chung 1 dãy) */
+.lxt-stt { flex: 0 0 28px; width: 28px; height: 28px; border-radius: 8px; background: var(--cobalt-soft); color: var(--cobalt); font-size: 13px; font-weight: 700; display: grid; place-items: center; font-variant-numeric: tabular-nums; }
+.lxt-row { min-height: 64px; }
+/* Thẻ tóm tắt "Lịch hôm nay" ở tab Tổng quan */
+.hmini { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; margin: 0 0 14px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); color: var(--ink); text-align: left; font: inherit; }
+.hmini[hidden] { display: none !important; }
+.hmini:active { background: var(--cobalt-soft); }
+.hmini .hm-t { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
+.hmini .hm-t b { font-size: 15px; font-weight: 700; }
+.hmini .hm-t small { font-size: 12.5px; color: var(--muted); }
+.hmini .hm-k { display: flex; align-items: baseline; gap: 4px; font-size: 12.5px; color: var(--muted); }
+.hmini .hm-k i { font-style: normal; font-size: 24px; font-weight: 700; line-height: 1; margin-left: 6px; font-variant-numeric: tabular-nums; }
+.hmini .hm-k i.out { color: var(--amber); } .hmini .hm-k i.in { color: var(--cobalt); }
+.hmini .hm-k em { font-style: normal; }
+.hmini > svg { width: 20px; height: 20px; color: var(--muted); flex: 0 0 20px; }

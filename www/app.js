@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '4.28 (10/10/2026)';
+  const APP_VERSION = '5.0 (11/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -269,7 +269,8 @@
   function tabOk(t) {
     const hasKho = SOURCES.length > 0;
     // Trang chủ còn là nơi xem lịch xuất nhập hôm nay (bản 3.0) → tài khoản chỉ có quyền LX vẫn có Trang chủ.
-    if (t === 'home') return hasKho || canLx() || !(canView('m08') || REPORT_SRCS.some(canReport) || canC3d());
+    if (t === 'home') return hasKho || !(canView('m08') || REPORT_SRCS.some(canReport) || canLx() || canC3d());
+    if (t === 'lich') return canLx(); // bản 5.0: Lịch xuất nhập là tab riêng
     if (t === 'xuat') return hasKho || !(canView('m08') || REPORT_SRCS.some(canReport) || canLx() || canC3d());
     if (t === 'phieu') return hasKho && canCreate();
     if (t === 'baocao') return REPORT_SRCS.some(canReport);
@@ -277,7 +278,7 @@
     if (t === 'c3d') return canC3d();
     return false;
   }
-  const firstTab = () => ['home', 'xuat', 'phieu', 'baocao', 'm8', 'c3d'].find(tabOk) || 'home';
+  const firstTab = () => ['home', 'xuat', 'lich', 'phieu', 'baocao', 'm8', 'c3d'].find(tabOk) || 'home';
   function showTabUi() {
     document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('is-on', b.dataset.tab === state.tab));
     document.querySelectorAll('.view').forEach((v) => { v.hidden = v.dataset.view !== state.tab; });
@@ -2026,6 +2027,7 @@
     if (state.tab === 'home') renderHome();
     if (state.tab === 'xuat') renderXuat();
     if (state.tab === 'phieu') renderPhieu();
+    if (state.tab === 'lich') renderHomeLx();
     if (state.tab === 'm8') renderM8();
     if (state.tab === 'baocao') renderBaoCao();
     if (window.C3DPhone) { if (state.tab === 'c3d') window.C3DPhone.show(); else window.C3DPhone.hide(); }
@@ -3087,7 +3089,7 @@
   // của điện thoại (prefers-color-scheme) và tự đổi khi máy đổi. index.html có đoạn script nhỏ trong <head>
   // đặt data-theme TRƯỚC khi trang hiện (tránh nháy trắng khi mở ở chế độ Tối) — giữ 2 nơi giống nhau.
   const LS_THEME = 'klanan.theme';
-  const THEME_BAR = { light: '#FBEBEF', dark: '#0A1118' }; // màu thanh trạng thái Android = màu thanh trên
+  const THEME_BAR = { light: '#FFFFFF', dark: '#0A1118' }; // màu thanh trạng thái Android = màu thanh trên
   const darkMQ = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
   function themeChoice() { try { const t = localStorage.getItem(LS_THEME); return t === 'dark' || t === 'auto' ? t : 'light'; } catch (e) { return 'light'; } }
   function currentTheme() { return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'; }
@@ -3409,6 +3411,7 @@
     if (tab === 'xuat') return state.xuatSrc === 'tong' ? SOURCES.slice() : [state.xuatSrc]; // Tổng: cần mọi kho
     if (tab === 'ton') return [state.tonMode];
     if (tab === 'm8') return ['m08'];
+    if (tab === 'lich') return []; // lịch tải riêng (loadLx)
     if (tab === 'c3d') return []; // Xếp cont 3D chạy tại chỗ, không tải gì
     if (tab === 'baocao') return []; // báo cáo tải riêng (loadReports), không cần bảng kho
     return ['phieu', 'm02'];
@@ -3456,7 +3459,7 @@
   function autoRefresh() {
     if (!cfgOk()) return;
     if (state.tab === 'baocao') loadReports(false);
-    if (state.tab === 'home') loadLx(false); // lịch xuất nhập hôm nay (Trang chủ)
+    if (state.tab === 'home' || state.tab === 'lich') loadLx(false); // lịch xuất nhập (Tổng quan: thẻ tóm tắt hôm nay · tab Lịch)
     const need = neededFor(state.tab).filter((k) => !state[k] || !state[k].data || state.stale.has(k) ||
       (k === 'm08' && !state.ksOff && !(state.ks && state.ks.rows)) ||
       (k === 'phieu' && Date.now() - new Date(state[k].fetchedAt || 0).getTime() > 120000));
@@ -3535,7 +3538,7 @@
     if (!canLx() || !state.cfg.url || lxUi.loading) return;
     if (!force && state.lx && Date.now() - (state.lx.at || 0) < 3 * 60 * 1000) return;
     lxUi.loading = true; lxUi.err = '';
-    if (state.tab === 'home') renderHomeLx();
+    if (state.tab === 'home' || state.tab === 'lich') renderHomeLx();
     try {
       const d = await api('lichXuat');
       state.lx = {
@@ -3548,7 +3551,7 @@
       if (e.code === 'FORBIDDEN') fetchMe().then(renderAll).catch(() => {});
     }
     lxUi.loading = false;
-    if (state.tab === 'home') renderHomeLx();
+    if (state.tab === 'home' || state.tab === 'lich') renderHomeLx();
   }
   function lxLines(x) { // [tên hàng, size, mã hàng, tồn, kg] → gộp theo (tên ngắn, size)
     let a = []; try { a = JSON.parse(x.chiTiet || '[]'); } catch (e) { a = []; }
@@ -3796,7 +3799,7 @@
   function lxShift(n) { const t = lxParse(lxUi.sel || lxKey(new Date())); t.setDate(t.getDate() + n); lxGo(lxKey(t)); }
   function renderHomeLx() {
     const box = $('homeLx'); if (!box) return;
-    if (!canLx()) { box.hidden = true; box.innerHTML = ''; return; }
+    if (!canLx()) { box.hidden = true; box.innerHTML = ''; const m0 = $('homeLxMini'); if (m0) m0.hidden = true; return; }
     const todayKey = lxKey(new Date()), d = state.lx;
     if (lxUi.sel === todayKey) lxUi.sel = ''; // qua 0 giờ đúng vào ngày đang xem → tự về "Hôm nay"
     const key = lxUi.sel || todayKey, isToday = key === todayKey, now = lxParse(key);
@@ -3805,9 +3808,11 @@
     const its = d ? lxEff().filter((x) => x.ngay === key).sort((a, b) => (lxIn(a) - lxIn(b)) || (a.id < b.id ? -1 : 1)) : [];
     const lxOne = (x) => x.ngay + '|' + ((!lxIn(x) && x.cont) ? x.cont : x.id), nCont = new Set(its.map(lxOne)).size; // ĐT 4.0: LSX chung container chỉ tính 1
     const lxMate = (x) => (!lxIn(x) && x.cont) ? its.filter((z) => z.id !== x.id && !lxIn(z) && z.cont === x.cont) : [];
+    const stt = new Map(); // bản 5.0: STT theo NGÀY, 1…N, không phân biệt nhập / xuất (thứ tự đúng như đang hiển thị)
     const row = (x, inGrp) => {
       const sub = [!inGrp && lxMate(x).length ? 'Chung cont' : '', x.cho ? '⏳ Chờ PC' + (x.cho === 'move' ? ' · chuyển từ ' + lxDmy(x.tuNgay).slice(0, 5) : '') : '', x.khach, x.kg ? lxTan(x.kg) + ' tấn' : ''].filter(Boolean).join(' · ');
       return `<button type="button" class="lxt-row st-${x.st}${inGrp ? ' in-grp' : ''}" data-lxid="${esc(x.id)}">
+        <span class="lxt-stt" aria-label="Số thứ tự ${stt.get(x.id)}">${stt.get(x.id)}</span>
         ${inGrp ? '' : `<span class="lxt-dir">${lxIn(x) ? 'Nhập' : 'Xuất'}</span>`}
         <span class="lxt-main"><b>${esc(lxRef(x) || '—')}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</span>
         <span class="lx-pill st-${x.st}">${esc(lxStl(x))}</span></button>`;
@@ -3815,6 +3820,7 @@
     // ĐT 4.x: các LSX XUẤT chung 1 container gộp thành 1 thẻ (mỗi LSX vẫn bấm riêng để xem chi tiết)
     const lxGroups = [], lxSeen = new Map();
     its.forEach((x) => { const k = lxOne(x); if (!lxSeen.has(k)) { const g = []; lxSeen.set(k, g); lxGroups.push(g); } lxSeen.get(k).push(x); });
+    lxGroups.forEach((g) => g.forEach((z) => stt.set(z.id, stt.size + 1)));
     const grpCard = (g) => {
       if (g.length < 2) return row(g[0]);
       const st = g.every((z) => z.st === 'ok') ? 'ok' : g.some((z) => z.st === 'run') ? 'run' : g[0].st;
@@ -3824,6 +3830,14 @@
     if (its.length) body = `<div class="lxt-list">${lxGroups.map(grpCard).join('')}</div>`;
     else if (d) body = `<p class="lxt-empty">${isToday ? 'Hôm nay' : 'Ngày ' + dmy} chưa có lịch xuất hoặc nhập.</p>`;
     else body = `<p class="lxt-empty">${lxUi.loading ? 'Đang tải lịch…' : esc(lxUi.err || 'Chưa có dữ liệu lịch — bấm ↻ để tải.')}</p>`;
+    const mini = $('homeLxMini');
+    if (mini) { // thẻ tóm tắt hôm nay ở tab Tổng quan — chạm để mở tab Lịch
+      const tIts = d ? lxEff().filter((x) => x.ngay === todayKey) : [], nOutC = new Set(tIts.filter((x) => !lxIn(x)).map((x) => x.ngay + '|' + (x.cont || x.id))).size, nIn = tIts.filter(lxIn).length;
+      mini.hidden = false;
+      mini.innerHTML = `<span class="hm-t"><b>Lịch hôm nay</b><small>${LX_THU[new Date().getDay()]}, ${lxDmy(todayKey)}</small></span>`
+        + (d ? `<span class="hm-k"><i class="out">${nOutC}</i><em>xuất</em><i class="in">${nIn}</i><em>nhập</em></span>` : `<span class="hm-k"><em>${lxUi.loading ? 'Đang tải…' : 'Chưa có dữ liệu'}</em></span>`)
+        + '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+    }
     box.innerHTML = `<section class="lxt" aria-label="Lịch xuất nhập ${isToday ? 'hôm nay' : 'ngày ' + dmy}">
       <div class="lxt-head">
         <div class="lxt-leaf" aria-hidden="true"><i>Th${now.getMonth() + 1}</i><b>${lxPad(now.getDate())}</b></div>
@@ -3863,7 +3877,7 @@
   }
   // Máy để qua đêm / quay lại app sau nhiều giờ: sang ngày mới thì tự vẽ lại thẻ "Hôm nay" và tải lịch mới.
   function lxCheckDay() {
-    if (state.tab !== 'home' || !canLx() || lxUi.day === lxKey(new Date())) return;
+    if ((state.tab !== 'home' && state.tab !== 'lich') || !canLx() || lxUi.day === lxKey(new Date())) return;
     renderHomeLx(); loadLx(true);
   }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) lxCheckDay(); });
@@ -3877,7 +3891,7 @@
     if (b.dataset.tab === 'phieu' && state.cart && state.cart.items.length) state.phieuSeg = 'soan';
     switchTab(b.dataset.tab);
   });
-  $('refreshBtn').addEventListener('click', () => { if (state.tab === 'c3d') return; if (state.tab === 'baocao') loadReports(true); else { if (state.tab === 'home') loadLx(true); refresh(); } });
+  $('refreshBtn').addEventListener('click', () => { if (state.tab === 'c3d') return; if (state.tab === 'baocao') loadReports(true); else { if (state.tab === 'home' || state.tab === 'lich') loadLx(true); refresh(); } });
   $('homeLx').addEventListener('click', (e) => {
     if (e.target.closest('[data-lxbadx]')) { lxBadDismiss(); return; }
     if (e.target.closest('[data-lxadd]')) { openLxQuick(lxq.loai); return; }
@@ -3886,6 +3900,7 @@
     const ch = e.target.closest('[data-lxid]');
     if (ch) openLxDetail(ch.dataset.lxid);
   });
+  $('homeLxMini').addEventListener('click', () => switchTab('lich'));
   $('homeLx').addEventListener('change', (e) => { if (e.target.id === 'lxPickDate') lxGo(e.target.value); });
   $('bcBody').addEventListener('click', (e) => {
     const b = e.target.closest('[data-rsave],[data-rshare]');

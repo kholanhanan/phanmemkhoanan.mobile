@@ -182,6 +182,24 @@ Vị trí = "Phiếu xuất" của menu Tồn theo vị trí. Tồn kho An An, B
 phiếu riêng nên dùng kiểu Excel sẵn có của đúng module đó. Xuất file KHÔNG trừ tồn — tồn chỉ bị
 trừ khi PC nhận phiếu (tự động, như trước).
 
+## Email → Lịch xuất nhập hàng (PC 8.22) — đọc Gmail, bạn duyệt rồi mới vào lịch
+
+Apps Script đọc Gmail của CHÍNH tài khoản Google đang chạy Web App (chỉ ĐỌC — không gửi, không xóa, không gắn nhãn), phân tích thư rồi ghi "đề xuất" vào tab `LichXuat_Email`.
+App PC → Lịch xuất nhập hàng → nút **✉ Email** (có số thư đang chờ) hiện danh sách để bạn **Duyệt / Bỏ qua**; chưa duyệt thì lịch không thay đổi.
+
+**Cài (1 lần):**
+1. Dán `apps-script/Code.gs` mới vào Apps Script (thay toàn bộ) → Lưu.
+2. Chọn hàm **`emailCaiDatTuDong`** → Chạy. Google hỏi quyền đọc Gmail → Cho phép (trình duyệt có thể báo "chưa xác minh": Nâng cao → Tiếp tục). Hàm này đặt lịch quét mỗi `EMAIL_PHUT` phút (mặc định 10; sửa số ở đầu khối EMAIL trong Code.gs thành 5 / 15 / 30 rồi chạy lại để đổi). Muốn dừng: chạy `emailTatTuDong`.
+3. Triển khai → Quản lý triển khai → ✏️ → Phiên bản: **Phiên bản mới** → Triển khai (URL Web App giữ nguyên).
+4. (Tuỳ chọn) Cài đặt dự án → Thuộc tính tập lệnh: `EMAIL_NGUOI_GUI` = các địa chỉ / tên miền được phép, cách nhau dấu phẩy (khuyên dùng — chống thư lạ); `EMAIL_NGAY` = số ngày quét lại (mặc định 14); `EMAIL_QUERY` = câu tìm Gmail riêng (mặc định `newer_than:14d (LSX OR LOADING OR "kéo đóng")`).
+
+**Cách đọc thư** (LSX luôn lấy từ TIÊU ĐỀ thư đầu của chuỗi, vì thư trả lời không ghi lại LSX):
+- Thư gốc `AN AN - LOADING … - LSX 26.10.055 - … ETD: 09/10` → "Thêm lịch mới", ngày mặc định = ETD (chỉ là ngày tàu chạy — sửa lại ngày kéo đóng thật trước khi duyệt).
+- Thư trả lời "… OK đổi kéo đóng tại kho An An lúc 10h00 ngày 10/10" → "Đổi ngày / giờ" (chuyển lịch của LSX đó sang 10/10 và ghi giờ 10h00 lên thẻ lịch; chưa có lịch thì thêm mới).
+- Thư trả lời "… hủy kéo đóng … ngày 08/10" → "Hủy lịch" (chỉ xóa lịch của LSX đó đúng ngày 08/10; lịch ở ngày khác được giữ nguyên).
+- Thư có LSX nhưng không đọc được ngày / hành động → "Chỉ để xem".
+Nhiều LSX trong 1 tiêu đề (nối bằng "+") = chung 1 container. Duyệt từ trên xuống (cũ → mới) để chuỗi thư của 1 LSX ra đúng kết quả cuối; nút **Duyệt tất cả** làm đúng thứ tự đó và dừng ở thư lỗi. Nút **↻ Quét mail ngay** không cần chờ lịch tự động.
+
 ## Khi gặp lỗi
 
 | Thông báo trên điện thoại | Cách xử lý |
@@ -208,14 +226,14 @@ Tên cột và "khóa lô" (Mã hàng + Số lô + Size + Phiếu nhập) phải
 
 ## Phân quyền theo mã truy cập (mỗi người 1 mã)
 
-1. Trên PC: **Cài Đặt → Điện Thoại → Phân quyền điện thoại** → ➕ Thêm người → đặt tên, chọn quyền
-   (**Chỉ xem** / **Tạo phiếu**) và các kho được dùng → **💾 Lưu & cập nhật lên Sheet**.
+1. Trên PC: **Cài Đặt → Tài khoản** → ＋ Thêm tài khoản → đặt tên, chọn vai trò
+   (**Chỉ xem** / **Xem + Xuất hàng** / **Quản trị**) và các kho được dùng → **Lưu** (tự lưu trên máy và cập nhật lên Sheet).
 2. Mỗi người có **Tên người dùng** (ID đăng nhập, không dấu, VD `thang` — không phân biệt hoa/thường), **Tên hiển thị**
    (có dấu, VD "Thắng" — hiện trên app và cột "Người tạo" của phiếu) và **Mã truy cập** (mật khẩu). Bấm **Copy** mã,
    gửi cho họ; trên điện thoại vào Cài đặt → nhập **Tên người dùng** + **Mã truy cập**.
-3. Khóa 1 người: bỏ tick **Bật** → Lưu. Đổi mã: **Tạo mã** → Lưu (mã cũ hết hiệu lực).
-   Muốn mã dễ nhớ: bấm **Tự đặt** → gõ mã (8–64 ký tự, chữ không dấu / số / `- _ . @ # !`, phân biệt HOA/thường,
-   không trùng người khác) → **✓ Dùng mã này** → Lưu.
+3. Khóa 1 người: bỏ tick **Tài khoản đang bật** → Lưu. Đổi mã: **Tạo mã** → Lưu (mã cũ hết hiệu lực).
+   Muốn mã dễ nhớ: gõ thẳng vào ô mã (8–64 ký tự, chữ không dấu / số / `- _ . @ # !`, phân biệt HOA/thường,
+   không trùng người khác) → Lưu.
 4. Mã `APP_TOKEN` chung trong Apps Script vẫn là **quản trị** (đủ quyền, sửa/xóa phiếu được). Khi mọi người
    đã có mã riêng, xóa `APP_TOKEN` trong Thuộc tính tập lệnh để khóa hẳn mã chung.
 

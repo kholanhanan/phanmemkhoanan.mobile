@@ -53,12 +53,12 @@ var TAB = {
 var KHO_OF_ACTION = { tonKhoGui: 'M02', tonKho: 'M01', baoCaoM01: 'BC01', baoCaoM02: 'BC02', viTri: 'M01VT', viTriBot: 'M01VTB', tonKhoM03: 'M03', tonKhoM04: 'M04', m08: 'M08', ksSince: 'M08', lichXuat: 'LX', lichXuatGui: 'LX', c3dData: 'C3D' };
 // BC01 / BC02 = quyền xem trang "Báo cáo" trên điện thoại (file Excel Module 01 / Module 02) — KHÔNG phải kho hàng,
 // độc lập với quyền xem kho M01 / M02. Khớp PQ_KHO (main.js), KHO (cai-dat.js), REPORT_CFG + PQ_KHO (www/app.js).
-var ALL_KHO = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M08', 'BC01', 'BC02', 'LX', 'C3D'];
+var ALL_KHO = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M08', 'BC01', 'BC02', 'LX', 'C3D', 'SCAN']; // SCAN = Scan tài liệu (PC 0.21 / ĐT 0.5) — chạy trên điện thoại, không đọc Sheet
 // PHÂN QUYỀN GIỐNG APP PC (main.js › PQ_PC / limitPcByRole / effectivePc) — sửa 1 bên thì sửa bên kia.
 // Module mở được trên PC + quyền riêng từng mục Cài đặt. Cấp 1 / 2: không có CD_* và TAIKHOAN; Quản lý: có CD_*, TAIKHOAN chỉ khi Quản trị / admin cấp;
 // Quản trị: luôn có CD_* + TAIKHOAN, chỉ module M* là bỏ tick được (danh sách trống = bản cũ → đủ).
 var PQ_CD_ = ['CD_SAOLUU', 'CD_KHOIPHUC', 'CD_DONGBO'];
-var PQ_PC_ = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M05', 'M06', 'M07', 'M08', 'M09', 'M12', 'M13', 'M14', 'LX_EMAIL'].concat(PQ_CD_, ['TAIKHOAN']); // PC 8.34: LX_EMAIL = duyệt email Lịch xuất
+var PQ_PC_ = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M05', 'M06', 'M07', 'M08', 'M09', 'M12', 'M13', 'M14', 'M15', 'LX_EMAIL'].concat(PQ_CD_, ['TAIKHOAN']); // M15 = Scan tài liệu (PC 0.21) // PC 8.34: LX_EMAIL = duyệt email Lịch xuất
 var PQ_FIXED_PC_ = ['TAIKHOAN', 'LX_EMAIL'].concat(PQ_CD_);
 function pcClean_(v) { // chuỗi "M01,M02" hoặc mảng → mảng mã hợp lệ, không trùng
   var a = Array.isArray(v) ? v.slice() : String(v || '').split(',');

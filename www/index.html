@@ -10,9 +10,10 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
   <title>Kho Lạnh An An</title>
-<link rel="stylesheet" href="fonts.css?v=0.4-20261011"><!-- font trong máy (offline) -->
-  <link rel="stylesheet" href="app.css?v=0.4-20261011">
-  <link rel="stylesheet" href="c3d-phone.css?v=0.4-20261011">
+<link rel="stylesheet" href="fonts.css?v=0.5-20261011"><!-- font trong máy (offline) -->
+  <link rel="stylesheet" href="app.css?v=0.5-20261011">
+  <link rel="stylesheet" href="c3d-phone.css?v=0.5-20261011">
+  <link rel="stylesheet" href="scan.css?v=0.5-20261011"><!-- ĐT 0.5: Scan tài liệu (dùng chung với PC) -->
 </head>
 <body>
   <header class="topbar">
@@ -152,6 +153,10 @@
     <section class="view" id="view-c3d" data-view="c3d" hidden>
       <div class="c3-root" id="c3dRoot"><p class="c3-err" style="color:var(--muted)">Đang nạp khung 3D…</p></div>
     </section>
+    <!-- SCAN TÀI LIỆU (ĐT 0.5): chụp / chọn ảnh, PDF → làm trắng nền → lưu / chia sẻ PDF — scan-phone.js (nạp khi mở tab) -->
+    <section class="view" id="view-scan" data-view="scan" hidden>
+      <div class="scan-wrap" id="scanRoot"></div>
+    </section>
 
     <section class="view" id="view-phieu" data-view="phieu" hidden>
       <div class="pseg" id="phieuSeg" role="tablist" aria-label="Nhóm phiếu">
@@ -216,6 +221,10 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 21 7v10l-9 4.5L3 17V7z"/><path d="M3 7l9 4.5L21 7M12 11.5v10"/></svg>
       <span>Xếp cont</span>
     </button>
+    <button type="button" class="tab" data-tab="scan" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><path d="M8 9h8M8 12h8M8 15h5"/></svg>
+      <span>Scan</span>
+    </button>
   </nav>
 
   <!-- Bảng trượt từ dưới lên (dùng chung: nhập số lượng / phiếu đang soạn / cài đặt) -->
@@ -227,12 +236,13 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="live-update.js?v=0.4-20261011"></script><!-- tự cập nhật giao diện APK (đặt ĐẦU TIÊN: báo app đã chạy tốt) -->
-  <script src="export.js?v=0.4-20261011"></script>
-  <script src="size-label.js?v=0.4-20261011"></script>
-  <script src="ks-rules.js?v=0.4-20261011"></script>
-  <script src="app-config.js?v=0.4-20261011"></script><!-- đường dẫn Web App cố định (ẩn ô nhập link trên điện thoại) -->
-  <script src="c3d-phone.js?v=0.4-20261011"></script><!-- Xếp cont 3D: chỉ là phần giao diện nhỏ; three.js nạp khi mở tab -->
-  <script src="app.js?v=0.4-20261011"></script>
+  <script src="live-update.js?v=0.5-20261011"></script><!-- tự cập nhật giao diện APK (đặt ĐẦU TIÊN: báo app đã chạy tốt) -->
+  <script src="export.js?v=0.5-20261011"></script>
+  <script src="size-label.js?v=0.5-20261011"></script>
+  <script src="ks-rules.js?v=0.5-20261011"></script>
+  <script src="app-config.js?v=0.5-20261011"></script><!-- đường dẫn Web App cố định (ẩn ô nhập link trên điện thoại) -->
+  <script src="c3d-phone.js?v=0.5-20261011"></script>
+  <script src="scan-phone.js?v=0.5-20261011"></script><!-- Scan tài liệu: phần nối nhỏ; lõi + giao diện nạp khi mở tab --><!-- Xếp cont 3D: chỉ là phần giao diện nhỏ; three.js nạp khi mở tab -->
+  <script src="app.js?v=0.5-20261011"></script>
 </body>
 </html>

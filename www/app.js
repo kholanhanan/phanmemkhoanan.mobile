@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '0.4 (11/10/2026)';
+  const APP_VERSION = '0.5 (11/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -231,6 +231,7 @@
   // Sửa / xóa phiếu: quản lý = mọi phiếu; tài khoản "Tạo phiếu" = phiếu của chính mình (máy chủ kiểm tra lại).
   const canEditPhieu = (p) => isAdmin() || (canCreate() && (!p || isMyPhieu(p)));
   // Xếp cont 3D (module PC 12, quyền M14): mã chung / Web App cũ chưa có danh sách quyền PC → đủ quyền
+  const canScan = () => !state.me || (state.me.kho || []).includes('SCAN'); // ĐT 0.5: Scan tài liệu — mã kho 'SCAN'
   const canC3d = () => !state.me || (state.me.kho || []).includes('C3D'); // quyền điện thoại RIÊNG: mã kho 'C3D' (Cài đặt › Tài khoản › Kho điện thoại)
   const canView = (k) => !state.me || (state.me.kho || []).includes(TABLE_OF[k]);
   // Quyền xem trang Báo cáo của từng nguồn (mã BC01 / BC02 trong "Kho được dùng").
@@ -269,15 +270,16 @@
   function tabOk(t) {
     const hasKho = SOURCES.length > 0;
     // Trang chủ còn là nơi xem lịch xuất nhập hôm nay (bản 3.0) → tài khoản chỉ có quyền LX vẫn có Trang chủ.
-    if (t === 'home') return hasKho || canLx() || !(canView('m08') || REPORT_SRCS.some(canReport) || canC3d());
-    if (t === 'xuat') return hasKho || !(canView('m08') || REPORT_SRCS.some(canReport) || canLx() || canC3d());
+    if (t === 'home') return hasKho || canLx() || !(canView('m08') || REPORT_SRCS.some(canReport) || canC3d() || canScan());
+    if (t === 'xuat') return hasKho || !(canView('m08') || REPORT_SRCS.some(canReport) || canLx() || canC3d() || canScan());
     if (t === 'phieu') return hasKho && canCreate();
     if (t === 'baocao') return REPORT_SRCS.some(canReport);
     if (t === 'm8') return canView('m08');
     if (t === 'c3d') return canC3d();
+    if (t === 'scan') return canScan();
     return false;
   }
-  const firstTab = () => ['home', 'xuat', 'phieu', 'baocao', 'm8', 'c3d'].find(tabOk) || 'home';
+  const firstTab = () => ['home', 'xuat', 'phieu', 'baocao', 'm8', 'c3d', 'scan'].find(tabOk) || 'home';
   function showTabUi() {
     document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('is-on', b.dataset.tab === state.tab));
     document.querySelectorAll('.view').forEach((v) => { v.hidden = v.dataset.view !== state.tab; });
@@ -2029,6 +2031,7 @@
     if (state.tab === 'm8') renderM8();
     if (state.tab === 'baocao') renderBaoCao();
     if (window.C3DPhone) { if (state.tab === 'c3d') window.C3DPhone.show(); else window.C3DPhone.hide(); }
+    if (window.ScanPhone) { if (state.tab === 'scan') window.ScanPhone.show(); else window.ScanPhone.hide(); }
     if (state.tab !== 'xuat') updateTotalBar(null);
     renderCartBar();
     renderMultiBar();
@@ -3243,16 +3246,16 @@
   // 3.1 (PC 7.43): ĐẦY ĐỦ như app PC — 4 vai trò, kho điện thoại + module PC từng người, cấp bậc (không xem mã / sửa / xóa người cùng cấp hoặc cao hơn),
   // Quản lý được cấp quyền Tài khoản, Quản trị tự bỏ tick module / kho. Luật kiểm tra thật nằm ở Web App (Code.gs › pqSave_) — nơi này chỉ khóa ô cho dễ dùng.
   const PQ_KHO = [['M01', 'Tồn kho An An'], ['M01VT', 'Tồn theo vị trí'], ['M01VTB', 'Vị trí Bột'], ['M02', 'Tồn kho gửi'],
-    ['M08', 'Tra cứu kháng sinh'], ['BC01', 'Báo cáo Tồn kho An An'], ['BC02', 'Báo cáo Tồn kho gửi'], ['LX', 'Lịch xuất nhập hàng'], ['C3D', 'Xếp cont 3D'],
+    ['M08', 'Tra cứu kháng sinh'], ['BC01', 'Báo cáo Tồn kho An An'], ['BC02', 'Báo cáo Tồn kho gửi'], ['LX', 'Lịch xuất nhập hàng'], ['C3D', 'Xếp cont 3D'], ['SCAN', 'Scan tài liệu'],
     ['M03', 'NXT Bột/Sốt'], ['M04', 'NXT TNK/TGC']];
   // Module mở được trên app PC + quyền riêng từng mục Cài đặt — GIỐNG PQ_PC (main.js) / PC (tai-khoan.js)
   const PQ_PC = [['M01', '01 · Tồn An An'], ['M01VT', '01 · Tồn theo vị trí'], ['M01VTB', '01 · Vị trí bột'], ['M02', '02 · Tồn Kho Gửi'],
-    ['M03', '03 · NXT Bột/Sốt'], ['M04', '04 · NXT TNK/TGC'], ['M05', '05.1 · Đối chiếu số liệu › Số liệu kiểm kê'], ['M06', '06 · In Chứng Từ Kho'],
+    ['M03', '03 · NXT Bột/Sốt'], ['M04', '04 · NXT TNK/TGC'], ['M05', '05.1 · Đối chiếu số liệu › Số liệu kiểm kê'], ['M06', '06 · In Chứng Từ Kho'], ['M15', '06.1 · Scan tài liệu'],
     ['M07', '05.2 · Đối chiếu số liệu › Số liệu cuối kỳ'], ['M08', '07 · Tổng Hợp'], ['M09', '08 · Phiếu Xuất Toàn Hệ Thống'], ['M12', '05.3 · Đối chiếu số liệu › Số liệu kho/xưởng'], ['M13', '05 · Phiếu nhập/xuất kho'], ['M14', '12 · Container Loading 3D'], ['LX_EMAIL', 'Trang chính › Lịch xuất: duyệt email'],
     ['CD_SAOLUU', 'Cài đặt › Sao lưu Drive (toàn quyền)'], ['CD_KHOIPHUC', 'Cài đặt › Khôi phục Drive'], ['CD_DONGBO', 'Cài đặt › Đồng bộ điện thoại'],
     ['TAIKHOAN', 'Cài đặt › Tài khoản (quản lý người dùng)']];
   const PQ_FIXED_PC = ['CD_SAOLUU', 'CD_KHOIPHUC', 'CD_DONGBO', 'TAIKHOAN', 'LX_EMAIL']; // Quản trị luôn có — không tự khóa mình khỏi Cài đặt / Tài khoản
-  const PQ_KHO2PC = { M01: 'M01', M01VT: 'M01VT', M01VTB: 'M01VTB', BC01: 'M01', M02: 'M02', BC02: 'M02', M03: 'M03', M04: 'M04', M08: 'M08', C3D: 'M14' };
+  const PQ_KHO2PC = { M01: 'M01', M01VT: 'M01VT', M01VTB: 'M01VTB', BC01: 'M01', M02: 'M02', BC02: 'M02', M03: 'M03', M04: 'M04', M08: 'M08', C3D: 'M14', SCAN: 'M15' };
   const PQ_QUYEN = { xem: 'Người dùng cấp 1', xuat: 'Người dùng cấp 2', quanly: 'Quản lý', quantri: 'Quản trị' };
   const PQ_ROLE_OPT = { xem: 'Người dùng cấp 1 — chỉ xem', xuat: 'Người dùng cấp 2 — xem + tạo phiếu xuất', quanly: 'Quản lý — + sửa / xóa mọi phiếu', quantri: 'Quản trị — toàn quyền (chỉ admin tạo được)' };
   const PQ_ROLE_HINT = {
@@ -3410,6 +3413,7 @@
     if (tab === 'ton') return [state.tonMode];
     if (tab === 'm8') return ['m08'];
     if (tab === 'c3d') return []; // Xếp cont 3D chạy tại chỗ, không tải gì
+    if (tab === 'scan') return []; // Scan tài liệu chạy tại chỗ, không tải gì
     if (tab === 'baocao') return []; // báo cáo tải riêng (loadReports), không cần bảng kho
     return ['phieu', 'm02'];
   }
@@ -3880,7 +3884,7 @@
     if (b.dataset.tab === 'phieu' && state.cart && state.cart.items.length) state.phieuSeg = 'soan';
     switchTab(b.dataset.tab);
   });
-  $('refreshBtn').addEventListener('click', () => { if (state.tab === 'c3d') return; if (state.tab === 'baocao') loadReports(true); else { if (state.tab === 'home') loadLx(true); refresh(); } });
+  $('refreshBtn').addEventListener('click', () => { if (state.tab === 'c3d' || state.tab === 'scan') return; if (state.tab === 'baocao') loadReports(true); else { if (state.tab === 'home') loadLx(true); refresh(); } });
   $('homeLx').addEventListener('click', (e) => {
     if (e.target.closest('[data-lxbadx]')) { lxBadDismiss(); return; }
     if (e.target.closest('[data-lxadd]')) { openLxQuick(lxq.loai); return; }

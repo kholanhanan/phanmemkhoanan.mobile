@@ -10,9 +10,9 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
   <title>Kho Lạnh An An</title>
-<link rel="stylesheet" href="fonts.css?v=0.2-20261011"><!-- font trong máy (offline) -->
-  <link rel="stylesheet" href="app.css?v=0.2-20261011">
-  <link rel="stylesheet" href="c3d-phone.css?v=0.2-20261011">
+<link rel="stylesheet" href="fonts.css?v=0.3-20261011"><!-- font trong máy (offline) -->
+  <link rel="stylesheet" href="app.css?v=0.3-20261011">
+  <link rel="stylesheet" href="c3d-phone.css?v=0.3-20261011">
 </head>
 <body>
   <header class="topbar">
@@ -44,16 +44,11 @@
       </div>
       <div id="homeResults"></div>
       <div id="homeMain">
-        <!-- Thứ tự (bản 3.7): lịch xuất nhập (mặc định HÔM NAY, chọn được ngày khác) → các kho. (Việc cần làm / Tra cứu kháng sinh đã có tab riêng nên không còn ở Trang chủ.) renderHome() / renderHomeLx() trong app.js. -->
-        <button type="button" class="hmini" id="homeLxMini" hidden></button>
+        <!-- Thứ tự (bản 0.3): lịch xuất nhập (mặc định HÔM NAY, chọn được ngày khác) nằm NGAY TRÊN trang chủ, không còn tab riêng → các kho. (Việc cần làm / Tra cứu kháng sinh đã có tab riêng nên không còn ở Trang chủ.) renderHome() / renderHomeLx() trong app.js. -->
+        <div id="homeLx" hidden></div>
         <h3 class="hsec" id="homeKhoTitle">Kho <small>chạm để xem &amp; xuất</small></h3>
         <div class="kho-grid" id="homeKho"></div>
       </div>
-    </section>
-
-    <!-- LỊCH XUẤT NHẬP (bản 5.0: tách khỏi Trang chủ thành tab riêng) — renderHomeLx() trong app.js vẽ vào #homeLx -->
-    <section class="view" id="view-lich" data-view="lich" hidden>
-      <div id="homeLx" hidden></div>
     </section>
 
     <!-- KHO: xem tồn + xuất trong CÙNG 1 màn (thay cho 2 tab Xuất kho / Tồn kho cũ) -->
@@ -204,10 +199,6 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/></svg>
       <span>Tồn kho</span>
     </button>
-    <button type="button" class="tab" data-tab="lich">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8 3v4M16 3v4"/></svg>
-      <span>Lịch</span>
-    </button>
     <button type="button" class="tab" data-tab="phieu">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h7"/></svg>
       <span>Phiếu</span>
@@ -236,12 +227,12 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="live-update.js?v=0.2-20261011"></script><!-- tự cập nhật giao diện APK (đặt ĐẦU TIÊN: báo app đã chạy tốt) -->
-  <script src="export.js?v=0.2-20261011"></script>
-  <script src="size-label.js?v=0.2-20261011"></script>
-  <script src="ks-rules.js?v=0.2-20261011"></script>
-  <script src="app-config.js?v=0.2-20261011"></script><!-- đường dẫn Web App cố định (ẩn ô nhập link trên điện thoại) -->
-  <script src="c3d-phone.js?v=0.2-20261011"></script><!-- Xếp cont 3D: chỉ là phần giao diện nhỏ; three.js nạp khi mở tab -->
-  <script src="app.js?v=0.2-20261011"></script>
+  <script src="live-update.js?v=0.3-20261011"></script><!-- tự cập nhật giao diện APK (đặt ĐẦU TIÊN: báo app đã chạy tốt) -->
+  <script src="export.js?v=0.3-20261011"></script>
+  <script src="size-label.js?v=0.3-20261011"></script>
+  <script src="ks-rules.js?v=0.3-20261011"></script>
+  <script src="app-config.js?v=0.3-20261011"></script><!-- đường dẫn Web App cố định (ẩn ô nhập link trên điện thoại) -->
+  <script src="c3d-phone.js?v=0.3-20261011"></script><!-- Xếp cont 3D: chỉ là phần giao diện nhỏ; three.js nạp khi mở tab -->
+  <script src="app.js?v=0.3-20261011"></script>
 </body>
 </html>

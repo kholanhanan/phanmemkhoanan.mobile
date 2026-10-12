@@ -67,7 +67,9 @@ jobs:
           M=android/app/src/main/AndroidManifest.xml
           sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />#' $M
           sed -i 's#<application#<application android:requestLegacyExternalStorage="true"#' $M
-          grep -n "STORAGE\|requestLegacy" $M
+          # ĐT 0.8 — Scan: camera trực tiếp trong app (getUserMedia) cần quyền CAMERA; không bắt buộc có camera để cài app.
+          sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />#' $M
+          grep -n "STORAGE\|requestLegacy\|CAMERA\|hardware.camera" $M
 
       # Icon ứng dụng: chép các file trong icons/res/ đè lên icon mặc định của Capacitor.
       - name: Đặt icon ứng dụng

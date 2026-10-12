@@ -885,3 +885,26 @@ body.has-totalbar .multibar { bottom: calc(var(--tabbar-h) + var(--safe-bottom) 
 .hmini .hm-k i.out { color: var(--amber); } .hmini .hm-k i.in { color: var(--cobalt); }
 .hmini .hm-k em { font-style: normal; }
 .hmini > svg { width: 20px; height: 20px; color: var(--muted); flex: 0 0 20px; }
+
+/* ===== ĐT 0.6: tab Công cụ + khối Phiếu trong Tổng quan ===== */
+/* ĐT 0.9: thẻ công cụ dạng Ô VUÔNG, 2 cột — vùng bấm lớn (hợp đeo găng), icon trong ô bo tròn + nút chuyển ở hàng trên, tên + mô tả ở dưới; màu theo biến nên tự đổi Sáng / Tối */
+.tl-title { margin: 6px 2px 2px; }
+.tl-sub { margin: 0 2px 16px; font-size: 14.5px; color: var(--muted); }
+.tl-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.tl-card { display: flex; flex-direction: column; justify-content: space-between; align-items: stretch; gap: 12px; width: 100%; aspect-ratio: 1 / 1; padding: 16px; text-align: left; border: 1px solid var(--line); border-radius: 24px; background: var(--paper); color: var(--ink);
+  box-shadow: 0 2px 6px rgba(var(--shadow-rgb), .07), 0 8px 20px rgba(var(--shadow-rgb), .05); -webkit-tap-highlight-color: transparent; transition: transform .12s ease, background-color .12s ease, border-color .12s ease; }
+.tl-card:active { transform: scale(.97); background: var(--cobalt-soft); border-color: var(--cobalt); }
+.tl-card:focus-visible { outline: 3px solid var(--cobalt); outline-offset: 2px; }
+.tl-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.tl-ico { flex: none; width: 56px; height: 56px; border-radius: 18px; display: grid; place-items: center; background: var(--cobalt-soft); color: var(--cobalt); }
+.tl-ico svg { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.tl-txt { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tl-txt b { font-size: 17px; font-weight: 700; line-height: 1.25; }
+.tl-txt small { font-size: 12.5px; color: var(--muted); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.tl-go { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--frost); color: var(--muted); }
+.tl-go svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
+@media (max-width: 330px) { .tl-list { grid-template-columns: 1fr; } .tl-card { aspect-ratio: auto; min-height: 120px; } } /* màn hình rất hẹp: về 1 cột */
+@media (prefers-reduced-motion: reduce) { .tl-card { transition: none; } .tl-card:active { transform: none; } }
+.tool-back { display: inline-flex; align-items: center; gap: 2px; min-height: 40px; margin: 0 0 6px -4px; padding: 0 12px 0 6px; border: 0; border-radius: 12px; background: transparent; color: var(--cobalt); font-size: 15px; font-weight: 600; }
+.tool-back svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+#homePhieuWrap[hidden] { display: none !important; }

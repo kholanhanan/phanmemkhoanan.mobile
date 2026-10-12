@@ -113,7 +113,7 @@
 @media (max-width: 860px){
   .sc-work{ display: flex; flex-direction: column; }
   .sc-stage, .sc-strip, .sc-panel{ flex: none; }
-  .sc-cvwrap{ min-height: 0; height: min(62vh, 560px); }
+  .sc-cvwrap{ flex: none; min-height: 0; height: min(62vh, 560px); } /* flex:none — nếu không, flex:1 (basis 0) ghi đè height → khung xem trước cao 0, mất ảnh */
   .sc-panel{ overflow: visible; }
   .sc-add .sc-btn{ flex: 1; }
   .sc-add{ width: 100%; }

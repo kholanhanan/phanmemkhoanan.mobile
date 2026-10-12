@@ -2,7 +2,8 @@
 // KLScanUI.mount(root, host) — host do nơi gọi cung cấp:
 //   { platform: 'pc' | 'phone', ensure(name) → Promise  ('jspdf' | 'pdfjs'),
 //     save(blob, name) → Promise<string mô tả nơi lưu>, share?(blob, name) → Promise, toast(msg, isError), camera: bool }
-// Trang đang làm dở KHÔNG lưu lại khi đóng app (ảnh có thể nặng) — window.__klaBusy báo cho trang chính đừng tự nhả module.
+// PC 0.27 / ĐT 0.12: nút "Lưu" cất tài liệu vào bộ nhớ app (IndexedDB 'kl_scan_luu', kho 'docs' + 'docpages'); trang trống hiện danh sách tài liệu đã lưu để mở / chỉnh lại.
+// Trang đang làm dở TỰ LƯU NHÁP (kho 'draft') nên tắt / mở lại app vẫn còn đúng trang đang làm — window.__klaBusy báo trang chính đừng tự nhả module khi còn thay đổi chưa Lưu.
 (function (global) {
   'use strict';
   var S = global.KLScan;
@@ -27,9 +28,42 @@
     eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
     save: '<path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v3h16v-3"/>',
     share: '<circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.4M8.2 13.2l7.6 4.4"/>',
+    disk: '<path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/>',
     crop: '<path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/>', plus: '<path d="M12 5v14M5 12h14"/>', reset: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>'
   };
   var svg = function (k) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + IC[k] + '</svg>'; };
+
+
+  // ---- Bộ nhớ trong app (IndexedDB): 'draft' = trang đang làm (tự lưu nháp), 'docs' = thông tin tài liệu đã lưu (+ ảnh bìa), 'docpages' = các trang của tài liệu đó
+  var DBN = 'kl_scan_luu', dbP = null;
+  function db() {
+    if (dbP) return dbP;
+    dbP = new Promise(function (res, rej) {
+      if (!global.indexedDB) return rej(new Error('Máy này không hỗ trợ lưu trong app.'));
+      var r = indexedDB.open(DBN, 1);
+      r.onupgradeneeded = function () { var d = r.result; ['draft', 'docs', 'docpages'].forEach(function (n) { if (!d.objectStoreNames.contains(n)) d.createObjectStore(n); }); };
+      r.onsuccess = function () { res(r.result); };
+      r.onerror = function () { rej(r.error || new Error('Không mở được bộ nhớ của app.')); };
+    });
+    dbP.catch(function () { dbP = null; });
+    return dbP;
+  }
+  function tx(names, mode, fn) { // fn(transaction, box) — gán kết quả vào box.v
+    return db().then(function (d) {
+      return new Promise(function (res, rej) {
+        var t = d.transaction(names, mode), box = {};
+        t.oncomplete = function () { res(box.v); };
+        t.onabort = t.onerror = function () { rej(t.error || new Error('Không ghi được vào bộ nhớ của app (đầy?)')); };
+        fn(t, box);
+      });
+    });
+  }
+  var okQuad = function (q) {
+    if (!Array.isArray(q) || q.length !== 4) return null;
+    var o = q.map(function (c) { return { x: +c.x, y: +c.y }; });
+    return o.every(function (c) { return isFinite(c.x) && isFinite(c.y); }) ? o : null;
+  };
+  var fmtWhen = function (t) { var d = new Date(t || Date.now()); return p2(d.getHours()) + ':' + p2(d.getMinutes()) + ' ' + p2(d.getDate()) + '/' + p2(d.getMonth() + 1) + '/' + d.getFullYear(); };
 
   function mount(root, host) {
     if (!S) { root.innerHTML = '<p>Thiếu scan-core.js</p>'; return; }
@@ -42,7 +76,8 @@
     var clone = function (o) { return JSON.parse(JSON.stringify(o)); };
     var presetP = function (m) { return (m === 'tuy' && def.pTuy) ? S.resolveParams('tuy', def.pTuy) : S.resolveParams(m, null); };
     var popt = function (pg, extra) { return Object.assign({ quad: pg.cropOn ? pg.quad : null, rot: pg.rot, mode: pg.mode, p: pg.p }, extra); };
-    var st = { pages: [], cur: 0, dirty: false, busy: false, name: defaultName() };
+    var st = { pages: [], cur: 0, dirty: false, busy: false, name: defaultName(), docId: null, docCreated: 0 };
+    var ready = false, draftTimer = 0, draftBusy = false, draftAgain = false, draftWarned = false, libUrls = [];
     var cache = new Map(), seq = 0;
     var toast = function (m, bad) { if (host.toast) host.toast(m, bad); };
     var DONE = host.doneWord || 'Đã lưu'; // PC: 'Đã tạo' (Electron còn mở hộp thoại chọn nơi lưu)
@@ -56,6 +91,7 @@
         (host.camera !== false ? '<button type="button" class="sc-btn sc-pri" data-act="pick-cam">' + svg('cam') + '<span>Chụp</span></button>' : '') +
         '<button type="button" class="sc-btn" data-act="pick-img">' + svg('img') + '<span>Ảnh</span></button>' +
         '<button type="button" class="sc-btn" data-act="pick-pdf">' + svg('pdf') + '<span>PDF</span></button>' +
+        '<button type="button" class="sc-btn sc-save" data-act="save-local" id="scHeadSave" hidden>' + svg('disk') + '<span id="scHeadSaveTxt">Lưu</span></button>' +
       '</div></div>' +
       '<input type="file" id="scCam" accept="image/*" capture="environment" hidden>' +
       '<input type="file" id="scImg" accept="image/*" multiple hidden>' +
@@ -63,7 +99,8 @@
       '<div class="sc-empty" id="scEmpty">' +
         '<div class="sc-drop">' + svg('pdf') + '<b>Chưa có trang nào</b>' +
         '<p>' + (phone ? 'Bấm <b>Chụp</b>, kéo 4 chấm vào 4 góc tờ giấy rồi bấm nút tròn để chụp (chỉ phần trong 4 chấm được giữ). Hoặc chọn ảnh, file PDF có sẵn. App khử bóng và làm trắng nền.' : 'Bấm <b>Chụp</b> để dùng camera máy tính, kéo thả ảnh / PDF vào đây, dán ảnh bằng <kbd>Ctrl</kbd>+<kbd>V</kbd>, hoặc dùng các nút ở trên.') + '</p>' +
-        '<p class="sc-note">Ảnh được xử lý ngay trên máy, không gửi đi đâu. Nhiều ảnh = nhiều trang trong cùng 1 file PDF.</p></div>' +
+        '<p class="sc-note">Ảnh được xử lý ngay trên máy, không gửi đi đâu. Nhiều ảnh = nhiều trang trong cùng 1 file PDF. Chỉnh xong bấm <b>Lưu</b> để cất vào máy — muốn sửa lại thì chọn ở danh sách bên dưới.</p></div>' +
+        '<div class="sc-libbox" id="scLib"></div>' +
         '<div class="sc-hist" id="scHist"></div></div>' +
       '<div class="sc-work" id="scWork" hidden>' +
         '<div class="sc-stage"><div class="sc-cvwrap"><canvas class="sc-cv" id="scCv"></canvas><div class="sc-pageno" id="scPageNo"></div></div>' +
@@ -98,14 +135,16 @@
             '<label class="sc-chk"><input type="checkbox" id="scCrop"><span>Tự nhận 4 cạnh, nắn thẳng góc <small id="scCropTip"></small></span></label>' +
             '<div class="sc-row"><button type="button" class="sc-link" data-act="crop">' + svg('crop') + 'Chỉnh 4 góc</button><button type="button" class="sc-link" data-act="redetect">Tự tìm lại</button></div>' +
           '</div>' +
-          '<div class="sc-sec sc-out"><div class="sc-lb">Lưu file</div>' +
-            '<label class="sc-fld"><span>Tên file</span><input type="text" id="scName" maxlength="80" spellcheck="false"></label>' +
+          '<div class="sc-sec sc-out"><div class="sc-lb">Lưu &amp; xuất</div>' +
+            '<label class="sc-fld"><span>Tên tài liệu</span><input type="text" id="scName" maxlength="80" spellcheck="false"></label>' +
+            '<button type="button" class="sc-btn sc-save sc-wide" data-act="save-local">' + svg('disk') + '<span id="scLocalTxt">Lưu vào máy</span></button>' +
+            '<p class="sc-tip" id="scLocalTip">Lưu xong tài liệu được cất trong máy và màn hình về trang đầu; cần sửa thì chọn lại ở danh sách.</p>' +
+            '<div class="sc-lb sc-lb2">Xuất file PDF / ảnh</div>' +
             '<div class="sc-seg sc-seg-sm" id="scFmt"><button type="button" data-fmt="a4">Khổ A4</button><button type="button" data-fmt="fit">Theo ảnh</button></div>' +
-            '<button type="button" class="sc-btn sc-pri sc-wide" data-act="save-pdf">' + svg('save') + '<span id="scSaveTxt">Lưu PDF</span></button>' +
+            '<button type="button" class="sc-btn sc-wide" data-act="save-pdf">' + svg('save') + '<span id="scSaveTxt">Xuất PDF</span></button>' +
             (host.share ? '<button type="button" class="sc-btn sc-wide" data-act="share-pdf">' + svg('share') + '<span>Chia sẻ PDF (Zalo, Email…)</span></button>' : '') +
-            '<div class="sc-row"><button type="button" class="sc-link" data-act="save-jpg">Lưu trang này thành ảnh JPG</button><button type="button" class="sc-link sc-danger" data-act="clear">Tài liệu mới</button></div>' +
+            '<div class="sc-row"><button type="button" class="sc-link" data-act="save-jpg">Xuất trang này thành ảnh JPG</button><button type="button" class="sc-link sc-danger" data-act="clear">Tài liệu mới</button></div>' +
           '</div>' +
-        '</div>' +
       '</div>' +
       '<div class="sc-crop" id="scCropUi" hidden></div>' +
       '<div class="sc-live" id="scLive" hidden></div>' +
@@ -213,12 +252,14 @@
       $('scCropTip').textContent = pg.quad ? (pg.cropOn ? '— đã cắt theo 4 cạnh' : '— đang tắt') : '— chưa có khung cắt: bấm "Chỉnh 4 góc"';
       root.querySelectorAll('#scFmt button').forEach(function (b) { b.classList.toggle('is-on', b.dataset.fmt === def.format); });
       $('scPageNo').textContent = 'Trang ' + (st.cur + 1) + ' / ' + st.pages.length;
-      $('scSaveTxt').textContent = 'Lưu PDF (' + st.pages.length + ' trang)';
+      $('scSaveTxt').textContent = 'Xuất PDF (' + st.pages.length + ' trang)';
+      $('scLocalTxt').textContent = st.docId ? 'Lưu thay đổi' : 'Lưu vào máy'; $('scHeadSaveTxt').textContent = st.docId ? 'Lưu thay đổi' : 'Lưu';
       var n = st.pages.length;
       root.querySelector('[data-act="prev"]').disabled = st.cur <= 0;
       root.querySelector('[data-act="next"]').disabled = st.cur >= n - 1;
       root.querySelector('[data-act="mv-l"]').disabled = st.cur <= 0;
       root.querySelector('[data-act="mv-r"]').disabled = st.cur >= n - 1;
+      persistSoon();
     }
     function renderHist() {
       var h = lsGet(LS_HIST, []);
@@ -226,10 +267,25 @@
         return '<li><b>' + esc(x.ten) + '</b><span>' + esc(x.trang) + ' trang · ' + esc(x.kb) + ' · ' + esc(x.luc) + '</span>' + (x.noi ? '<small>' + esc(x.noi) + '</small>' : '') + '</li>';
       }).join('') + '</ul><button type="button" class="sc-link" data-act="clear-hist">Xóa danh sách</button>' : '';
     }
+    function renderLib() {
+      var box = $('scLib'); if (!box) return Promise.resolve();
+      return tx('docs', 'readonly', function (t, b) { var r = t.objectStore('docs').getAll(); r.onsuccess = function () { b.v = r.result; }; }).then(function (list) {
+        libUrls.forEach(function (u) { URL.revokeObjectURL(u); }); libUrls = [];
+        list = (list || []).sort(function (a, b) { return (b.updated || 0) - (a.updated || 0); });
+        if (!list.length) { box.innerHTML = ''; return; }
+        box.innerHTML = '<div class="sc-lb">Tài liệu đã lưu trong máy (' + list.length + ')</div><div class="sc-lib">' + list.map(function (d) {
+          var u = ''; if (d.cover) { u = URL.createObjectURL(d.cover); libUrls.push(u); }
+          return '<div class="sc-doc"><button type="button" class="sc-doc-open" data-doc="' + esc(d.id) + '" title="Mở để xem / chỉnh sửa">' +
+            (u ? '<img src="' + u + '" alt="">' : '<span class="sc-th-ph"></span>') +
+            '<b>' + esc(d.name) + '</b><span>' + (d.count || 0) + ' trang · ' + fmtKb(d.size || 0) + '</span><small>' + esc(fmtWhen(d.updated)) + '</small></button>' +
+            '<button type="button" class="sc-ic sc-danger sc-doc-del" data-docdel="' + esc(d.id) + '" title="Xóa tài liệu này khỏi máy" aria-label="Xóa tài liệu">' + svg('del') + '</button></div>';
+        }).join('') + '</div>';
+      }).catch(function () { box.innerHTML = ''; });
+    }
     function renderAll() {
       var has = st.pages.length > 0;
-      $('scEmpty').hidden = has; $('scWork').hidden = !has;
-      if (!has) { renderHist(); return; }
+      $('scEmpty').hidden = has; $('scWork').hidden = !has; $('scHeadSave').hidden = !has;
+      if (!has) { st.docId = null; st.docCreated = 0; renderHist(); renderLib(); persistSoon(); return; }
       if (st.cur >= st.pages.length) st.cur = st.pages.length - 1;
       renderStrip(); renderPanel(); drawPreview(true);
     }
@@ -502,7 +558,7 @@
       buildPdf().then(function (f) {
         setBusy(true, viaShare ? 'Đang mở chia sẻ…' : 'Đang lưu…');
         return Promise.resolve(viaShare ? host.share(f.blob, f.name) : host.save(f.blob, f.name)).then(function (noi) {
-          st.dirty = false; remember(f, viaShare ? 'Đã chia sẻ' : (typeof noi === 'string' ? noi : ''));
+          remember(f, viaShare ? 'Đã chia sẻ' : (typeof noi === 'string' ? noi : ''));
           if (!viaShare) toast(DONE + ' ' + f.name + ' (' + fmtKb(f.blob.size) + ')' + (typeof noi === 'string' && noi ? ' — ' + noi : ''));
         });
       }).catch(function (e) { if (e && /abort|cancel/i.test(e.name + e.message)) return; toast('Không lưu được: ' + (e && e.message || e), true); })
@@ -520,16 +576,118 @@
         .then(function () { setBusy(false); });
     }
     function clearAll(ask) {
-      if (ask && st.dirty && !global.confirm('Bỏ ' + st.pages.length + ' trang đang làm (chưa lưu PDF)?')) return;
+      if (ask && st.dirty && !global.confirm('Bỏ ' + st.pages.length + ' trang đang làm (chưa bấm Lưu vào máy)?')) return;
       st.pages.forEach(function (pg) { if (pg.thumb) URL.revokeObjectURL(pg.thumb); });
       cache.forEach(function (c) { c.width = c.height = 1; }); cache.clear();
-      st.pages = []; st.cur = 0; st.dirty = false; st.name = defaultName(); $('scName').value = st.name;
+      st.pages = []; st.cur = 0; st.dirty = false; st.docId = null; st.docCreated = 0; st.name = defaultName(); $('scName').value = st.name;
       renderAll();
+    }
+
+    // ---- LƯU VÀO MÁY / mở lại / xóa / tự lưu nháp
+    function mkPage(o, id) {
+      var m = S.MODES[o.mode] ? o.mode : S.DEFAULT_MODE, q = okQuad(o.quad);
+      return { id: id, blob: o.blob, rot: ((+o.rot || 0) % 360 + 360) % 360, mode: m, p: clone(S.resolveParams(m, o.p || null)), quad: q, cropOn: !!o.cropOn && !!q, thumb: '', inDraft: false };
+    }
+    function thumbsAll() {
+      var j = 0, n = st.pages.length;
+      return (function nx() { if (j >= n) return Promise.resolve(); setBusy(true, 'Đang mở trang ' + (j + 1) + '/' + n + '…'); return makeThumb(st.pages[j++]).then(nx); })();
+    }
+    function persistSoon() { clearTimeout(draftTimer); draftTimer = setTimeout(persistNow, 700); }
+    function persistNow() {
+      clearTimeout(draftTimer);
+      if (!ready) return Promise.resolve();
+      if (draftBusy) { draftAgain = true; return Promise.resolve(); }
+      draftBusy = true;
+      var pages = st.pages.slice(), order = pages.map(function (pg) { return pg.id; }), mp = {};
+      pages.forEach(function (pg) { mp[pg.id] = { rot: pg.rot, mode: pg.mode, p: clone(pg.p), quad: pg.quad ? clone(pg.quad) : null, cropOn: !!pg.cropOn }; });
+      var meta = { order: order, pages: mp, cur: st.cur, name: st.name, docId: st.docId || null, docCreated: st.docCreated || 0, dirty: !!st.dirty };
+      var fresh = pages.filter(function (pg) { return !pg.inDraft; });
+      return tx('draft', 'readwrite', function (t) {
+        var s = t.objectStore('draft');
+        if (!pages.length) { s.clear(); return; }
+        fresh.forEach(function (pg) { s.put({ blob: pg.blob }, 'p' + pg.id); });
+        s.put(meta, 'meta');
+        var keep = { meta: 1 }; order.forEach(function (id) { keep['p' + id] = 1; });
+        var kr = s.getAllKeys(); kr.onsuccess = function () { kr.result.forEach(function (k) { if (!keep[k]) s.delete(k); }); };
+      }).then(function () { fresh.forEach(function (pg) { pg.inDraft = true; }); })
+        .catch(function () { if (!draftWarned) { draftWarned = true; toast('Không tự lưu nháp được — nếu tắt app, trang đang làm có thể mất. Hãy bấm Lưu vào máy (bộ nhớ có thể đã đầy).', true); } })
+        .then(function () { draftBusy = false; if (draftAgain) { draftAgain = false; persistSoon(); } });
+    }
+    function saveLocal() {
+      if (st.busy || !st.pages.length) return;
+      var name = exportName(), now = Date.now(), id = st.docId || ('d' + now.toString(36) + Math.random().toString(36).slice(2, 6));
+      var pages = st.pages.slice(), first = pages[0], created = st.docCreated || now, fmt = def.format;
+      var recs = pages.map(function (pg) { return { blob: pg.blob, rot: pg.rot, mode: pg.mode, p: clone(pg.p), quad: pg.quad ? clone(pg.quad) : null, cropOn: !!pg.cropOn }; });
+      var size = pages.reduce(function (a, pg) { return a + (pg.blob ? pg.blob.size : 0); }, 0);
+      clearTimeout(thumbTimer);
+      setBusy(true, 'Đang lưu vào máy…');
+      getSource(first).then(function (src) { var t = S.process(src, popt(first, { maxSide: 320 })); return S.toBlob(t, 'image/jpeg', 0.8); })
+        .then(function (cover) {
+          return tx(['docs', 'docpages'], 'readwrite', function (t) {
+            t.objectStore('docs').put({ id: id, name: name, count: recs.length, size: size, format: fmt, created: created, updated: now, cover: cover }, id);
+            t.objectStore('docpages').put({ pages: recs }, id);
+          });
+        })
+        .then(function () {
+          st.dirty = false; clearAll(false);
+          toast('Đã lưu "' + name + '" (' + recs.length + ' trang) vào máy. Muốn sửa lại: chọn ở danh sách bên dưới.');
+        })
+        .catch(function (e) { toast('Không lưu được vào máy: ' + (e && e.message || e), true); })
+        .then(function () { setBusy(false); });
+    }
+    function openDoc(id) {
+      if (st.busy || st.pages.length) return;
+      setBusy(true, 'Đang mở tài liệu…');
+      tx(['docs', 'docpages'], 'readonly', function (t, b) {
+        var a = t.objectStore('docs').get(id), c = t.objectStore('docpages').get(id);
+        a.onsuccess = function () { b.v = b.v || {}; b.v.meta = a.result; }; c.onsuccess = function () { b.v = b.v || {}; b.v.rec = c.result; };
+      }).then(function (r) {
+        var meta = r && r.meta, rec = r && r.rec;
+        if (!meta || !rec || !rec.pages || !rec.pages.length) throw new Error('Tài liệu này không còn dữ liệu.');
+        st.pages = rec.pages.filter(function (o) { return o && o.blob; }).map(function (o) { return mkPage(o, ++seq); });
+        st.cur = 0; st.name = meta.name || defaultName(); $('scName').value = st.name; st.docId = id; st.docCreated = meta.created || 0; st.dirty = false;
+        return thumbsAll();
+      }).catch(function (e) { toast('Không mở được tài liệu: ' + (e && e.message || e), true); })
+        .then(function () { setBusy(false); renderAll(); });
+    }
+    function delDoc(id) {
+      if (st.busy) return;
+      var nm = root.querySelector('.sc-doc-open[data-doc="' + id + '"] b');
+      if (!global.confirm('Xóa tài liệu' + (nm ? ' "' + nm.textContent + '"' : '') + ' khỏi máy? Không khôi phục lại được.')) return;
+      tx(['docs', 'docpages'], 'readwrite', function (t) { t.objectStore('docs').delete(id); t.objectStore('docpages').delete(id); })
+        .catch(function (e) { toast('Không xóa được: ' + (e && e.message || e), true); })
+        .then(renderLib);
+    }
+    function restore() { // mở app lại: dựng lại đúng trang đang làm lần trước
+      var restored = false;
+      setBusy(true, 'Đang mở lại trang đang làm…');
+      return tx('draft', 'readonly', function (t, b) { var r = t.objectStore('draft').get('meta'); r.onsuccess = function () { b.v = r.result; }; })
+        .then(function (meta) {
+          if (!meta || !meta.order || !meta.order.length) return;
+          return tx('draft', 'readonly', function (t, b) {
+            b.v = {}; meta.order.forEach(function (id) { var r = t.objectStore('draft').get('p' + id); r.onsuccess = function () { b.v[id] = r.result; }; });
+          }).then(function (blobs) {
+            var list = [];
+            meta.order.forEach(function (id) {
+              var rec = blobs[id]; if (!rec || !rec.blob) return;
+              var pg = mkPage(Object.assign({ blob: rec.blob }, (meta.pages || {})[id] || {}), +id); pg.inDraft = true; list.push(pg); seq = Math.max(seq, +id);
+            });
+            if (!list.length) return;
+            st.pages = list; st.cur = Math.min(Math.max(0, +meta.cur || 0), list.length - 1);
+            st.name = meta.name || st.name; $('scName').value = st.name; st.docId = meta.docId || null; st.docCreated = meta.docCreated || 0; st.dirty = meta.dirty !== false;
+            restored = true;
+            return thumbsAll();
+          });
+        })
+        .catch(function () { /* nháp hỏng / không đọc được: bắt đầu trống */ })
+        .then(function () { ready = true; setBusy(false); renderAll(); if (restored) toast('Đã mở lại trang đang làm dở lần trước.'); });
     }
 
     // ---- sự kiện
     root.addEventListener('click', function (e) {
-      var t = e.target.closest('[data-act],[data-mode],[data-kieu],[data-fmt],[data-pg]'); if (!t || t.disabled || st.busy) return;
+      var t = e.target.closest('[data-act],[data-mode],[data-kieu],[data-fmt],[data-pg],[data-doc],[data-docdel]'); if (!t || t.disabled || st.busy) return;
+      if (t.dataset.docdel) return delDoc(t.dataset.docdel);
+      if (t.dataset.doc) return openDoc(t.dataset.doc);
       if (t.dataset.mode) return setMode(t.dataset.mode);
       if (t.dataset.kieu) return setParam('kieu', t.dataset.kieu);
       if (t.dataset.fmt) { def.format = t.dataset.fmt; lsSet(LS_DEF, def); return renderPanel(); }
@@ -560,10 +718,11 @@
       }
       else if (a === 'apply-all') {
         st.pages.forEach(function (p) { if (p !== pg) { p.mode = pg.mode; p.p = clone(pg.p); } });
-        st.dirty = true; toast('Đã áp dụng cho ' + st.pages.length + ' trang.');
+        st.dirty = true; persistSoon(); toast('Đã áp dụng cho ' + st.pages.length + ' trang.');
         var j = 0; (function nx() { if (j >= st.pages.length) return renderStrip(); makeThumb(st.pages[j++]).then(nx); })();
       }
       else if (a === 'reset') { if (pg.mode === 'tuy') def.pTuy = null; setMode(pg.mode); }
+      else if (a === 'save-local') saveLocal();
       else if (a === 'save-pdf') savePdf(false);
       else if (a === 'share-pdf') savePdf(true);
       else if (a === 'save-jpg') saveJpg();
@@ -584,7 +743,7 @@
       pg.cropOn = on; changed(pg);
     });
     ['scCam', 'scImg', 'scPdf'].forEach(function (id) { $(id).addEventListener('change', function () { addFiles(this.files); this.value = ''; }); });
-    $('scName').addEventListener('change', function () { exportName(); });
+    $('scName').addEventListener('change', function () { exportName(); persistSoon(); });
 
     if (!phone) {
       // Kéo thả + dán ảnh (Ctrl+V) + phím tắt
@@ -603,7 +762,11 @@
       });
     }
 
+    // ra khỏi app / chuyển sang app khác (điện thoại) → ghi nháp ngay
+    global.addEventListener('pagehide', function () { persistNow(); });
+    document.addEventListener('visibilitychange', function () { if (document.hidden) persistNow(); });
     renderAll();
+    restore();
     return { addFiles: addFiles, clear: function () { clearAll(false); }, pages: function () { return st.pages.length; } };
   }
 

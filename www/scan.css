@@ -155,3 +155,21 @@
 /* PC 0.26 / ĐT 0.11 — thêm chế độ "Màu mực": thanh chọn có 5 nút (chế độ + kiểu) → chia đều trên 1 hàng */
 .sc-seg:not(.sc-seg-sm){ grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
 .sc-seg:not(.sc-seg-sm) button{ font-size: 12.5px; padding: 4px 2px; }
+
+/* ===== PC 0.27 / ĐT 0.12: nút Lưu vào máy + danh sách tài liệu đã lưu ===== */
+.sc-btn.sc-save{ background: var(--kl-green, var(--green, #1B7F4B)); border-color: var(--kl-green, var(--green, #1B7F4B)); color: #fff; }
+.sc-btn.sc-save:hover{ filter: brightness(1.08); border-color: var(--kl-green, var(--green, #1B7F4B)); }
+.sc-lb2{ margin: 14px 0 6px; }
+.sc-out .sc-tip{ margin: 6px 0 0; }
+.sc-lib{ display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+.sc-doc{ position: relative; display: flex; }
+.sc-doc-open{ flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: 3px; padding: 10px; text-align: left;
+  border: 1px solid var(--sc-line); border-radius: 14px; background: var(--sc-card); color: var(--sc-text); font: inherit; cursor: pointer; }
+.sc-doc-open:hover{ border-color: var(--sc-pri); }
+.sc-doc-open:focus-visible{ outline: 2px solid var(--sc-pri); outline-offset: 2px; }
+.sc-doc-open img, .sc-doc-open .sc-th-ph{ display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; object-position: top; border-radius: 8px; background: var(--sc-card2); margin-bottom: 6px; }
+.sc-doc-open b{ font-size: 14px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.sc-doc-open span{ color: var(--sc-muted); font-size: 12.5px; }
+.sc-doc-open small{ color: var(--sc-muted); font-size: 12px; }
+.sc-doc-del{ position: absolute; top: 14px; right: 14px; width: 34px; height: 34px; border-radius: 50%; background: color-mix(in srgb, var(--sc-card) 88%, transparent); border: 1px solid var(--sc-line); box-shadow: 0 1px 4px rgba(0,0,0,.18); }
+@media (max-width: 860px){ .sc-lib{ grid-template-columns: repeat(2, minmax(0, 1fr)); } }

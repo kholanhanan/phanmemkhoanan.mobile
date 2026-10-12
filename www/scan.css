@@ -118,3 +118,16 @@
   .sc-add .sc-btn{ flex: 1; }
   .sc-add{ width: 100%; }
 }
+
+/* ===== Scan thông minh (PC 0.22 / ĐT 0.7): chọn kiểu, ô tích, trình chỉnh 4 góc ===== */
+.sc-seg-kieu{ margin-top: 10px; }
+.sc-chk{ display: flex; align-items: flex-start; gap: 10px; margin: 2px 0 10px; font-size: 13.5px; line-height: 1.35; cursor: pointer; }
+.sc-chk input{ flex: none; width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--sc-pri); }
+.sc-chk small{ display: block; color: var(--sc-muted); font-size: 12px; }
+.sc-crop{ position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; gap: 10px; padding: 12px; background: var(--sc-bg); }
+.sc-crop-top{ display: flex; flex-direction: column; gap: 2px; }
+.sc-crop-top small{ color: var(--sc-muted); font-size: 12.5px; }
+.sc-crop-stage{ flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 12px; background: var(--sc-card2); }
+.sc-crop-stage canvas{ max-width: 100%; max-height: 100%; touch-action: none; cursor: crosshair; }
+.sc-crop-btns{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding-bottom: env(safe-area-inset-bottom, 0px); }
+.sc-crop-btns .sc-btn{ padding: 8px 6px; }

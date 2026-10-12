@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '0.5 (11/10/2026)';
+  const APP_VERSION = '0.7 (11/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -275,13 +275,16 @@
     if (t === 'phieu') return hasKho && canCreate();
     if (t === 'baocao') return REPORT_SRCS.some(canReport);
     if (t === 'm8') return canView('m08');
-    if (t === 'c3d') return canC3d();
-    if (t === 'scan') return canScan();
+    if (t === 'tools') return canC3d() || canScan(); // tab Công cụ = Xếp cont 3D + Scan
+    if (t === 'c3d') return canC3d();   // màn con của Công cụ (không còn nút riêng ở thanh tab)
+    if (t === 'scan') return canScan(); // màn con của Công cụ
     return false;
   }
-  const firstTab = () => ['home', 'xuat', 'phieu', 'baocao', 'm8', 'c3d', 'scan'].find(tabOk) || 'home';
+  const firstTab = () => ['home', 'xuat', 'baocao', 'm8', 'tools'].find(tabOk) || 'home';
+  const TOOL_TABS = ['c3d', 'scan'];
+  const tabBtnOf = (t) => (TOOL_TABS.includes(t) ? 'tools' : t); // Xếp cont / Scan sáng tab Công cụ
   function showTabUi() {
-    document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('is-on', b.dataset.tab === state.tab));
+    document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('is-on', b.dataset.tab === tabBtnOf(state.tab)));
     document.querySelectorAll('.view').forEach((v) => { v.hidden = v.dataset.view !== state.tab; });
   }
   // Hỏi Web App "tôi là ai". Web App bản cũ chưa có lệnh 'toi' → coi như đủ quyền (state.me = null).
@@ -1930,7 +1933,7 @@
       list.innerHTML = '';
       if (!soanN) {
         $('phieuDraft').innerHTML = '';
-        meta.innerHTML = emptyHtml('Chưa có phiếu đang soạn', 'Vào tab Kho, chạm vào 1 dòng hàng để thêm vào phiếu.');
+        meta.innerHTML = emptyHtml('Chưa có phiếu đang soạn', 'Vào tab Tồn kho, chạm vào 1 dòng hàng để thêm vào phiếu.');
         return;
       }
       const c = state.cart;
@@ -2027,7 +2030,7 @@
     renderFreshness();
     if (state.tab === 'home') renderHome();
     if (state.tab === 'xuat') renderXuat();
-    if (state.tab === 'phieu') renderPhieu();
+    if (state.tab === 'tools') renderTools();
     if (state.tab === 'm8') renderM8();
     if (state.tab === 'baocao') renderBaoCao();
     if (window.C3DPhone) { if (state.tab === 'c3d') window.C3DPhone.show(); else window.C3DPhone.hide(); }
@@ -2216,6 +2219,21 @@
     if (state.tab !== 'xuat') switchTab('xuat'); else { renderAll(); autoRefresh(); }
   }
 
+  // ------------------------------------------------------------------ Công cụ (ĐT 0.6)
+  const TOOL_LIST = [
+    { id: 'c3d', name: 'Xếp cont', sub: 'Mô phỏng xếp hàng vào container 3D', ok: () => canC3d(),
+      svg: '<path d="M12 2.5 21 7v10l-9 4.5L3 17V7z"/><path d="M3 7l9 4.5L21 7M12 11.5v10"/>' },
+    { id: 'scan', name: 'Scan', sub: 'Chụp / chọn ảnh, PDF → làm trắng nền → lưu PDF', ok: () => canScan(),
+      svg: '<path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><path d="M8 9h8M8 12h8M8 15h5"/>' },
+  ];
+  function renderTools() {
+    $('toolGrid').innerHTML = TOOL_LIST.filter((t) => t.ok()).map((t) => `<button type="button" class="tool-card" data-tool="${t.id}">
+      <span class="tool-ico"><svg viewBox="0 0 24 24" aria-hidden="true">${t.svg}</svg></span>
+      <span class="tool-txt"><b>${esc(t.name)}</b><small>${esc(t.sub)}</small></span>
+      <svg class="tool-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+    </button>`).join('');
+  }
+
   // ------------------------------------------------------------------ Trang chủ
   // Mốc "nạp tồn kho mới" trên PC của từng kho (Meta do main.js ghi): phiếu PC nhận (xuLyLuc) trước mốc
   // này là của kỳ tồn CŨ. M03/M04 là sổ nhập–xuất cộng dồn (không nạp lại cả kho) nên không áp dụng.
@@ -2274,6 +2292,8 @@
     const hasKho = SOURCES.length > 0;
     $('homeSearchRow').hidden = !hasKho; // chỉ có quyền Lịch xuất / Tra cứu: không có kho để tìm mã
     $('homeKhoTitle').hidden = !hasKho;
+    $('homePhieuWrap').hidden = !tabOk('phieu'); // Phiếu nằm cuối Tổng quan (chỉ khi có kho + quyền tạo phiếu)
+    if (tabOk('phieu')) renderPhieu();
     $('homeKho').innerHTML = SOURCES.map((k) => {
       const m = khoSummary(k);
       return `<button type="button" class="kho-tile${m.loaded ? '' : ' is-empty'}" data-kho="${k}">
@@ -3412,6 +3432,7 @@
     if (tab === 'xuat') return state.xuatSrc === 'tong' ? SOURCES.slice() : [state.xuatSrc]; // Tổng: cần mọi kho
     if (tab === 'ton') return [state.tonMode];
     if (tab === 'm8') return ['m08'];
+    if (tab === 'tools') return []; // hub Công cụ không tải gì
     if (tab === 'c3d') return []; // Xếp cont 3D chạy tại chỗ, không tải gì
     if (tab === 'scan') return []; // Scan tài liệu chạy tại chỗ, không tải gì
     if (tab === 'baocao') return []; // báo cáo tải riêng (loadReports), không cần bảng kho
@@ -3880,11 +3901,15 @@
   document.querySelector('.tabbar').addEventListener('click', (e) => {
     const b = e.target.closest('.tab');
     if (!b) return;
-    // Có phiếu soạn dở thì mở thẳng nhóm "Đang soạn" — việc cần làm tiếp nằm ở đó.
-    if (b.dataset.tab === 'phieu' && state.cart && state.cart.items.length) state.phieuSeg = 'soan';
+    // Bấm tab Công cụ khi đang ở Xếp cont / Scan → về trang chọn công cụ.
     switchTab(b.dataset.tab);
   });
-  $('refreshBtn').addEventListener('click', () => { if (state.tab === 'c3d' || state.tab === 'scan') return; if (state.tab === 'baocao') loadReports(true); else { if (state.tab === 'home') loadLx(true); refresh(); } });
+  $('toolGrid').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-tool]');
+    if (b) switchTab(b.dataset.tool);
+  });
+  document.querySelectorAll('[data-toolback]').forEach((b) => b.addEventListener('click', () => switchTab('tools')));
+  $('refreshBtn').addEventListener('click', () => { if (state.tab === 'c3d' || state.tab === 'scan' || state.tab === 'tools') return; if (state.tab === 'baocao') loadReports(true); else { if (state.tab === 'home') loadLx(true); refresh(); } });
   $('homeLx').addEventListener('click', (e) => {
     if (e.target.closest('[data-lxbadx]')) { lxBadDismiss(); return; }
     if (e.target.closest('[data-lxadd]')) { openLxQuick(lxq.loai); return; }
@@ -4147,6 +4172,7 @@
   if (CapApp) {
     CapApp.addListener('backButton', () => {
       if (!$('sheet').hidden) { if (cfgOk()) closeSheet(); return; }
+      if (TOOL_TABS.includes(state.tab)) { switchTab('tools'); return; } // Xếp cont / Scan → về Công cụ
       if (state.tab !== firstTab()) { switchTab(firstTab()); return; }
       CapApp.exitApp();
     });

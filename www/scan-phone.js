@@ -1,10 +1,10 @@
-// scan-phone.js — tab "Scan" trên điện thoại (ĐT 0.5): chụp / chọn ảnh hoặc PDF → làm trắng nền → lưu / chia sẻ PDF.
+// scan-phone.js — tab "Scan" trên điện thoại (ĐT 0.7): chụp / chọn ảnh hoặc PDF → tự cắt trang, khử bóng, làm trắng nền → lưu / chia sẻ PDF.
 // Chỉ là phần nối: lõi + giao diện DÙNG CHUNG với PC (scan-core.js, scan-ui.js, scan.css — chép y nguyên từ app/html/).
 // Nạp lười: lần đầu mở tab mới nạp scan-core.js + scan-ui.js; jsPDF / pdf.js nạp khi lưu PDF / chọn file PDF.
 // Quyền: mã kho 'SCAN' (Cài đặt › Tài khoản › Kho điện thoại) — kiểm ở app.js › canScan.
 (function () {
   'use strict';
-  const V = '?v=0.5';
+  const V = '?v=0.7';
   const loading = {};
   function loadScript(src) {
     if (!loading[src]) {

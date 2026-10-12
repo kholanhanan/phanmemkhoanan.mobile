@@ -10,10 +10,10 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
   <title>Kho Lạnh An An</title>
-<link rel="stylesheet" href="fonts.css?v=0.5-20261011"><!-- font trong máy (offline) -->
-  <link rel="stylesheet" href="app.css?v=0.5-20261011">
-  <link rel="stylesheet" href="c3d-phone.css?v=0.5-20261011">
-  <link rel="stylesheet" href="scan.css?v=0.5-20261011"><!-- ĐT 0.5: Scan tài liệu (dùng chung với PC) -->
+<link rel="stylesheet" href="fonts.css?v=0.7-20261011"><!-- font trong máy (offline) -->
+  <link rel="stylesheet" href="app.css?v=0.7-20261011">
+  <link rel="stylesheet" href="c3d-phone.css?v=0.7-20261011">
+  <link rel="stylesheet" href="scan.css?v=0.7-20261011"><!-- ĐT 0.5: Scan tài liệu (dùng chung với PC) -->
 </head>
 <body>
   <header class="topbar">
@@ -49,6 +49,23 @@
         <div id="homeLx" hidden></div>
         <h3 class="hsec" id="homeKhoTitle">Kho <small>chạm để xem &amp; xuất</small></h3>
         <div class="kho-grid" id="homeKho"></div>
+        <!-- PHIẾU (ĐT 0.6): chuyển từ tab riêng vào Tổng quan — Đang soạn / Chờ PC / Đã nhận / Đã hủy. renderPhieu() trong app.js -->
+        <div id="homePhieuWrap" hidden>
+          <h3 class="hsec" id="homePhieuTitle">Phiếu</h3>
+        <div class="pseg" id="phieuSeg" role="tablist" aria-label="Nhóm phiếu">
+          <button type="button" role="tab" data-pseg="soan">Đang soạn <b id="pc-soan"></b></button>
+          <button type="button" role="tab" data-pseg="cho">Chờ PC <b id="pc-cho"></b></button>
+          <button type="button" role="tab" data-pseg="nhan">Đã nhận <b id="pc-nhan"></b></button>
+          <button type="button" role="tab" data-pseg="huy">Đã hủy <b id="pc-huy"></b></button>
+        </div>
+        <div id="phieuDraft"></div>
+        <label class="toggle">
+          <input type="checkbox" id="onlyMine" checked>
+          <span>Chỉ phiếu của tôi</span>
+        </label>
+        <div class="list-meta" id="phieuMeta"></div>
+        <ul class="list" id="phieuList"></ul>
+        </div>
       </div>
     </section>
 
@@ -148,8 +165,12 @@
       <div id="m8Body"></div>
     </section>
 
-    <!-- PHIẾU: mọi phiếu ở 1 chỗ — Đang soạn / Chờ PC / Đã nhận / Đã hủy -->
     <!-- XẾP CONT 3D (bản 4.13): bản rút gọn của module PC "Container Loading 3D" — c3d-phone.js (thư viện 3D nạp lần đầu mở tab) -->
+    <!-- CÔNG CỤ (ĐT 0.6): gom Xếp cont 3D + Scan vào 1 tab — renderTools() trong app.js -->
+    <section class="view" id="view-tools" data-view="tools" hidden>
+      <h2 class="ks-title" style="margin:6px 2px 12px">Công cụ</h2>
+      <div class="tool-grid" id="toolGrid"></div>
+    </section>
     <section class="view" id="view-c3d" data-view="c3d" hidden>
       <div class="c3-root" id="c3dRoot"><p class="c3-err" style="color:var(--muted)">Đang nạp khung 3D…</p></div>
     </section>
@@ -158,21 +179,6 @@
       <div class="scan-wrap" id="scanRoot"></div>
     </section>
 
-    <section class="view" id="view-phieu" data-view="phieu" hidden>
-      <div class="pseg" id="phieuSeg" role="tablist" aria-label="Nhóm phiếu">
-        <button type="button" role="tab" data-pseg="soan">Đang soạn <b id="pc-soan"></b></button>
-        <button type="button" role="tab" data-pseg="cho">Chờ PC <b id="pc-cho"></b></button>
-        <button type="button" role="tab" data-pseg="nhan">Đã nhận <b id="pc-nhan"></b></button>
-        <button type="button" role="tab" data-pseg="huy">Đã hủy <b id="pc-huy"></b></button>
-      </div>
-      <div id="phieuDraft"></div>
-      <label class="toggle">
-        <input type="checkbox" id="onlyMine" checked>
-        <span>Chỉ phiếu của tôi</span>
-      </label>
-      <div class="list-meta" id="phieuMeta"></div>
-      <ul class="list" id="phieuList"></ul>
-    </section>
   </main>
 
   <!-- Thanh phiếu đang soạn -->
@@ -199,15 +205,11 @@
     <button type="button" class="tab" data-tab="home">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>
       <span>Tổng quan</span>
+      <b class="tab-badge" id="navBadge" hidden></b><!-- số phiếu đang chờ PC -->
     </button>
     <button type="button" class="tab" data-tab="xuat">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/></svg>
       <span>Tồn kho</span>
-    </button>
-    <button type="button" class="tab" data-tab="phieu">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h7"/></svg>
-      <span>Phiếu</span>
-      <b class="tab-badge" id="navBadge" hidden></b>
     </button>
     <button type="button" class="tab" data-tab="baocao" hidden>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 17v-3M12 17v-6M15 17v-4"/></svg>
@@ -217,13 +219,9 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
       <span>Tra cứu</span>
     </button>
-    <button type="button" class="tab" data-tab="c3d" hidden>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 21 7v10l-9 4.5L3 17V7z"/><path d="M3 7l9 4.5L21 7M12 11.5v10"/></svg>
-      <span>Xếp cont</span>
-    </button>
-    <button type="button" class="tab" data-tab="scan" hidden>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><path d="M8 9h8M8 12h8M8 15h5"/></svg>
-      <span>Scan</span>
+    <button type="button" class="tab" data-tab="tools" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.1L3.5 17.2a1.8 1.8 0 0 0 2.6 2.6l5.8-5.8a4 4 0 0 0 5.1-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg>
+      <span>Công cụ</span>
     </button>
   </nav>
 
@@ -236,13 +234,13 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="live-update.js?v=0.5-20261011"></script><!-- tự cập nhật giao diện APK (đặt ĐẦU TIÊN: báo app đã chạy tốt) -->
-  <script src="export.js?v=0.5-20261011"></script>
-  <script src="size-label.js?v=0.5-20261011"></script>
-  <script src="ks-rules.js?v=0.5-20261011"></script>
-  <script src="app-config.js?v=0.5-20261011"></script><!-- đường dẫn Web App cố định (ẩn ô nhập link trên điện thoại) -->
-  <script src="c3d-phone.js?v=0.5-20261011"></script>
-  <script src="scan-phone.js?v=0.5-20261011"></script><!-- Scan tài liệu: phần nối nhỏ; lõi + giao diện nạp khi mở tab --><!-- Xếp cont 3D: chỉ là phần giao diện nhỏ; three.js nạp khi mở tab -->
-  <script src="app.js?v=0.5-20261011"></script>
+  <script src="live-update.js?v=0.7-20261011"></script><!-- tự cập nhật giao diện APK (đặt ĐẦU TIÊN: báo app đã chạy tốt) -->
+  <script src="export.js?v=0.7-20261011"></script>
+  <script src="size-label.js?v=0.7-20261011"></script>
+  <script src="ks-rules.js?v=0.7-20261011"></script>
+  <script src="app-config.js?v=0.7-20261011"></script><!-- đường dẫn Web App cố định (ẩn ô nhập link trên điện thoại) -->
+  <script src="c3d-phone.js?v=0.7-20261011"></script>
+  <script src="scan-phone.js?v=0.7-20261011"></script><!-- Scan tài liệu: phần nối nhỏ; lõi + giao diện nạp khi mở tab --><!-- Xếp cont 3D: chỉ là phần giao diện nhỏ; three.js nạp khi mở tab -->
+  <script src="app.js?v=0.7-20261011"></script>
 </body>
 </html>

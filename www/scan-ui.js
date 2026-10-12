@@ -29,6 +29,7 @@
     save: '<path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v3h16v-3"/>',
     share: '<circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.4M8.2 13.2l7.6 4.4"/>',
     disk: '<path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/>',
+    zin: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4.2-4.2M11 8v6M8 11h6"/>', zout: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4.2-4.2M8 11h6"/>',
     crop: '<path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/>', plus: '<path d="M12 5v14M5 12h14"/>', reset: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>'
   };
   var svg = function (k) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + IC[k] + '</svg>'; };
@@ -103,7 +104,7 @@
         '<div class="sc-libbox" id="scLib"></div>' +
         '<div class="sc-hist" id="scHist"></div></div>' +
       '<div class="sc-work" id="scWork" hidden>' +
-        '<div class="sc-stage"><div class="sc-cvwrap"><canvas class="sc-cv" id="scCv"></canvas><div class="sc-pageno" id="scPageNo"></div></div>' +
+        '<div class="sc-stage"><div class="sc-cvwrap"><div class="sc-scroll" id="scScroll"><canvas class="sc-cv" id="scCv"></canvas></div><div class="sc-pageno" id="scPageNo"></div></div>' +
           '<div class="sc-tools">' +
             '<button type="button" class="sc-ic" data-act="prev" title="Xem trang trước (←)" aria-label="Xem trang trước">' + svg('left') + '</button>' +
             '<span class="sc-sep"></span>' +
@@ -111,6 +112,10 @@
             '<button type="button" class="sc-ic" data-act="rot-r" title="Xoay phải (R)" aria-label="Xoay phải">' + svg('rr') + '</button>' +
             '<button type="button" class="sc-ic" data-act="cmp" title="Giữ để xem ảnh gốc" aria-label="Giữ để xem ảnh gốc">' + svg('eye') + '</button>' +
             '<button type="button" class="sc-ic" data-act="crop" title="Chỉnh 4 góc trang giấy" aria-label="Chỉnh 4 góc trang giấy">' + svg('crop') + '</button>' +
+            '<span class="sc-sep"></span>' +
+            '<button type="button" class="sc-ic" data-act="zoom-out" title="Thu nhỏ (−)" aria-label="Thu nhỏ">' + svg('zout') + '</button>' +
+            '<button type="button" class="sc-ic sc-zfit" data-act="zoom-fit" title="Vừa khung (0) · bấm đúp vào ảnh để phóng to / thu về" aria-label="Vừa khung" id="scZoomTxt">100%</button>' +
+            '<button type="button" class="sc-ic" data-act="zoom-in" title="Phóng to (+) · lăn chuột, kéo để di chuyển" aria-label="Phóng to">' + svg('zin') + '</button>' +
             '<span class="sc-sep"></span>' +
             '<button type="button" class="sc-ic" data-act="mv-l" title="Chuyển trang này lên trước" aria-label="Chuyển trang lên trước">' + svg('mvl') + '</button>' +
             '<button type="button" class="sc-ic" data-act="mv-r" title="Chuyển trang này ra sau" aria-label="Chuyển trang ra sau">' + svg('mvr') + '</button>' +
@@ -214,16 +219,60 @@
 
     // ---- vẽ
     var drawTimer = 0, drawTok = 0, showOrig = false;
+    // ---- thu phóng ảnh xem trước: lăn chuột / nút + − / bấm đúp / kẹp 2 ngón; kéo để di chuyển khi đang phóng
+    var zoom = 1, zoomPg = 0, zoomHi = false, scroller = $('scScroll');
+    function fitDims() {
+      var aw = scroller.clientWidth, ah = scroller.clientHeight, asp = cv.width / cv.height;
+      if (!aw || !ah || !(asp > 0)) return null;
+      var w = Math.min(aw, ah * asp); return { w: w, h: w / asp };
+    }
+    function applyZoom() {
+      var f = fitDims(); if (!f) return;
+      cv.style.width = Math.round(f.w * zoom) + 'px'; cv.style.height = Math.round(f.h * zoom) + 'px';
+      scroller.style.touchAction = zoom > 1 ? 'none' : 'pan-y';
+      scroller.classList.toggle('is-zoom', zoom > 1);
+      $('scZoomTxt').textContent = Math.round(zoom * 100) + '%';
+    }
+    function setZoom(nz, cx, cy) {
+      nz = Math.min(6, Math.max(1, Math.round(nz * 100) / 100));
+      if (nz === zoom) return;
+      var r = cv.getBoundingClientRect(), sr = scroller.getBoundingClientRect();
+      if (cx == null) { cx = sr.left + sr.width / 2; cy = sr.top + sr.height / 2; }
+      var fx = r.width ? Math.min(1, Math.max(0, (cx - r.left) / r.width)) : .5, fy = r.height ? Math.min(1, Math.max(0, (cy - r.top) / r.height)) : .5;
+      zoom = nz; applyZoom();
+      var r2 = cv.getBoundingClientRect();
+      scroller.scrollLeft += (r2.left + fx * r2.width) - cx; scroller.scrollTop += (r2.top + fy * r2.height) - cy;
+      if (zoom === 1) { scroller.scrollLeft = 0; scroller.scrollTop = 0; }
+      if ((zoom > 1) !== zoomHi) { zoomHi = zoom > 1; drawPreview(); } // phóng to → vẽ lại nét hơn
+    }
+    scroller.addEventListener('wheel', function (e) { if (!curPage()) return; e.preventDefault(); setZoom(zoom * (e.deltaY < 0 ? 1.18 : 1 / 1.18), e.clientX, e.clientY); }, { passive: false });
+    scroller.addEventListener('dblclick', function (e) { if (!curPage()) return; setZoom(zoom > 1 ? 1 : 2.5, e.clientX, e.clientY); });
+    var ptrs = new Map(), pinch0 = 0, pz0 = 1;
+    scroller.addEventListener('pointerdown', function (e) {
+      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      try { scroller.setPointerCapture(e.pointerId); } catch (x) { /* bỏ qua */ }
+      if (ptrs.size === 2) { var a = Array.from(ptrs.values()); pinch0 = Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); pz0 = zoom; }
+    });
+    scroller.addEventListener('pointermove', function (e) {
+      var o = ptrs.get(e.pointerId); if (!o) return;
+      var dx = e.clientX - o.x, dy = e.clientY - o.y; o.x = e.clientX; o.y = e.clientY;
+      if (ptrs.size === 2 && pinch0) { var a = Array.from(ptrs.values()), d = Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); setZoom(pz0 * d / pinch0, (a[0].x + a[1].x) / 2, (a[0].y + a[1].y) / 2); }
+      else if (ptrs.size === 1 && zoom > 1) { scroller.scrollLeft -= dx; scroller.scrollTop -= dy; }
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) { scroller.addEventListener(ev, function (e) { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch0 = 0; }); });
+    global.addEventListener('resize', function () { applyZoom(); });
+
     function drawPreview(now) {
       clearTimeout(drawTimer);
       var go = function () {
         var pg = curPage(); if (!pg) return;
+        if (pg.id !== zoomPg) { zoomPg = pg.id; zoom = 1; zoomHi = false; }
         var tok = ++drawTok;
         getSource(pg).then(function (src) {
           if (tok !== drawTok) return;
-          var out = S.process(src, popt(pg, { mode: showOrig ? 'tuy' : pg.mode, p: showOrig ? { kieu: 'goc' } : pg.p, quad: showOrig ? null : (pg.cropOn ? pg.quad : null), maxSide: PREVIEW }));
+          var out = S.process(src, popt(pg, { mode: showOrig ? 'tuy' : pg.mode, p: showOrig ? { kieu: 'goc' } : pg.p, quad: showOrig ? null : (pg.cropOn ? pg.quad : null), maxSide: zoom > 1 ? Math.min(S.MAX_SIDE, PREVIEW * 2) : PREVIEW }));
           cv.width = out.width; cv.height = out.height; cv.getContext('2d').drawImage(out, 0, 0);
-          out.width = out.height = 1;
+          out.width = out.height = 1; applyZoom();
         }).catch(function (e) { toast('Không vẽ được trang: ' + e.message, true); });
       };
       if (now) go(); else drawTimer = setTimeout(go, 90);
@@ -708,6 +757,9 @@
         var gone = st.pages.splice(i, 1)[0]; if (gone.thumb) URL.revokeObjectURL(gone.thumb); if (cache.has(gone.id)) { cache.get(gone.id).width = 1; cache.delete(gone.id); }
         if (!st.pages.length) st.dirty = false; renderAll();
       }
+      else if (a === 'zoom-in') setZoom(zoom * 1.4);
+      else if (a === 'zoom-out') setZoom(zoom / 1.4);
+      else if (a === 'zoom-fit') setZoom(1);
       else if (a === 'crop') openCrop(pg);
       else if (a === 'redetect') {
         getSource(pg).then(function (src) {
@@ -757,7 +809,7 @@
       });
       document.addEventListener('keydown', function (e) {
         var t = e.target; if (!st.pages.length || st.busy || (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) || e.ctrlKey || e.altKey || e.metaKey) return;
-        var map = { ArrowLeft: 'prev', ArrowRight: 'next', r: 'rot-r', R: 'rot-r', Delete: 'del' }, a = map[e.key]; if (!a) return;
+        var map = { ArrowLeft: 'prev', ArrowRight: 'next', r: 'rot-r', R: 'rot-r', Delete: 'del', '+': 'zoom-in', '=': 'zoom-in', '-': 'zoom-out', '0': 'zoom-fit' }, a = map[e.key]; if (!a) return;
         var b = root.querySelector('[data-act="' + a + '"]'); if (b && !b.disabled) { e.preventDefault(); b.click(); }
       });
     }

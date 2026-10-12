@@ -394,7 +394,19 @@
         var msg = (n === 'NotAllowedError' || n === 'SecurityError') ? 'Chưa được cấp quyền camera. Hãy cho phép camera cho app (Cài đặt › Ứng dụng › Quyền) rồi mở lại.'
           : (n === 'NotFoundError' || n === 'OverconstrainedError') ? 'Không tìm thấy camera trên máy này.'
           : 'Không mở được camera' + (e && e.message ? ': ' + e.message : '') + '.';
-        close(); toast(msg + (phone ? ' Bạn vẫn có thể bấm "Ảnh" để chọn ảnh đã chụp.' : ''), true);
+        close();
+        // Bản điện thoại (APK có plugin NativeSettings): hỏi rồi mở thẳng trang "Thông tin ứng dụng" để bật quyền Camera.
+        var NS = global.Capacitor && global.Capacitor.Plugins && global.Capacitor.Plugins.NativeSettings;
+        if (phone && NS && (n === 'NotAllowedError' || n === 'SecurityError')) {
+          var go = false; try { go = global.confirm('Chưa được cấp quyền camera.\n\nMở Cài đặt của app để bật? (Quyền › Camera › Cho phép)'); } catch (x) { /* bỏ qua */ }
+          if (go) {
+            var android = global.Capacitor.getPlatform && global.Capacitor.getPlatform() === 'android';
+            var opt = android ? NS.openAndroid({ option: 'application_details' }) : NS.openIOS({ option: 'app' });
+            if (opt && opt.catch) opt.catch(function () { toast('Không mở được Cài đặt. Vào Cài đặt › Ứng dụng › Kho Lạnh An An › Quyền.', true); });
+            return;
+          }
+        }
+        toast(msg + (phone ? ' Bạn vẫn có thể bấm "Ảnh" để chọn ảnh đã chụp.' : ''), true);
       }
       function toggleTorch() {
         if (!track) return;

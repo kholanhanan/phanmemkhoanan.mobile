@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '0.8 (12/10/2026)';
+  const APP_VERSION = '0.10 (12/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -2223,14 +2223,14 @@
   const TOOL_LIST = [
     { id: 'c3d', name: 'Xếp cont', sub: 'Mô phỏng xếp hàng vào container 3D', ok: () => canC3d(),
       svg: '<path d="M12 2.5 21 7v10l-9 4.5L3 17V7z"/><path d="M3 7l9 4.5L21 7M12 11.5v10"/>' },
-    { id: 'scan', name: 'Scan', sub: 'Chụp / chọn ảnh, PDF → làm trắng nền → lưu PDF', ok: () => canScan(),
+    { id: 'scan', name: 'Scan tài liệu', sub: 'Chụp, canh 4 góc, làm trắng nền, lưu PDF', ok: () => canScan(),
       svg: '<path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><path d="M8 9h8M8 12h8M8 15h5"/>' },
   ];
   function renderTools() {
-    $('toolGrid').innerHTML = TOOL_LIST.filter((t) => t.ok()).map((t) => `<button type="button" class="tool-card" data-tool="${t.id}">
-      <span class="tool-ico"><svg viewBox="0 0 24 24" aria-hidden="true">${t.svg}</svg></span>
-      <span class="tool-txt"><b>${esc(t.name)}</b><small>${esc(t.sub)}</small></span>
-      <svg class="tool-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+    // ĐT 0.9: thẻ công cụ dạng ô vuông 2 cột (hàng trên: icon trong ô + nút chuyển · dưới: tên + mô tả) — lớp mới tl-* (tên cũ tool-* bỏ để không dính CSS cũ trong bộ nhớ đệm)
+    $('toolGrid').innerHTML = TOOL_LIST.filter((t) => t.ok()).map((t) => `<button type="button" class="tl-card" data-tool="${t.id}">
+      <span class="tl-top"><span class="tl-ico"><svg viewBox="0 0 24 24" aria-hidden="true">${t.svg}</svg></span><span class="tl-go" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span></span>
+      <span class="tl-txt"><b>${esc(t.name)}</b><small>${esc(t.sub)}</small></span>
     </button>`).join('');
   }
 

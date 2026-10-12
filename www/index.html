@@ -10,10 +10,10 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
   <title>Kho Lạnh An An</title>
-<link rel="stylesheet" href="fonts.css?v=0.8-20261012"><!-- font trong máy (offline) -->
-  <link rel="stylesheet" href="app.css?v=0.8-20261012">
-  <link rel="stylesheet" href="c3d-phone.css?v=0.8-20261012">
-  <link rel="stylesheet" href="scan.css?v=0.8-20261012"><!-- ĐT 0.5: Scan tài liệu (dùng chung với PC) -->
+<link rel="stylesheet" href="fonts.css?v=0.10-20261012"><!-- font trong máy (offline) -->
+  <link rel="stylesheet" href="app.css?v=0.10-20261012">
+  <link rel="stylesheet" href="c3d-phone.css?v=0.10-20261012">
+  <link rel="stylesheet" href="scan.css?v=0.10-20261012"><!-- ĐT 0.5: Scan tài liệu (dùng chung với PC) -->
 </head>
 <body>
   <header class="topbar">
@@ -168,8 +168,9 @@
     <!-- XẾP CONT 3D (bản 4.13): bản rút gọn của module PC "Container Loading 3D" — c3d-phone.js (thư viện 3D nạp lần đầu mở tab) -->
     <!-- CÔNG CỤ (ĐT 0.6): gom Xếp cont 3D + Scan vào 1 tab — renderTools() trong app.js -->
     <section class="view" id="view-tools" data-view="tools" hidden>
-      <h2 class="ks-title" style="margin:6px 2px 12px">Công cụ</h2>
-      <div class="tool-grid" id="toolGrid"></div>
+      <h2 class="ks-title tl-title">Công cụ</h2>
+      <p class="tl-sub">Chọn một công cụ để bắt đầu</p>
+      <div class="tl-list" id="toolGrid"></div>
     </section>
     <section class="view" id="view-c3d" data-view="c3d" hidden>
       <div class="c3-root" id="c3dRoot"><p class="c3-err" style="color:var(--muted)">Đang nạp khung 3D…</p></div>
@@ -234,13 +235,13 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="live-update.js?v=0.8-20261012"></script><!-- tự cập nhật giao diện APK (đặt ĐẦU TIÊN: báo app đã chạy tốt) -->
-  <script src="export.js?v=0.8-20261012"></script>
-  <script src="size-label.js?v=0.8-20261012"></script>
-  <script src="ks-rules.js?v=0.8-20261012"></script>
-  <script src="app-config.js?v=0.8-20261012"></script><!-- đường dẫn Web App cố định (ẩn ô nhập link trên điện thoại) -->
-  <script src="c3d-phone.js?v=0.8-20261012"></script>
-  <script src="scan-phone.js?v=0.8-20261012"></script><!-- Scan tài liệu: phần nối nhỏ; lõi + giao diện nạp khi mở tab --><!-- Xếp cont 3D: chỉ là phần giao diện nhỏ; three.js nạp khi mở tab -->
-  <script src="app.js?v=0.8-20261012"></script>
+  <script src="live-update.js?v=0.10-20261012"></script><!-- tự cập nhật giao diện APK (đặt ĐẦU TIÊN: báo app đã chạy tốt) -->
+  <script src="export.js?v=0.10-20261012"></script>
+  <script src="size-label.js?v=0.10-20261012"></script>
+  <script src="ks-rules.js?v=0.10-20261012"></script>
+  <script src="app-config.js?v=0.10-20261012"></script><!-- đường dẫn Web App cố định (ẩn ô nhập link trên điện thoại) -->
+  <script src="c3d-phone.js?v=0.10-20261012"></script>
+  <script src="scan-phone.js?v=0.10-20261012"></script><!-- Scan tài liệu: phần nối nhỏ; lõi + giao diện nạp khi mở tab --><!-- Xếp cont 3D: chỉ là phần giao diện nhỏ; three.js nạp khi mở tab -->
+  <script src="app.js?v=0.10-20261012"></script>
 </body>
 </html>

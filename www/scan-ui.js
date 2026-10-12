@@ -62,7 +62,7 @@
       '<input type="file" id="scPdf" accept="application/pdf,.pdf" multiple hidden>' +
       '<div class="sc-empty" id="scEmpty">' +
         '<div class="sc-drop">' + svg('pdf') + '<b>Chưa có trang nào</b>' +
-        '<p>' + (phone ? 'Bấm <b>Chụp</b> để chụp phiếu / chứng từ / trang vở, hoặc chọn ảnh, file PDF có sẵn. App tự tìm 4 cạnh trang giấy, bỏ bàn và nền đen, khử bóng và làm trắng nền.' : 'Kéo thả ảnh / PDF vào đây, dán ảnh bằng <kbd>Ctrl</kbd>+<kbd>V</kbd>, hoặc dùng các nút ở trên.') + '</p>' +
+        '<p>' + (phone ? 'Bấm <b>Chụp</b>, kéo 4 chấm vào 4 góc tờ giấy rồi bấm nút tròn để chụp (chỉ phần trong 4 chấm được giữ). Hoặc chọn ảnh, file PDF có sẵn. App khử bóng và làm trắng nền.' : 'Bấm <b>Chụp</b> để dùng camera máy tính, kéo thả ảnh / PDF vào đây, dán ảnh bằng <kbd>Ctrl</kbd>+<kbd>V</kbd>, hoặc dùng các nút ở trên.') + '</p>' +
         '<p class="sc-note">Ảnh được xử lý ngay trên máy, không gửi đi đâu. Nhiều ảnh = nhiều trang trong cùng 1 file PDF.</p></div>' +
         '<div class="sc-hist" id="scHist"></div></div>' +
       '<div class="sc-work" id="scWork" hidden>' +
@@ -108,6 +108,7 @@
         '</div>' +
       '</div>' +
       '<div class="sc-crop" id="scCropUi" hidden></div>' +
+      '<div class="sc-live" id="scLive" hidden></div>' +
       '<div class="sc-busy" id="scBusy" hidden><div class="sc-spin"></div><span id="scBusyTxt">Đang xử lý…</span></div>';
 
     var $ = function (id) { return root.querySelector('#' + id); };
@@ -127,9 +128,9 @@
       });
     }
     function detect(c) { try { return S.detectQuad(c); } catch (e) { return null; } }
-    function addCanvas(c, noDetect) {
+    function addCanvas(c, noDetect, quad) { // quad: 4 góc 0–1 đã biết (camera trực tiếp) — không thì tự dò
       return S.toBlob(c, 'image/jpeg', 0.92).then(function (blob) {
-        var q = noDetect ? null : detect(c); // ảnh chụp / ảnh chọn: tự tìm 4 cạnh trang giấy; trang PDF: giữ nguyên
+        var q = quad || (noDetect ? null : detect(c)); // ảnh chụp / ảnh chọn: tự tìm 4 cạnh trang giấy; trang PDF: giữ nguyên
         var pg = { id: ++seq, blob: blob, rot: 0, mode: def.mode, p: clone(presetP(def.mode)), quad: q, cropOn: !!q, thumb: '' };
         cache.set(pg.id, c); while (cache.size > 2) { var k = cache.keys().next().value; cache.get(k).width = 1; cache.delete(k); }
         st.pages.push(pg);
@@ -285,6 +286,190 @@
       });
     }
 
+    // ---- CAMERA TRỰC TIẾP (PC 0.23 / ĐT 0.8): hình camera + 4 chấm canh góc tờ giấy → bấm nút tròn để chụp → xem trước → Chụp lại / Thêm trang / Xong.
+    // Chỉ phần nằm trong 4 chấm được lấy (nắn thẳng góc). Ảnh gốc vẫn được giữ để sau này chỉnh lại 4 góc (nút "Chỉnh 4 góc").
+    // Không có camera / không được cấp quyền → báo lỗi; điện thoại vẫn dùng được nút "Ảnh".
+    var liveOK = host.live !== false && !!(global.navigator && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    function openLive() {
+      if (st.busy) return;
+      if (!liveOK) { if (phone) return $('scCam').click(); return toast('Máy này không mở được camera trong app.', true); }
+      var box = $('scLive'), stream = null, track = null, alive = true, mode = 'live', added = 0, auto = true, drag = -1, miss = 0, found = null;
+      var torchOn = false, lw = 0, lh = 0, detT = 0, raf = 0, result = null, cur = S.defaultQuad(), tgt = S.defaultQuad();
+      st.busy = true;
+      box.innerHTML =
+        '<div class="sc-live-top"><div><b id="scLvT"></b><small id="scLvS">Đang mở camera…</small></div><button type="button" class="sc-lv-b" data-l="torch" id="scLvTorch" hidden>Đèn</button></div>' +
+        '<div class="sc-live-stage" id="scLvStage"><div class="sc-live-box" id="scLvBox"><video id="scLvVid" playsinline muted autoplay></video><canvas id="scLvCv"></canvas></div><canvas class="sc-live-prev" id="scLvPrev" hidden></canvas></div>' +
+        '<div class="sc-live-bar" id="scLvBar1"><button type="button" class="sc-lv-b" data-l="close" id="scLvClose">Đóng</button>' +
+          '<button type="button" class="sc-shutter" data-l="shoot" aria-label="Chụp" title="Chụp (Space)"></button>' +
+          '<button type="button" class="sc-lv-b on" data-l="auto" id="scLvAuto">Tự dò: Bật</button></div>' +
+        '<div class="sc-live-bar" id="scLvBar2" hidden><button type="button" class="sc-lv-b" data-l="retake">Chụp lại</button>' +
+          '<button type="button" class="sc-lv-b" data-l="more">Thêm trang</button><button type="button" class="sc-lv-b pri" data-l="done">Xong</button></div>';
+      box.hidden = false;
+      var q$ = function (id) { return box.querySelector('#' + id); };
+      var vid = q$('scLvVid'), vbox = q$('scLvBox'), ov = q$('scLvCv'), prev = q$('scLvPrev'), stage = q$('scLvStage'), bar1 = q$('scLvBar1'), bar2 = q$('scLvBar2');
+      vid.muted = true; vid.setAttribute('playsinline', ''); vid.setAttribute('webkit-playsinline', '');
+      var tip = function (s) { q$('scLvS').textContent = s; };
+      var HINT = 'Kéo 4 chấm vào 4 góc tờ giấy, rồi bấm nút tròn để chụp';
+      function head(t) { q$('scLvT').textContent = t; }
+      head('Chụp tài liệu');
+
+      function setAuto(on) { auto = !!on; var b = q$('scLvAuto'); b.textContent = 'Tự dò: ' + (auto ? 'Bật' : 'Tắt'); b.classList.toggle('on', auto); if (auto) { miss = 0; } }
+
+      function layout() { // khung hiển thị đúng tỉ lệ hình camera → 4 chấm (toạ độ 0–1) trùng khít với hình
+        var vw = vid.videoWidth, vh = vid.videoHeight, sw = stage.clientWidth, sh = stage.clientHeight;
+        if (!vw || !vh || !sw || !sh) return;
+        var k = Math.min(sw / vw, sh / vh), w = Math.floor(vw * k), h = Math.floor(vh * k);
+        if (w === lw && h === lh) return;
+        lw = w; lh = h; vbox.style.width = w + 'px'; vbox.style.height = h + 'px';
+        var dpr = Math.min(2, global.devicePixelRatio || 1); ov.width = Math.round(w * dpr); ov.height = Math.round(h * dpr);
+      }
+      function drawOv() {
+        var w = ov.width, h = ov.height, g = ov.getContext('2d'), q = cur, i, R = Math.max(12, Math.round(w / 34));
+        g.clearRect(0, 0, w, h);
+        g.save(); g.fillStyle = 'rgba(0,0,0,.4)'; g.beginPath(); g.rect(0, 0, w, h);
+        g.moveTo(q[0].x * w, q[0].y * h); for (i = 1; i < 4; i++) g.lineTo(q[i].x * w, q[i].y * h); g.closePath(); g.fill('evenodd'); g.restore();
+        g.lineWidth = Math.max(2, w / 260); g.strokeStyle = found === false ? '#f5a524' : '#2f80ff'; g.beginPath(); g.moveTo(q[0].x * w, q[0].y * h);
+        for (i = 1; i < 4; i++) g.lineTo(q[i].x * w, q[i].y * h); g.closePath(); g.stroke();
+        for (i = 0; i < 4; i++) { g.beginPath(); g.arc(q[i].x * w, q[i].y * h, R, 0, 7); g.fillStyle = found === false ? 'rgba(245,165,36,.75)' : 'rgba(47,128,255,.8)'; g.fill(); g.lineWidth = Math.max(2, w / 200); g.strokeStyle = '#fff'; g.stroke(); }
+      }
+      function frame() { // vẽ lại liên tục; chấm trượt mượt về vị trí mới dò được
+        raf = 0; if (!alive) return;
+        if (mode === 'live') {
+          layout();
+          for (var i = 0; i < 4; i++) {
+            var dx = tgt[i].x - cur[i].x, dy = tgt[i].y - cur[i].y;
+            if (Math.abs(dx) + Math.abs(dy) > 0.0012) { cur[i].x += dx * 0.3; cur[i].y += dy * 0.3; } else { cur[i].x = tgt[i].x; cur[i].y = tgt[i].y; }
+          }
+          if (lw) drawOv();
+        }
+        raf = global.requestAnimationFrame(frame);
+      }
+      var small = document.createElement('canvas');
+      function detectTick() {
+        detT = 0; if (!alive) return;
+        if (mode === 'live' && auto && drag < 0 && vid.videoWidth > 0 && vid.readyState >= 2) {
+          try {
+            var k = 360 / Math.max(vid.videoWidth, vid.videoHeight);
+            small.width = Math.max(24, Math.round(vid.videoWidth * k)); small.height = Math.max(24, Math.round(vid.videoHeight * k));
+            small.getContext('2d').drawImage(vid, 0, 0, small.width, small.height);
+            var q = S.detectQuad(small);
+            if (q) { miss = 0; tgt = q.map(function (p) { return { x: p.x, y: p.y }; }); if (found !== true) { found = true; tip('Đã bám 4 góc tờ giấy — bấm nút tròn để chụp'); } }
+            else if (++miss > 6 && found !== false) { found = false; tip('Chưa thấy rìa tờ giấy — hãy kéo 4 chấm bằng tay (hoặc đặt giấy lên nền tối)'); }
+          } catch (e) { /* bỏ qua khung hình lỗi */ }
+        }
+        detT = setTimeout(detectTick, 170);
+      }
+
+      // ---- kéo 4 chấm bằng tay (tự tắt "Tự dò" để chấm không bị giật về chỗ cũ)
+      var clamp01 = function (v) { return Math.min(1, Math.max(0, v)); };
+      ov.addEventListener('pointerdown', function (e) {
+        if (mode !== 'live') return; e.preventDefault();
+        var r = ov.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, best = -1, bd = 1e9;
+        cur.forEach(function (p, i) { var d = Math.hypot(p.x * r.width - mx, p.y * r.height - my); if (d < bd) { bd = d; best = i; } });
+        if (bd < 70) { drag = best; setAuto(false); found = null; tip(HINT); try { ov.setPointerCapture(e.pointerId); } catch (x) { /* bỏ qua */ } }
+      });
+      ov.addEventListener('pointermove', function (e) {
+        if (drag < 0) return; var r = ov.getBoundingClientRect(), x = clamp01((e.clientX - r.left) / r.width), y = clamp01((e.clientY - r.top) / r.height);
+        cur[drag].x = tgt[drag].x = x; cur[drag].y = tgt[drag].y = y;
+      });
+      ['pointerup', 'pointercancel'].forEach(function (ev) { ov.addEventListener(ev, function () { drag = -1; }); });
+
+      // ---- camera
+      function startStream() {
+        var md = navigator.mediaDevices;
+        return md.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1440 } }, audio: false })
+          .catch(function (e) { if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) throw e; return md.getUserMedia({ video: true, audio: false }); })
+          .then(function (s) {
+            if (!alive) { s.getTracks().forEach(function (t) { t.stop(); }); return; }
+            stream = s; track = s.getVideoTracks()[0]; vid.srcObject = s;
+            var pl = vid.play(); if (pl && pl.catch) pl.catch(function () { /* iOS: chờ người dùng chạm */ });
+            var caps = {}; try { caps = (track.getCapabilities && track.getCapabilities()) || {}; } catch (e) { /* bỏ qua */ }
+            q$('scLvTorch').hidden = !caps.torch;
+            try { if (caps.focusMode && caps.focusMode.indexOf('continuous') >= 0) track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (e) { /* bỏ qua */ }
+            head('Chụp tài liệu'); tip(HINT);
+          });
+      }
+      function fail(e) {
+        var n = e && e.name;
+        var msg = (n === 'NotAllowedError' || n === 'SecurityError') ? 'Chưa được cấp quyền camera. Hãy cho phép camera cho app (Cài đặt › Ứng dụng › Quyền) rồi mở lại.'
+          : (n === 'NotFoundError' || n === 'OverconstrainedError') ? 'Không tìm thấy camera trên máy này.'
+          : 'Không mở được camera' + (e && e.message ? ': ' + e.message : '') + '.';
+        close(); toast(msg + (phone ? ' Bạn vẫn có thể bấm "Ảnh" để chọn ảnh đã chụp.' : ''), true);
+      }
+      function toggleTorch() {
+        if (!track) return;
+        track.applyConstraints({ advanced: [{ torch: !torchOn }] }).then(function () { torchOn = !torchOn; q$('scLvTorch').classList.toggle('on', torchOn); }).catch(function () { toast('Máy không bật được đèn flash.', true); });
+      }
+
+      // ---- chụp: lấy ảnh nét nhất có thể (takePhoto nếu cùng khung hình với video, không thì chính khung hình video)
+      function hiRes(vw, vh) {
+        if (!(global.ImageCapture && track)) return Promise.resolve(null);
+        return Promise.race([
+          new global.ImageCapture(track).takePhoto().then(function (b) { return S.decodeImage(b); }).then(function (c) {
+            var same = Math.abs((c.width / c.height) / (vw / vh) - 1) < 0.02, better = c.width * c.height > vw * vh * 1.2;
+            if (same && better) return c; c.width = c.height = 1; return null;
+          }),
+          new Promise(function (r) { setTimeout(function () { r(null); }, 2500); })
+        ]).catch(function () { return null; });
+      }
+      function shoot() {
+        if (mode !== 'live' || !vid.videoWidth) return;
+        mode = 'busy'; tip('Đang chụp…');
+        var vw = vid.videoWidth, vh = vid.videoHeight, quad = cur.map(function (p) { return { x: p.x, y: p.y }; });
+        var k = Math.min(1, S.MAX_SIDE / Math.max(vw, vh)), fr = document.createElement('canvas');
+        fr.width = Math.round(vw * k); fr.height = Math.round(vh * k); fr.getContext('2d').drawImage(vid, 0, 0, fr.width, fr.height);
+        hiRes(vw, vh).then(function (hi) {
+          var src = hi || fr; if (hi) fr.width = fr.height = 1;
+          if (!alive) { src.width = src.height = 1; return; }
+          var out = S.process(src, { quad: quad, rot: 0, mode: def.mode, p: clone(presetP(def.mode)), maxSide: PREVIEW });
+          prev.width = out.width; prev.height = out.height; prev.getContext('2d').drawImage(out, 0, 0); if (out !== src) out.width = out.height = 1;
+          result = { src: src, quad: quad }; mode = 'review';
+          vbox.hidden = true; prev.hidden = false; bar1.hidden = true; bar2.hidden = false;
+          head('Xem trước trang vừa chụp'); tip('Chỉ phần trong 4 chấm được giữ lại, đã nắn thẳng và làm trắng nền' + (added ? ' · đã có ' + added + ' trang' : ''));
+        }).catch(function (e) { toast('Không chụp được: ' + (e && e.message || e), true); backToLive(); });
+      }
+      function backToLive() {
+        if (!alive) return;
+        if (result) { result.src.width = result.src.height = 1; result = null; }
+        mode = 'live'; prev.hidden = true; vbox.hidden = false; bar1.hidden = false; bar2.hidden = true; lw = 0; miss = 0; found = null;
+        q$('scLvClose').textContent = added ? 'Xong (' + added + ')' : 'Đóng';
+        head('Chụp tài liệu'); tip(added ? 'Đã có ' + added + ' trang — chụp tiếp hoặc bấm Xong' : HINT);
+      }
+      function keep(finish) {
+        if (!result) return;
+        var r = result; result = null; mode = 'busy'; tip('Đang thêm trang…');
+        addCanvas(r.src, true, r.quad).then(function () { added++; if (finish) close(); else backToLive(); })
+          .catch(function (e) { r.src.width = r.src.height = 1; toast('Không thêm được trang: ' + (e && e.message || e), true); backToLive(); });
+      }
+      function close() {
+        if (!alive) return; alive = false;
+        clearTimeout(detT); if (raf) global.cancelAnimationFrame(raf);
+        document.removeEventListener('keydown', onKey); document.removeEventListener('visibilitychange', onVis);
+        try { if (stream) stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) { /* bỏ qua */ }
+        try { vid.srcObject = null; } catch (e) { /* bỏ qua */ }
+        if (result) { result.src.width = result.src.height = 1; result = null; }
+        box.onclick = null; box.hidden = true; box.innerHTML = ''; st.busy = false;
+        if (added) { st.cur = Math.max(0, st.pages.length - added); st.dirty = true; renderAll(); }
+      }
+      function onKey(e) {
+        if (e.key === 'Escape') { e.preventDefault(); return mode === 'review' ? backToLive() : close(); }
+        if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (mode === 'live') shoot(); else if (mode === 'review') keep(true); }
+      }
+      function onVis() { // quay lại app sau khi thoát ra ngoài: camera có thể đã bị hệ thống ngắt
+        if (document.hidden || !alive || !track || track.readyState !== 'ended') return;
+        startStream().catch(fail);
+      }
+      box.onclick = function (e) {
+        var b = e.target.closest('[data-l]'); if (!b || mode === 'busy') return;
+        var a = b.dataset.l;
+        if (a === 'close') close(); else if (a === 'shoot') shoot(); else if (a === 'auto') setAuto(!auto);
+        else if (a === 'torch') toggleTorch(); else if (a === 'retake') backToLive(); else if (a === 'more') keep(false); else if (a === 'done') keep(true);
+      };
+      document.addEventListener('keydown', onKey); document.addEventListener('visibilitychange', onVis);
+      raf = global.requestAnimationFrame(frame); detT = setTimeout(detectTick, 400);
+      startStream().catch(fail);
+    }
+
     // ---- xuất
     function exportName() { st.name = cleanName($('scName').value); $('scName').value = st.name; return st.name; }
     function buildPdf() {
@@ -337,7 +522,7 @@
       if (t.dataset.fmt) { def.format = t.dataset.fmt; lsSet(LS_DEF, def); return renderPanel(); }
       if (t.dataset.pg != null) { st.cur = +t.dataset.pg; renderStrip(); renderPanel(); return drawPreview(true); }
       var pg = curPage(), a = t.dataset.act, i = st.cur;
-      if (a === 'pick-cam') return $('scCam').click();
+      if (a === 'pick-cam') return openLive();
       if (a === 'pick-img') return $('scImg').click();
       if (a === 'pick-pdf') return $('scPdf').click();
       if (a === 'clear-hist') { lsSet(LS_HIST, []); return renderHist(); }

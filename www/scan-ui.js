@@ -149,6 +149,7 @@
             '<button type="button" class="sc-btn sc-wide" data-act="save-pdf">' + svg('save') + '<span id="scSaveTxt">Xuất PDF</span></button>' +
             (host.share ? '<button type="button" class="sc-btn sc-wide" data-act="share-pdf">' + svg('share') + '<span>Chia sẻ PDF (Zalo, Email…)</span></button>' : '') +
             '<div class="sc-row"><button type="button" class="sc-link" data-act="save-jpg">Xuất trang này thành ảnh JPG</button><button type="button" class="sc-link sc-danger" data-act="clear">Tài liệu mới</button></div>' +
+            '<div class="sc-row"><button type="button" class="sc-link" data-act="save-zip" id="scZipBtn">Xuất tất cả trang thành ảnh JPG (ZIP)</button></div>' +
           '</div>' +
       '</div>' +
       '<div class="sc-crop" id="scCropUi" hidden></div>' +
@@ -199,7 +200,7 @@
         var f = files[i++];
         var tag = files.length > 1 ? ' (' + i + '/' + files.length + ')' : '';
         if (S.isPdf(f)) {
-          return S.pdfToCanvases(f, function () { return host.ensure('pdfjs'); }, function (k, n) { setBusy(true, 'Đang đọc PDF trang ' + k + '/' + n + tag); })
+          return S.pdfToCanvases(f, function () { return host.ensure('pdfjs'); }, function (k, n) { setBusy(true, 'Đang đọc PDF trang ' + k + '/' + n + tag); }, host.maxPdfPages)
             .then(function (list) {
               if (list.cutoff) toast('PDF có ' + list.cutoff + ' trang — chỉ lấy ' + list.length + ' trang đầu.', true);
               var j = 0; function one() { if (j >= list.length) return Promise.resolve(); return addCanvas(list[j++], true).then(one); } return one();
@@ -624,6 +625,36 @@
         .catch(function (e) { toast('Không lưu được ảnh: ' + (e && e.message || e), true); })
         .then(function () { setBusy(false); });
     }
+    // Xuất MỌI trang thành từng ảnh JPG riêng (mỗi trang 1 file) rồi gói trong 1 file ZIP. Xử lý lần lượt từng trang để đỡ tốn RAM.
+    function saveZip() {
+      if (st.busy || !st.pages.length) return;
+      var name = exportName(), pages = st.pages.slice(), n = pages.length, pad = String(n).length, k = 0, zip;
+      setBusy(true, 'Đang chuẩn bị ZIP…');
+      Promise.resolve(host.ensure('jszip')).then(function () {
+        if (!global.JSZip) throw new Error('Thiếu thư viện nén ZIP (JSZip).');
+        zip = new global.JSZip();
+        function one() {
+          if (k >= n) return Promise.resolve();
+          var pg = pages[k++], idx = k;
+          setBusy(true, 'Đang tạo ảnh ' + idx + '/' + n + '…');
+          return getSource(pg).then(function (src) {
+            var c = S.process(src, popt(pg, { maxSide: S.MAX_SIDE }));
+            return S.toBlob(c, 'image/jpeg', 0.9);
+          }).then(function (b) {
+            var num = String(idx); while (num.length < pad) num = '0' + num;
+            zip.file(name + '_trang' + num + '.jpg', b);
+          }).then(function () { return new Promise(function (r) { setTimeout(r, 0); }); }).then(one);
+        }
+        return one();
+      }).then(function () {
+        setBusy(true, 'Đang nén ZIP…');
+        return zip.generateAsync({ type: 'blob', compression: 'STORE' }); // JPG đã nén sẵn → không nén lại, nhanh hơn
+      }).then(function (blob) {
+        var fn = name + '_anh-JPG.zip';
+        return Promise.resolve(host.save(blob, fn)).then(function (noi) { toast(DONE + ' ' + fn + ' (' + n + ' ảnh, ' + fmtKb(blob.size) + ')' + (typeof noi === 'string' && noi ? ' — ' + noi : '')); });
+      }).catch(function (e) { if (e && /abort|cancel/i.test(e.name + e.message)) return; toast('Không xuất được ZIP: ' + (e && e.message || e), true); })
+        .then(function () { setBusy(false); });
+    }
     function clearAll(ask) {
       if (ask && st.dirty && !global.confirm('Bỏ ' + st.pages.length + ' trang đang làm (chưa bấm Lưu vào máy)?')) return;
       st.pages.forEach(function (pg) { if (pg.thumb) URL.revokeObjectURL(pg.thumb); });
@@ -778,6 +809,7 @@
       else if (a === 'save-pdf') savePdf(false);
       else if (a === 'share-pdf') savePdf(true);
       else if (a === 'save-jpg') saveJpg();
+      else if (a === 'save-zip') saveZip();
       else if (a === 'clear') clearAll(true);
     });
     // Giữ nút "con mắt" để so với ảnh gốc

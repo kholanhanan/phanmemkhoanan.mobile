@@ -22,6 +22,7 @@
       try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js' + V; } catch (e) { /* bỏ qua */ }
       return;
     }
+    if (name === 'jszip') { if (!window.JSZip) await loadScript('lib/jszip.min.js'); return; }
     if (!(window.jspdf && window.jspdf.jsPDF)) await loadScript('lib/jspdf.umd.min.js');
   }
   const share = () => window.KLShare || {};

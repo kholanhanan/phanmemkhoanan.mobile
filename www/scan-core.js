@@ -79,14 +79,14 @@
   function isPdf(file) { return /pdf$/i.test(file.type || '') || /\.pdf$/i.test(file.name || ''); }
 
   // PDF → mảng canvas (mỗi trang 1 canvas). ensurePdfJs: hàm của nơi gọi, nạp pdf.js (nạp lười).
-  function pdfToCanvases(file, ensurePdfJs, onProgress) {
+  function pdfToCanvases(file, ensurePdfJs, onProgress, maxPages) {
     return Promise.resolve(ensurePdfJs()).then(function () {
       if (!global.pdfjsLib) throw new Error('Thiếu thư viện đọc PDF (pdf.js).');
       return file.arrayBuffer();
     }).then(function (buf) {
       return global.pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
     }).then(function (doc) {
-      var n = Math.min(doc.numPages, PDF_MAX_PAGES), out = [], i = 0;
+      var n = Math.min(doc.numPages, maxPages > 0 ? maxPages : PDF_MAX_PAGES), out = [], i = 0;
       function next() {
         if (i >= n) return out;
         i++;

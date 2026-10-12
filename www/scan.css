@@ -151,3 +151,7 @@
 .sc-shutter{ position: relative; width: 72px; height: 72px; padding: 0; border-radius: 50%; border: 4px solid #fff; background: transparent; cursor: pointer; }
 .sc-shutter::after{ content: ''; position: absolute; inset: 5px; border-radius: 50%; background: #fff; transition: inset .08s; }
 .sc-shutter:active::after{ inset: 9px; }
+
+/* PC 0.26 / ĐT 0.11 — thêm chế độ "Màu mực": thanh chọn có 5 nút (chế độ + kiểu) → chia đều trên 1 hàng */
+.sc-seg:not(.sc-seg-sm){ grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+.sc-seg:not(.sc-seg-sm) button{ font-size: 12.5px; padding: 4px 2px; }

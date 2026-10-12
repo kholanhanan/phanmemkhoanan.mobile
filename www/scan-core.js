@@ -11,7 +11,7 @@
   'use strict';
   if (global.KLScan) return;
 
-  var MAX_SIDE = 2000;      // ảnh nguồn giữ tối đa (cạnh dài, px) — đủ nét cho chữ khổ A4
+  var MAX_SIDE = 2600;      // ảnh nguồn giữ tối đa (cạnh dài, px) — nét cho chữ khổ A4 (PC 0.26 / ĐT 0.11: 2000 → 2600)
   var PDF_MAX_PAGES = 60;   // PDF dài hơn: chỉ lấy 60 trang đầu (máy yếu / điện thoại)
 
   // Thông số xử lý (mỗi trang có bản riêng): kieu = mau | xam | bw | goc · bong 0–100 (khử bóng) · trang 0–100 (độ trắng nền)
@@ -21,12 +21,14 @@
            p: { kieu: 'mau', bong: 100, trang: 50, dam: 35, li: false, gam: 1 } },
     bw:  { ten: 'Trắng đen', full: 'Chế độ trắng đen để photo (ưu tiên)', tip: 'Ưu tiên để in / photo: nền trắng tuyệt đối, chữ đen đậm, tiết kiệm mực, file PDF nhỏ.',
            p: { kieu: 'bw', bong: 100, trang: 55, dam: 50, li: false, gam: 1 } },
+    muc: { ten: 'Màu mực', full: 'Chế độ giữ màu mực', tip: 'Nền trắng tuyệt đối, chữ giữ ĐÚNG MÀU bút (đen / xanh / đỏ) và đậm, rõ nét — hợp phiếu viết nhiều màu mực.',
+           p: { kieu: 'muc', bong: 100, trang: 55, dam: 50, li: false, gam: 1 } },
     tay: { ten: 'Chữ tay', full: 'Chế độ giữ nét chữ viết tay', tip: 'Vở / giấy ghi tay: giữ nét bút (cả nét mờ, bút chì), nền trắng, tự xóa ô li để chữ nổi rõ.',
            p: { kieu: 'xam', bong: 100, trang: 60, dam: 60, li: true, gam: 0.8 } },
     tuy: { ten: 'Tùy chỉnh', full: 'Chế độ tùy chỉnh', tip: 'Tự chọn kiểu (Gốc / Màu / Xám / Đen trắng) và chỉnh từng thanh trượt.',
            p: { kieu: 'xam', bong: 80, trang: 50, dam: 50, li: false, gam: 1 } }
   };
-  var KIEU = { goc: 'Gốc', mau: 'Màu', xam: 'Xám', bw: 'Đen trắng' };
+  var KIEU = { goc: 'Gốc', mau: 'Màu', muc: 'Màu mực', xam: 'Xám', bw: 'Đen trắng' };
   var DEFAULT_MODE = 'bw';
 
   function clampN(v, a, b) { v = +v; if (!(v === v)) v = a; return v < a ? a : v > b ? b : v; }
@@ -198,14 +200,32 @@
     if (!qa) return null;
     return { hull: hull, hullArea: hullArea, rough: rough, R: Math.min(1, qa / hullArea), A: hullArea / n, T: T };
   }
-  function detectQuad(src) {
-    var sm = drawScaled(src, src.width, src.height, 360), w = sm.width, h = sm.height, n = w * h, i, x, y;
-    if (w < 24 || h < 24) return null;
-    var lum0 = lumOfData(sm.getContext('2d').getImageData(0, 0, w, h).data, n), f = new Float32Array(n);
-    for (i = 0; i < n; i++) f[i] = lum0[i];
-    f = boxBlur(boxBlur(f, w, h, 2), w, h, 2); // xóa ô li, chữ, nhiễu → giấy thành mảng sáng liền
+  // Dò giấy theo MÀU (PC 0.26 / ĐT 0.11): giấy gần như không có màu (độ bão hòa thấp) còn bàn gỗ / vải / da có màu rõ — tách được cả khi
+  // bàn sáng gần bằng giấy hoặc ảnh có thêm vùng đen (một ngưỡng độ sáng như cách cũ sẽ coi bàn là giấy). Mốc so sánh = vùng GIỮA ảnh.
+  // Bàn trắng / xám (cũng không màu) → vùng ra quá lớn → trả null để dùng cách theo độ sáng.
+  function paperByColor(sd, lum, w, h) {
+    var n = w * h, i, p, S = new Float32Array(n), L = new Float32Array(n), mx, mn;
+    for (i = 0, p = 0; i < n; i++, p += 4) {
+      mx = Math.max(sd[p], sd[p + 1], sd[p + 2]); mn = Math.min(sd[p], sd[p + 1], sd[p + 2]);
+      S[i] = mx > 0 ? (mx - mn) / mx * 255 : 0; L[i] = lum[i];
+    }
+    S = boxBlur(boxBlur(S, w, h, 2), w, h, 2); L = boxBlur(boxBlur(L, w, h, 2), w, h, 2);
+    var hs = new Uint32Array(256), hl = new Uint32Array(256), cnt = 0, x, y, v;
+    for (y = Math.floor(h * 0.3); y < Math.ceil(h * 0.7); y++) for (x = Math.floor(w * 0.3); x < Math.ceil(w * 0.7); x++) { i = y * w + x; hs[Math.min(255, S[i] | 0)]++; hl[Math.min(255, L[i] | 0)]++; cnt++; }
+    var acc = 0, sMed = 0, lMed = 0; for (v = 0; v < 256; v++) { acc += hs[v]; if (acc >= cnt / 2) { sMed = v; break; } }
+    acc = 0; for (v = 0; v < 256; v++) { acc += hl[v]; if (acc >= cnt / 2) { lMed = v; break; } }
+    if (sMed > 70 || lMed < 60) return null; // giữa ảnh không phải giấy trắng (màu / tối) → không dùng cách này
+    var sT = Math.min(75, Math.max(30, sMed + 26)), lT = lMed * 0.55, f = new Float32Array(n), bright = 0;
+    for (i = 0; i < n; i++) { f[i] = (S[i] < sT && L[i] > lT) ? 255 : 0; if (f[i]) bright++; }
+    if (bright > n * 0.93 || bright < n * 0.15) return null;
+    var cd = analyzePaper(f, w, h, 128);
+    return (cd && cd.R >= 0.93 && cd.A < 0.93) ? cd : null;
+  }
+  // Dò giấy theo ĐỘ SÁNG (cách cũ): Otsu 2 lớp nền tối / giấy sáng — chỉ đúng khi nền chỉ có MỘT mức sáng (bàn trắng / đen).
+  function paperByLum(f, w, h, n) {
+    var i, t;
     // Otsu 2 lớp: nền tối / giấy sáng
-    var hist = new Uint32Array(256), t;
+    var hist = new Uint32Array(256);
     for (i = 0; i < n; i++) hist[f[i] | 0]++;
     var sumAll = 0; for (t = 0; t < 256; t++) sumAll += t * hist[t];
     var wB = 0, sumB = 0, best = -1, mBest = 0, mFbest = 0, mB, mF, wF, v;
@@ -226,6 +246,15 @@
       var sc = cd.R * cd.R * cd.R + 0.3 * cd.A;
       if (cd.R >= 0.93 && sc > bestScore) { bestScore = sc; bestC = cd; }
     }
+    return bestC;
+  }
+  function detectQuad(src) {
+    var sm = drawScaled(src, src.width, src.height, 360), w = sm.width, h = sm.height, n = w * h, i, x, y;
+    if (w < 24 || h < 24) return null;
+    var sd = sm.getContext('2d').getImageData(0, 0, w, h).data, lum0 = lumOfData(sd, n), f = new Float32Array(n);
+    for (i = 0; i < n; i++) f[i] = lum0[i];
+    f = boxBlur(boxBlur(f, w, h, 2), w, h, 2); // xóa ô li, chữ, nhiễu → giấy thành mảng sáng liền
+    var bestC = paperByColor(sd, lum0, w, h) || paperByLum(f, w, h, n);
     if (!bestC) return null;
     var hull = bestC.hull, hullArea = bestC.hullArea, rough = bestC.rough;
     var diag = Math.max(w, h), lines = [], s, fitted = true, k;
@@ -268,7 +297,8 @@
     var qa = polyArea(quad);
     if (qa < n * 0.15 || qa > n * 0.985 || !isConvex(quad)) return null;
     var q0 = quad.map(function (p) { return { x: p[0] / w, y: p[1] / h }; });
-    return trimDarkEdges(src, q0);
+    var qt = trimDarkEdges(src, q0), m = 0.008; // co thêm 0,8% vào trong: bỏ mép giấy / viền bàn còn sót
+    return [quadPoint(qt, m, m), quadPoint(qt, 1 - m, m), quadPoint(qt, 1 - m, 1 - m), quadPoint(qt, m, 1 - m)];
   }
   function polyArea(p) { var a = 0, i, j; for (i = 0; i < p.length; i++) { j = (i + 1) % p.length; a += p[i][0] * p[j][1] - p[j][0] * p[i][1]; } return Math.abs(a) / 2; }
   function isConvex(p) {
@@ -415,7 +445,7 @@
   // ================================================================== BƯỚC 3 — bản in (làm trắng nền, chữ đen, tăng tương phản)
   function enhance(c, p) {
     var W = c.width, H = c.height, ctx = c.getContext('2d'), id = ctx.getImageData(0, 0, W, H), d = id.data, n = W * H;
-    var i, x, y, ch, v, lum = lumOfData(d, n), color = p.kieu === 'mau', bw = p.kieu === 'bw';
+    var i, x, y, ch, v, lum = lumOfData(d, n), mui = p.kieu === 'muc', color = p.kieu === 'mau' || mui, bw = p.kieu === 'bw';
     var s = p.bong / 100, bg = s > 0 ? backgroundMap(lum, W, H) : null;
     var nv = new Uint8ClampedArray(n), kk = color ? new Float32Array(n) : null;
     // chuẩn hóa độ sáng: nền giấy → 255 (bong = mức khử bóng 0–100%)
@@ -439,10 +469,12 @@
     }
     // điểm trắng (hi) / điểm đen (lo) / độ đậm vùng mờ (gam)
     var hi = 250 - 0.6 * p.trang, lo = 30 + 1.1 * p.dam; if (lo > hi - 12) lo = hi - 12;
-    var lut = new Uint8Array(256), lutc = new Uint8Array(256), th = lo + 0.68 * (hi - lo), loC = lo * 0.45, t;
+    var lut = new Uint8Array(256), lutc = new Uint8Array(256), th = lo + 0.68 * (hi - lo), sw = 0.16 * (hi - lo), loC = lo * 0.45, t;
+    var m0 = 1 - hi / 255, m1 = 1 - (lo + 0.45 * (hi - lo)) / 255; if (m1 < m0 + 0.05) m1 = m0 + 0.05; // chế độ Màu mực: mật độ mực dưới m0 → trắng, trên m1 → đậm hết
     for (v = 0; v < 256; v++) {
       t = (v - lo) / (hi - lo); t = t < 0 ? 0 : t > 1 ? 1 : t; if (p.gam !== 1) t = Math.pow(t, p.gam);
-      lut[v] = bw ? (v >= th ? 255 : 0) : Math.round(255 * t);
+      if (bw) { t = (v - (th - sw)) / (2 * sw); t = t < 0 ? 0 : t > 1 ? 1 : t; lut[v] = Math.round(255 * t * t * (3 - 2 * t)); } // gần như đen / trắng nhưng mép nét mượt (không răng cưa, nét mảnh không đứt)
+      else lut[v] = Math.round(255 * t);
       t = (v - loC) / (hi - loC); t = t < 0 ? 0 : t > 1 ? 1 : t; lutc[v] = Math.round(255 * t);
     }
     var rm = p.li ? lineMask(nv, W, H, Math.min(250, hi + 22)) : null;
@@ -457,7 +489,14 @@
     var o4;
     for (i = 0, o4 = 0; i < n; i++, o4 += 4) {
       if (rm && rm[i]) { d[o4] = d[o4 + 1] = d[o4 + 2] = 255; continue; }
-      if (color) {
+      if (mui) { // MÀU MỰC: mật độ mực từng kênh D = 1 − sáng/255; giữ TỈ LỆ giữa 3 kênh (= màu bút), chỉ kéo mật độ chung lên đậm / xuống trắng
+        var D0 = 1 - Math.min(255, d[o4] * kk[i] / wbal[0]) / 255, D1 = 1 - Math.min(255, d[o4 + 1] * kk[i] / wbal[1]) / 255, D2 = 1 - Math.min(255, d[o4 + 2] * kk[i] / wbal[2]) / 255;
+        if (D0 < 0) D0 = 0; if (D1 < 0) D1 = 0; if (D2 < 0) D2 = 0;
+        var dm = Math.max(D0, D1, D2), gn = 0;
+        if (dm > m0) { t = (dm - m0) / (m1 - m0); t = t > 1 ? 1 : t; if (p.gam !== 1) t = Math.pow(t, p.gam); gn = t * t * (3 - 2 * t); gn /= dm; }
+        D0 *= gn; D1 *= gn; D2 *= gn;
+        d[o4] = Math.round(255 * (1 - (D0 > 1 ? 1 : D0))); d[o4 + 1] = Math.round(255 * (1 - (D1 > 1 ? 1 : D1))); d[o4 + 2] = Math.round(255 * (1 - (D2 > 1 ? 1 : D2)));
+      } else if (color) {
         for (ch = 0; ch < 3; ch++) { v = d[o4 + ch] * kk[i] / wbal[ch]; v = v > 255 ? 255 : v < 0 ? 0 : v; d[o4 + ch] = lutc[v | 0]; }
       } else { v = lut[nv[i]]; d[o4] = d[o4 + 1] = d[o4 + 2] = v; }
     }

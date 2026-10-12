@@ -131,6 +131,7 @@
     function addCanvas(c, noDetect, quad) { // quad: 4 góc 0–1 đã biết (camera trực tiếp) — không thì tự dò
       return S.toBlob(c, 'image/jpeg', 0.92).then(function (blob) {
         var q = quad || (noDetect ? null : detect(c)); // ảnh chụp / ảnh chọn: tự tìm 4 cạnh trang giấy; trang PDF: giữ nguyên
+        if (!q && !quad && !noDetect) toast('Chưa nhận ra tờ giấy — bấm "Chỉnh 4 góc" rồi kéo 4 chấm vào 4 góc tờ giấy.', true);
         var pg = { id: ++seq, blob: blob, rot: 0, mode: def.mode, p: clone(presetP(def.mode)), quad: q, cropOn: !!q, thumb: '' };
         cache.set(pg.id, c); while (cache.size > 2) { var k = cache.keys().next().value; cache.get(k).width = 1; cache.delete(k); }
         st.pages.push(pg);

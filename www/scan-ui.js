@@ -150,6 +150,7 @@
             (host.share ? '<button type="button" class="sc-btn sc-wide" data-act="share-pdf">' + svg('share') + '<span>Chia sẻ PDF (Zalo, Email…)</span></button>' : '') +
             '<div class="sc-row"><button type="button" class="sc-link" data-act="save-jpg">Xuất trang này thành ảnh JPG</button><button type="button" class="sc-link sc-danger" data-act="clear">Tài liệu mới</button></div>' +
             '<div class="sc-row"><button type="button" class="sc-link" data-act="save-zip" id="scZipBtn">Xuất tất cả trang thành ảnh JPG (ZIP)</button></div>' +
+            '<div class="sc-row"><button type="button" class="sc-link" data-act="save-zippdf" id="scZipPdfBtn">Tách mỗi trang thành 1 file PDF (ZIP)</button></div>' +
           '</div>' +
       '</div>' +
       '<div class="sc-crop" id="scCropUi" hidden></div>' +
@@ -626,7 +627,8 @@
         .then(function () { setBusy(false); });
     }
     // Xuất MỌI trang thành từng ảnh JPG riêng (mỗi trang 1 file) rồi gói trong 1 file ZIP. Xử lý lần lượt từng trang để đỡ tốn RAM.
-    function saveZip() {
+    function saveZip(kind) {
+      kind = kind === 'pdf' ? 'pdf' : 'jpg';
       if (st.busy || !st.pages.length) return;
       var name = exportName(), pages = st.pages.slice(), n = pages.length, pad = String(n).length, k = 0, zip;
       setBusy(true, 'Đang chuẩn bị ZIP…');
@@ -636,22 +638,20 @@
         function one() {
           if (k >= n) return Promise.resolve();
           var pg = pages[k++], idx = k;
-          setBusy(true, 'Đang tạo ảnh ' + idx + '/' + n + '…');
-          return getSource(pg).then(function (src) {
-            var c = S.process(src, popt(pg, { maxSide: S.MAX_SIDE }));
-            return S.toBlob(c, 'image/jpeg', 0.9);
-          }).then(function (b) {
-            var num = String(idx); while (num.length < pad) num = '0' + num;
-            zip.file(name + '_trang' + num + '.jpg', b);
-          }).then(function () { return new Promise(function (r) { setTimeout(r, 0); }); }).then(one);
+          setBusy(true, (kind === 'pdf' ? 'Đang tạo PDF ' : 'Đang tạo ảnh ') + idx + '/' + n + '…');
+          var num = String(idx); while (num.length < pad) num = '0' + num;
+          var made = kind === 'pdf'
+            ? S.buildPdf([{ getSource: function () { return getSource(pg); }, quad: pg.cropOn ? pg.quad : null, rot: pg.rot, mode: pg.mode, p: pg.p }], { format: def.format, title: name + ' - trang ' + idx }, function () { return host.ensure('jspdf'); })
+            : getSource(pg).then(function (src) { return S.toBlob(S.process(src, popt(pg, { maxSide: S.MAX_SIDE })), 'image/jpeg', 0.9); });
+          return made.then(function (b) { zip.file(name + '_trang' + num + (kind === 'pdf' ? '.pdf' : '.jpg'), b); }).then(function () { return new Promise(function (r) { setTimeout(r, 0); }); }).then(one);
         }
         return one();
       }).then(function () {
         setBusy(true, 'Đang nén ZIP…');
-        return zip.generateAsync({ type: 'blob', compression: 'STORE' }); // JPG đã nén sẵn → không nén lại, nhanh hơn
+        return zip.generateAsync({ type: 'blob', compression: 'STORE' }); // JPG/PDF đã nén sẵn → không nén lại, nhanh hơn
       }).then(function (blob) {
-        var fn = name + '_anh-JPG.zip';
-        return Promise.resolve(host.save(blob, fn)).then(function (noi) { toast(DONE + ' ' + fn + ' (' + n + ' ảnh, ' + fmtKb(blob.size) + ')' + (typeof noi === 'string' && noi ? ' — ' + noi : '')); });
+        var fn = name + (kind === 'pdf' ? '_tung-trang-PDF.zip' : '_anh-JPG.zip');
+        return Promise.resolve(host.save(blob, fn)).then(function (noi) { toast(DONE + ' ' + fn + ' (' + n + (kind === 'pdf' ? ' file PDF, ' : ' ảnh, ') + fmtKb(blob.size) + ')' + (typeof noi === 'string' && noi ? ' — ' + noi : '')); });
       }).catch(function (e) { if (e && /abort|cancel/i.test(e.name + e.message)) return; toast('Không xuất được ZIP: ' + (e && e.message || e), true); })
         .then(function () { setBusy(false); });
     }
@@ -809,7 +809,8 @@
       else if (a === 'save-pdf') savePdf(false);
       else if (a === 'share-pdf') savePdf(true);
       else if (a === 'save-jpg') saveJpg();
-      else if (a === 'save-zip') saveZip();
+      else if (a === 'save-zip') saveZip('jpg');
+      else if (a === 'save-zippdf') saveZip('pdf');
       else if (a === 'clear') clearAll(true);
     });
     // Giữ nút "con mắt" để so với ảnh gốc

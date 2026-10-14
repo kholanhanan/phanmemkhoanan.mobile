@@ -908,3 +908,6 @@ body.has-totalbar .multibar { bottom: calc(var(--tabbar-h) + var(--safe-bottom) 
 .tool-back { display: inline-flex; align-items: center; gap: 2px; min-height: 40px; margin: 0 0 6px -4px; padding: 0 12px 0 6px; border: 0; border-radius: 12px; background: transparent; color: var(--cobalt); font-size: 15px; font-weight: 600; }
 .tool-back svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 #homePhieuWrap[hidden] { display: none !important; }
+
+/* ĐT 0.17: Tạo mã QR — iframe phủ vùng giữa thanh trên và thanh tab (top / bottom do qr-phone.js đặt) */
+.qr-frame{ position:fixed; left:0; right:0; top:56px; bottom:64px; width:100%; height:auto; border:0; background:var(--frost,#fff); z-index:5; }

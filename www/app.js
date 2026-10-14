@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '0.16 (14/10/2026)';
+  const APP_VERSION = '0.17 (14/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -232,6 +232,7 @@
   const canEditPhieu = (p) => isAdmin() || (canCreate() && (!p || isMyPhieu(p)));
   // Xếp cont 3D (module PC 12, quyền M14): mã chung / Web App cũ chưa có danh sách quyền PC → đủ quyền
   const canScan = () => !state.me || (state.me.kho || []).includes('SCAN'); // ĐT 0.5: Scan tài liệu — mã kho 'SCAN'
+  const canQr = () => !state.me || (state.me.kho || []).includes('QR'); // ĐT 0.17: Tạo mã QR — mã kho 'QR' (PC: M17)
   const canC3d = () => !state.me || (state.me.kho || []).includes('C3D'); // quyền điện thoại RIÊNG: mã kho 'C3D' (Cài đặt › Tài khoản › Kho điện thoại)
   const canView = (k) => !state.me || (state.me.kho || []).includes(TABLE_OF[k]);
   // Quyền xem trang Báo cáo của từng nguồn (mã BC01 / BC02 trong "Kho được dùng").
@@ -271,17 +272,18 @@
     const hasKho = SOURCES.length > 0;
     // Trang chủ còn là nơi xem lịch xuất nhập hôm nay (bản 3.0) → tài khoản chỉ có quyền LX vẫn có Trang chủ.
     if (t === 'home') return hasKho || canLx() || !(canView('m08') || REPORT_SRCS.some(canReport) || canC3d() || canScan());
-    if (t === 'xuat') return hasKho || !(canView('m08') || REPORT_SRCS.some(canReport) || canLx() || canC3d() || canScan());
+    if (t === 'xuat') return hasKho || !(canView('m08') || REPORT_SRCS.some(canReport) || canLx() || canC3d() || canScan() || canQr());
     if (t === 'phieu') return hasKho && canCreate();
     if (t === 'baocao') return REPORT_SRCS.some(canReport);
     if (t === 'm8') return canView('m08');
-    if (t === 'tools') return canC3d() || canScan(); // tab Công cụ = Xếp cont 3D + Scan
+    if (t === 'tools') return canC3d() || canScan() || canQr(); // tab Công cụ = Xếp cont 3D + Scan + Tạo mã QR
     if (t === 'c3d') return canC3d();   // màn con của Công cụ (không còn nút riêng ở thanh tab)
     if (t === 'scan') return canScan(); // màn con của Công cụ
+    if (t === 'qr') return canQr();     // màn con của Công cụ (ĐT 0.17)
     return false;
   }
   const firstTab = () => ['home', 'xuat', 'baocao', 'm8', 'tools'].find(tabOk) || 'home';
-  const TOOL_TABS = ['c3d', 'scan'];
+  const TOOL_TABS = ['c3d', 'scan', 'qr'];
   const tabBtnOf = (t) => (TOOL_TABS.includes(t) ? 'tools' : t); // Xếp cont / Scan sáng tab Công cụ
   function showTabUi() {
     document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('is-on', b.dataset.tab === tabBtnOf(state.tab)));
@@ -2034,6 +2036,7 @@
     if (state.tab === 'm8') renderM8();
     if (state.tab === 'baocao') renderBaoCao();
     if (window.C3DPhone) { if (state.tab === 'c3d') window.C3DPhone.show(); else window.C3DPhone.hide(); }
+    if (window.QrPhone) { if (state.tab === 'qr') window.QrPhone.show(); else window.QrPhone.hide(); }
     if (window.ScanPhone) { if (state.tab === 'scan') window.ScanPhone.show(); else window.ScanPhone.hide(); }
     if (state.tab !== 'xuat') updateTotalBar(null);
     renderCartBar();
@@ -2225,6 +2228,8 @@
       svg: '<path d="M12 2.5 21 7v10l-9 4.5L3 17V7z"/><path d="M3 7l9 4.5L21 7M12 11.5v10"/>' },
     { id: 'scan', name: 'Scan tài liệu', sub: 'Chụp, canh 4 góc, làm trắng nền, lưu PDF', ok: () => canScan(),
       svg: '<path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><path d="M8 9h8M8 12h8M8 15h5"/>' },
+    { id: 'qr', name: 'Tạo mã QR', sub: 'Tạo mã đơn lẻ hoặc hàng loạt từ Excel, lưu / chia sẻ ảnh', ok: () => canQr(),
+      svg: '<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4z"/><path d="M7 7h.01M17 7h.01M7 17h.01M14 14h2.5v2.5M20 14v.01M14 20h.01M17.5 20H20v-3.5"/>' },
   ];
   function renderTools() {
     // ĐT 0.9: thẻ công cụ dạng ô vuông 2 cột (hàng trên: icon trong ô + nút chuyển · dưới: tên + mô tả) — lớp mới tl-* (tên cũ tool-* bỏ để không dính CSS cũ trong bộ nhớ đệm)
@@ -3266,16 +3271,16 @@
   // 3.1 (PC 7.43): ĐẦY ĐỦ như app PC — 4 vai trò, kho điện thoại + module PC từng người, cấp bậc (không xem mã / sửa / xóa người cùng cấp hoặc cao hơn),
   // Quản lý được cấp quyền Tài khoản, Quản trị tự bỏ tick module / kho. Luật kiểm tra thật nằm ở Web App (Code.gs › pqSave_) — nơi này chỉ khóa ô cho dễ dùng.
   const PQ_KHO = [['M01', 'Tồn kho An An'], ['M01VT', 'Tồn theo vị trí'], ['M01VTB', 'Vị trí Bột'], ['M02', 'Tồn kho gửi'],
-    ['M08', 'Tra cứu kháng sinh'], ['BC01', 'Báo cáo Tồn kho An An'], ['BC02', 'Báo cáo Tồn kho gửi'], ['LX', 'Lịch xuất nhập hàng'], ['C3D', 'Xếp cont 3D'], ['SCAN', 'Scan tài liệu'],
+    ['M08', 'Tra cứu kháng sinh'], ['BC01', 'Báo cáo Tồn kho An An'], ['BC02', 'Báo cáo Tồn kho gửi'], ['LX', 'Lịch xuất nhập hàng'], ['C3D', 'Xếp cont 3D'], ['SCAN', 'Scan tài liệu'], ['QR', 'Tạo mã QR'],
     ['M03', 'NXT Bột/Sốt'], ['M04', 'NXT TNK/TGC']];
   // Module mở được trên app PC + quyền riêng từng mục Cài đặt — GIỐNG PQ_PC (main.js) / PC (tai-khoan.js)
   const PQ_PC = [['M01', '01 · Tồn An An'], ['M01VT', '01 · Tồn theo vị trí'], ['M01VTB', '01 · Vị trí bột'], ['M02', '02 · Tồn Kho Gửi'],
-    ['M03', '03 · NXT Bột/Sốt'], ['M04', '04 · NXT TNK/TGC'], ['M05', '05.1 · Đối chiếu số liệu › Số liệu kiểm kê'], ['M06', '06 · In Chứng Từ Kho'], ['M15', '06.1 · Scan tài liệu'],
+    ['M03', '03 · NXT Bột/Sốt'], ['M04', '04 · NXT TNK/TGC'], ['M05', '05.1 · Đối chiếu số liệu › Số liệu kiểm kê'], ['M06', '06 · In Chứng Từ Kho'], ['M15', '06.1 · Scan tài liệu'], ['M17', '06.2 · Tạo mã QR'],
     ['M07', '05.2 · Đối chiếu số liệu › Số liệu cuối kỳ'], ['M08', '07 · Tổng Hợp'], ['M09', '08 · Phiếu Xuất Toàn Hệ Thống'], ['M16', '05.3 · Đối chiếu hàng ngày'], ['M13', '05 · Phiếu nhập/xuất kho'], ['M14', '12 · Container Loading 3D'], ['LX_EMAIL', 'Trang chính › Lịch xuất: duyệt email'],
     ['CD_SAOLUU', 'Cài đặt › Sao lưu Drive (toàn quyền)'], ['CD_KHOIPHUC', 'Cài đặt › Khôi phục Drive'], ['CD_DONGBO', 'Cài đặt › Đồng bộ điện thoại'],
     ['TAIKHOAN', 'Cài đặt › Tài khoản (quản lý người dùng)']];
   const PQ_FIXED_PC = ['CD_SAOLUU', 'CD_KHOIPHUC', 'CD_DONGBO', 'TAIKHOAN', 'LX_EMAIL']; // Quản trị luôn có — không tự khóa mình khỏi Cài đặt / Tài khoản
-  const PQ_KHO2PC = { M01: 'M01', M01VT: 'M01VT', M01VTB: 'M01VTB', BC01: 'M01', M02: 'M02', BC02: 'M02', M03: 'M03', M04: 'M04', M08: 'M08', C3D: 'M14', SCAN: 'M15' };
+  const PQ_KHO2PC = { M01: 'M01', M01VT: 'M01VT', M01VTB: 'M01VTB', BC01: 'M01', M02: 'M02', BC02: 'M02', M03: 'M03', M04: 'M04', M08: 'M08', C3D: 'M14', SCAN: 'M15', QR: 'M17' };
   const PQ_QUYEN = { xem: 'Người dùng cấp 1', xuat: 'Người dùng cấp 2', quanly: 'Quản lý', quantri: 'Quản trị' };
   const PQ_ROLE_OPT = { xem: 'Người dùng cấp 1 — chỉ xem', xuat: 'Người dùng cấp 2 — xem + tạo phiếu xuất', quanly: 'Quản lý — + sửa / xóa mọi phiếu', quantri: 'Quản trị — toàn quyền (chỉ admin tạo được)' };
   const PQ_ROLE_HINT = {
@@ -3435,6 +3440,7 @@
     if (tab === 'tools') return []; // hub Công cụ không tải gì
     if (tab === 'c3d') return []; // Xếp cont 3D chạy tại chỗ, không tải gì
     if (tab === 'scan') return []; // Scan tài liệu chạy tại chỗ, không tải gì
+    if (tab === 'qr') return []; // Tạo mã QR chạy tại chỗ, không tải gì
     if (tab === 'baocao') return []; // báo cáo tải riêng (loadReports), không cần bảng kho
     return ['phieu', 'm02'];
   }
@@ -3909,7 +3915,7 @@
     if (b) switchTab(b.dataset.tool);
   });
   document.querySelectorAll('[data-toolback]').forEach((b) => b.addEventListener('click', () => switchTab('tools')));
-  $('refreshBtn').addEventListener('click', () => { if (state.tab === 'c3d' || state.tab === 'scan' || state.tab === 'tools') return; if (state.tab === 'baocao') loadReports(true); else { if (state.tab === 'home') loadLx(true); refresh(); } });
+  $('refreshBtn').addEventListener('click', () => { if (state.tab === 'c3d' || state.tab === 'scan' || state.tab === 'qr' || state.tab === 'tools') return; if (state.tab === 'baocao') loadReports(true); else { if (state.tab === 'home') loadLx(true); refresh(); } });
   $('homeLx').addEventListener('click', (e) => {
     if (e.target.closest('[data-lxbadx]')) { lxBadDismiss(); return; }
     if (e.target.closest('[data-lxadd]')) { openLxQuick(lxq.loai); return; }

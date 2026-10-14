@@ -58,12 +58,13 @@ var ALL_KHO = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M08', 'BC01', 'BC
 // Module mở được trên PC + quyền riêng từng mục Cài đặt. Cấp 1 / 2: không có CD_* và TAIKHOAN; Quản lý: có CD_*, TAIKHOAN chỉ khi Quản trị / admin cấp;
 // Quản trị: luôn có CD_* + TAIKHOAN, chỉ module M* là bỏ tick được (danh sách trống = bản cũ → đủ).
 var PQ_CD_ = ['CD_SAOLUU', 'CD_KHOIPHUC', 'CD_DONGBO'];
-var PQ_PC_ = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M05', 'M06', 'M07', 'M08', 'M09', 'M12', 'M13', 'M14', 'M15', 'LX_EMAIL'].concat(PQ_CD_, ['TAIKHOAN']); // M15 = Scan tài liệu (PC 0.21) // PC 8.34: LX_EMAIL = duyệt email Lịch xuất
+var PQ_PC_ = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M05', 'M06', 'M07', 'M08', 'M09', 'M13', 'M14', 'M15', 'M16', 'LX_EMAIL'].concat(PQ_CD_, ['TAIKHOAN']); // M15 = Scan tài liệu (PC 0.21) // M16 = Đối chiếu hàng ngày (PC 0.63, trước là M12) // PC 8.34: LX_EMAIL = duyệt email Lịch xuất
 var PQ_FIXED_PC_ = ['TAIKHOAN', 'LX_EMAIL'].concat(PQ_CD_);
 function pcClean_(v) { // chuỗi "M01,M02" hoặc mảng → mảng mã hợp lệ, không trùng
   var a = Array.isArray(v) ? v.slice() : String(v || '').split(',');
   a = a.map(function (x) { return String(x).trim(); });
   if (a.indexOf('CAIDAT') >= 0) a = a.filter(function (m) { return m !== 'CAIDAT'; }).concat(PQ_CD_); // mã cũ (trước 6.7)
+  if (a.indexOf('M12') >= 0) a = a.filter(function (m) { return m !== 'M12'; }).concat(a.indexOf('M16') >= 0 ? [] : ['M16']); // PC 0.63: quyền cũ M12 = M16 (Đối chiếu hàng ngày)
   if (a.indexOf('CD_SAOLUU') >= 0 && a.indexOf('CD_KHOIPHUC') < 0) a.push('CD_KHOIPHUC'); // toàn quyền Drive kéo theo khôi phục
   return a.filter(function (m, i, x) { return PQ_PC_.indexOf(m) >= 0 && x.indexOf(m) === i; });
 }

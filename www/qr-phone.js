@@ -3,7 +3,7 @@
 // Quyền: mã kho 'QR' (Cài đặt › Tài khoản › Kho điện thoại) — kiểm ở app.js › canQr. Không tải gì từ Web App.
 (function () {
   'use strict';
-  const V = '?v=0.17';
+  const V = '?v=0.18';
   let loaded = false;
   function layout() { // iframe nằm giữa thanh trên và thanh tab dưới
     const f = document.getElementById('qrFrame'); if (!f) return;

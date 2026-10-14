@@ -156,6 +156,17 @@ body.ph .brand h1{font-size:18px}
 body.ph .wrap{padding:0 12px 28px}
 body.ph .sticky{position:static}
 body.ph .tabs button{padding:9px 12px}
+
+/* lịch sử mã đã tạo */
+.hi{display:flex;gap:12px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.hi+.hi{margin-top:8px}
+.hi .th{width:56px;height:56px;flex:none;border:1px solid var(--line);border-radius:6px;background:#fff;display:grid;place-items:center;font-size:13px;color:var(--muted);font-weight:700;overflow:hidden}
+.hi .th svg{width:100%;height:100%;display:block}
+.hi .tx{flex:1;min-width:0}
+.hi .tt{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hi .sb{font-size:12.5px;color:var(--muted)}
+.hi .bt{display:flex;gap:6px;flex:none}
+@media (max-width:560px){.hi{flex-wrap:wrap}.hi .tx{flex:1 1 calc(100% - 70px)}.hi .bt{width:100%;justify-content:flex-end}}
 </style>
 <style id="pageStyle">@page{size:210mm 297mm;margin:0}</style>
 </head>
@@ -173,6 +184,7 @@ body.ph .tabs button{padding:9px 12px}
     <button class="on" data-tab="p1" role="tab">1. Tạo mã QR</button>
     <button data-tab="p2" role="tab">2. QR hàng loạt (Excel)</button>
     <button data-tab="p3" role="tab">3. In tem QR</button>
+    <button data-tab="p4" role="tab">4. Đã tạo gần đây</button>
   </nav>
 
   <!-- ===================== TAB 1 ===================== -->
@@ -375,6 +387,15 @@ body.ph .tabs button{padding:9px 12px}
           </ul>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- ===================== TAB 4: ĐÃ TẠO GẦN ĐÂY ===================== -->
+  <section class="panel" id="p4">
+    <div class="card">
+      <div class="stat"><h2 style="margin:0">Mã đã tạo gần đây</h2><button class="btn small" id="histClear">Xóa tất cả</button></div>
+      <p class="hint" style="margin:6px 0 12px">Lưu tối đa 30 mục, chỉ trong máy này (PC và điện thoại không dùng chung). “Mở lại” đưa nội dung về tab tạo mã để tải lại; kiểu dáng lấy theo cài đặt hiện tại.</p>
+      <div id="histList"></div>
     </div>
   </section>
 </div>
@@ -2012,13 +2033,13 @@ function renderTab1(){
   cur1={text,enc:r.enc,canvas:cv};dis(false);
 }
 function slug1(){return safeName((cur1?cur1.text:'qr').replace(/^(https?:\/\/|mailto:|tel:)/i,''),40);}
-$('#dlPng1').onclick=async()=>{if(!cur1)return;download(await canvasBlob(cur1.canvas),'qr-'+slug1()+'.png');};
+$('#dlPng1').onclick=async()=>{if(!cur1)return;download(await canvasBlob(cur1.canvas),'qr-'+slug1()+'.png');histSingle();};
 if(HOST)$('#share1').hidden=false;
-$('#share1').onclick=async()=>{if(!cur1||!HOST)return;try{await HOST.shareFile({blob:await canvasBlob(cur1.canvas),name:'qr-'+slug1()+'.png',mime:'image/png'});}catch(e){toast('Không chia sẻ được: '+(e&&e.message||e));}};
-$('#dlSvg1').onclick=()=>{if(!cur1)return;download(new Blob([qrSvgFile(cur1.enc,S1)],{type:'image/svg+xml'}),'qr-'+slug1()+'.svg');};
+$('#share1').onclick=async()=>{if(!cur1||!HOST)return;try{await HOST.shareFile({blob:await canvasBlob(cur1.canvas),name:'qr-'+slug1()+'.png',mime:'image/png'});histSingle();}catch(e){toast('Không chia sẻ được: '+(e&&e.message||e));}};
+$('#dlSvg1').onclick=()=>{if(!cur1)return;download(new Blob([qrSvgFile(cur1.enc,S1)],{type:'image/svg+xml'}),'qr-'+slug1()+'.svg');histSingle();};
 $('#copy1').onclick=async()=>{
   if(!cur1)return;
-  try{const b=await canvasBlob(cur1.canvas);await navigator.clipboard.write([new ClipboardItem({'image/png':b})]);toast('Đã sao chép ảnh mã QR');}
+  try{const b=await canvasBlob(cur1.canvas);await navigator.clipboard.write([new ClipboardItem({'image/png':b})]);toast('Đã sao chép ảnh mã QR');histSingle();}
   catch(e){toast('Trình duyệt không cho sao chép ảnh — hãy dùng nút Tải PNG.');}
 };
 $('#style1').innerHTML=stylePanelHTML(false);
@@ -2302,7 +2323,7 @@ $('#btnZip').onclick=async()=>{
     const d=new Date(),p=n=>String(n).padStart(2,'0');
     download(blob,'qr-hang-loat-'+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'.zip');
     txt.textContent='Xong: '+(rowsOut.length-errs.length)+' ảnh'+(errs.length?' (bỏ qua '+errs.length+' dòng lỗi, xem LOI.txt trong file ZIP)':'')+'.';
-    bar.value=100;
+    bar.value=100;histBatch(errs.length);
   }catch(e){
     txt.textContent='Lỗi khi tạo ZIP: '+e.message;
   }finally{zipBusy=false;$('#btnZip').disabled=!rowsOut.length;}
@@ -2546,15 +2567,89 @@ function showTab(id){
   $$('.panel').forEach(p=>p.classList.toggle('active',p.id===id));
   try{history.replaceState(null,'','#'+id);}catch(e){}
   if(id==='p3'){renderTab3();setTimeout(applyScale,0);}
+  if(id==='p4')histRender();
   window.scrollTo(0,0);
 }
 $('.tabs').addEventListener('click',e=>{const b=e.target.closest('button[data-tab]');if(b)showTab(b.dataset.tab);});
+
+/* ---------------- LỊCH SỬ: mã đã tạo gần đây (lưu trong máy này) ---------------- */
+const HIST_KEY='tao-ma-qr-hist-v1',HIST_MAX=30,HIST_BYTES=1500000;
+function histLoad(){try{const a=JSON.parse(localStorage.getItem(HIST_KEY)||'[]');return Array.isArray(a)?a:[];}catch(e){return [];}}
+function histSave(a){
+  const dropOldTable=()=>{const i=a.map((x,k)=>x.table?k:-1).filter(k=>k>=0).pop();if(i===undefined)return false;delete a[i].table;a[i].noTable=true;return true;};
+  try{while(JSON.stringify(a).length>HIST_BYTES&&dropOldTable());}catch(e){}
+  for(let n=0;n<80;n++){
+    try{localStorage.setItem(HIST_KEY,JSON.stringify(a));return true;}
+    catch(e){if(!dropOldTable()){if(a.length>1)a.pop();else return false;}}
+  }
+  return false;
+}
+function histAdd(item){
+  const a=histLoad().filter(x=>x.key!==item.key);
+  a.unshift(item);
+  histSave(a.slice(0,HIST_MAX));
+  if($('#p4').classList.contains('active'))histRender();
+}
+function histSingle(){
+  if(!cur1)return;
+  histAdd({key:'s|'+curType+'|'+cur1.text,kind:'s',time:Date.now(),type:curType,vals:Object.assign({},vals),text:cur1.text});
+}
+function histBatch(nErr){
+  if(!rowsOut.length)return;
+  const ok=tableData.length<=5000;
+  histAdd({key:'b|'+srcLabel+'|'+rowsOut.length+'|'+String(rowsOut[0].content).slice(0,60),kind:'b',time:Date.now(),src:srcLabel,count:rowsOut.length-(nErr||0),
+    table:ok?tableData:undefined,noTable:ok?undefined:true,hasHeader:hasHeader,map:Object.assign({},map)});
+}
+function histWhen(t){try{return new Date(t).toLocaleString('vi-VN',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});}catch(e){return '';}}
+function histRender(){
+  const box=$('#histList'),a=histLoad();
+  $('#histClear').disabled=!a.length;
+  if(!a.length){box.innerHTML='<div class="hint" style="padding:26px 6px;text-align:center">Chưa có mã nào. Mã được ghi nhận khi bạn bấm Tải PNG / SVG / Sao chép / Chia sẻ ở tab 1, hoặc Tải ZIP ở tab hàng loạt.</div>';return;}
+  box.innerHTML=a.map((x,i)=>{
+    let th,tt,sb,can=true;
+    if(x.kind==='b'){
+      th='<div class="th">×'+esc(x.count)+'</div>';
+      tt='Hàng loạt · '+esc(x.count)+' mã QR';
+      sb=esc(x.src||'Dữ liệu dán')+' · '+histWhen(x.time)+(x.table?'':' · chỉ ghi nhận (dữ liệu quá lớn, không lưu để mở lại)');
+      can=!!x.table;
+    }else{
+      const r=tryEncode(x.text,'M');
+      th='<div class="th">'+(r.enc?qrSvgInline(r.enc,1,'#000000',{}):'QR')+'</div>';
+      tt=esc(String(x.text).replace(/\s+/g,' ').slice(0,90));
+      sb=esc((TYPES[x.type]||{label:''}).label)+' · '+histWhen(x.time);
+    }
+    return '<div class="hi">'+th+'<div class="tx"><div class="tt">'+tt+'</div><div class="sb">'+sb+'</div></div><div class="bt">'
+      +(can?'<button class="btn small primary" data-act="open" data-i="'+i+'">Mở lại</button>':'')
+      +'<button class="btn small" data-act="del" data-i="'+i+'">Xóa</button></div></div>';
+  }).join('');
+}
+function histOpen(x){
+  if(x.kind==='b'){
+    if(!x.table){toast('Mục này không lưu dữ liệu để mở lại.');return;}
+    tableData=x.table;hasHeader=!!x.hasHeader;map=Object.assign({content:-1,code:0,name:-1,qty:-1},x.map);srcLabel=x.src||'';sheetsData=null;
+    $('#sheetPick').hidden=true;$('#pasteBox').value='';
+    $('#fileInfo').textContent='Đã mở lại từ mục đã tạo: '+(x.src||'dữ liệu đã dán')+' · '+x.table.length+' dòng';
+    buildMapUI();refreshRows();showTab('p2');toast('Đã mở lại danh sách hàng loạt.');
+  }else{
+    if(!TYPES[x.type])return;
+    curType=x.type;Object.keys(x.vals||{}).forEach(k=>{if(k in vals)vals[k]=x.vals[k];});
+    persist();buildTypeUI();renderTab1();showTab('p1');toast('Đã mở lại mã QR (kiểu dáng giữ theo cài đặt hiện tại).');
+  }
+}
+$('#histList').addEventListener('click',e=>{
+  const b=e.target.closest('button[data-act]');if(!b)return;
+  const a=histLoad(),x=a[+b.dataset.i];if(!x)return;
+  if(b.dataset.act==='open')histOpen(x);
+  else{a.splice(+b.dataset.i,1);histSave(a);histRender();}
+});
+$('#histClear').onclick=()=>{if(confirm('Xóa toàn bộ danh sách mã đã tạo gần đây?')){try{localStorage.removeItem(HIST_KEY);}catch(e){}histRender();}};
+if(typeof HOST!=='undefined'&&HOST){const b=document.querySelector('[data-tab=p4]');if(b)b.textContent='3. Đã tạo gần đây';}
 
 /* khởi động */
 wireLogo();
 renderTab1();
 renderBatch();
-(function(){const h=(location.hash||'').slice(1);if(['p1','p2','p3'].indexOf(h)>=0)showTab(h);})();
+(function(){const h=(location.hash||'').slice(1);if(['p1','p2','p3','p4'].indexOf(h)>=0)showTab(h);})();
 window.addEventListener('beforeprint',()=>{if($('#p3').classList.contains('active'))applyScale();});
 </script>
 </body>

@@ -1,0 +1,27 @@
+name: Dong goi EXE
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['pc-v*']
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx --yes electron-builder --config electron-builder.yml --win dir --x64
+      - name: Nen zip
+        shell: pwsh
+        run: Compress-Archive -Path dist/win-unpacked/* -DestinationPath dist/KhoLanh-Windows-x64.zip -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KhoLanh-Windows-x64
+          path: app/dist/KhoLanh-Windows-x64.zip

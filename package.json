@@ -1,22 +1,18 @@
 {
-  "name": "kho-lanh-an-an-dien-thoai",
-  "version": "0.18.0",
-  "private": true,
-  "description": "Bản điện thoại Kho Lạnh An An — xem tồn kho, gửi phiếu xuất về PC qua Google Sheet",
+  "name": "kho-lanh",
+  "version": "1.0.1",
+  "description": "Kho Lạnh — phần mềm quản lý kho lạnh (Electron, chạy offline, database Excel)",
+  "main": "main.js",
   "scripts": {
-    "android:add": "cap add android",
-    "sync": "cap sync android",
-    "open": "cap open android"
+    "start": "electron ."
   },
+  "author": "",
+  "license": "ISC",
   "dependencies": {
-    "@capacitor/android": "^6.1.2",
-    "@capacitor/app": "^6.0.1",
-    "@capacitor/core": "^6.1.2",
-    "@capacitor/filesystem": "^6.0.1",
-    "@capacitor/share": "^6.0.2",
-    "capacitor-native-settings": "^6.0.0"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
-    "@capacitor/cli": "^6.1.2"
-  }
+    "electron": "44.5.1"
+  },
+  "productName": "KhoLanh"
 }

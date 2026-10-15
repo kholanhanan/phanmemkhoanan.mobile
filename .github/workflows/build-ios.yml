@@ -1,0 +1,76 @@
+# Build file .ipa cho iPhone trên máy macOS của GitHub (KHÔNG cần máy Mac, KHÔNG cần tài khoản Apple).
+# Kết quả là file .ipa CHƯA KÝ — cài lên iPhone bằng Sideloadly (Windows) với Apple ID thường,
+# xem HUONG-DAN-TAO-IPA.md. Chỉ chạy khi bấm "Run workflow" (máy macOS tính phút gấp 10 lần với
+# repo Private, nên KHÔNG tự chạy mỗi lần đẩy code như bản Android).
+name: Build IPA (iOS)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Lấy code
+        uses: actions/checkout@v4
+
+      - name: Cài Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Cài thư viện Capacitor (+ nền tảng iOS)
+        run: |
+          npm install
+          npm install --no-save @capacitor/ios@^6.1.2
+
+      - name: Tạo project iOS và chép giao diện www/ vào
+        run: |
+          npx cap add ios
+          npx cap sync ios
+
+      # Icon: 1 ảnh 1024×1024 (Xcode tự co cho mọi cỡ). Báo lỗi nếu quên tải thư mục icons/.
+      - name: Đặt icon ứng dụng
+        run: |
+          test -f icons/icon-1024.png || { echo "::error::THIẾU icons/icon-1024.png trong repo"; exit 1; }
+          ICONSET=ios/App/App/Assets.xcassets/AppIcon.appiconset
+          ls "$ICONSET"
+          for f in "$ICONSET"/*.png; do cp icons/icon-1024.png "$f"; done
+          # Apple không nhận icon có nền trong suốt → phủ nền trắng
+          for f in "$ICONSET"/*.png; do sips -s format jpeg "$f" --out /tmp/i.jpg >/dev/null && sips -s format png /tmp/i.jpg --out "$f" >/dev/null; done
+
+      # Cho phiếu xuất (lưu vào Documents) hiện trong app "Tệp" (Files) của iPhone.
+      - name: Cho phép xem file phiếu trong app Tệp
+        run: |
+          P=ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :UIFileSharingEnabled bool true" "$P" || /usr/libexec/PlistBuddy -c "Set :UIFileSharingEnabled true" "$P"
+          /usr/libexec/PlistBuddy -c "Add :LSSupportsOpeningDocumentsInPlace bool true" "$P" || /usr/libexec/PlistBuddy -c "Set :LSSupportsOpeningDocumentsInPlace true" "$P"
+          # ĐT 0.5 — Scan tài liệu: chụp ảnh bằng camera / chọn ảnh. iOS BẮT BUỘC có câu giải thích, thiếu thì app văng khi mở camera.
+          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Chụp phiếu, chứng từ để scan thành PDF (Scan tài liệu).'" "$P" || /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'Chụp phiếu, chứng từ để scan thành PDF (Scan tài liệu).'" "$P"
+          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'Chọn ảnh có sẵn để scan thành PDF (Scan tài liệu).'" "$P" || /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription 'Chọn ảnh có sẵn để scan thành PDF (Scan tài liệu).'" "$P"
+          # ĐT 1.02 — Lưu trữ cá nhân: kết nối http:// tới PC trong mạng nội bộ (NSAllowsLocalNetworking) + câu hỏi quyền mạng nội bộ (iOS 14+).
+          /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" "$P" || true
+          /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true" "$P" || /usr/libexec/PlistBuddy -c "Set :NSAppTransportSecurity:NSAllowsLocalNetworking true" "$P"
+          /usr/libexec/PlistBuddy -c "Add :NSLocalNetworkUsageDescription string 'Kết nối máy tính (PC) cùng wifi để đồng bộ Lưu trữ cá nhân.'" "$P" || /usr/libexec/PlistBuddy -c "Set :NSLocalNetworkUsageDescription 'Kết nối máy tính (PC) cùng wifi để đồng bộ Lưu trữ cá nhân.'" "$P"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" "$P" || true
+
+      - name: Build (không ký)
+        run: |
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -archivePath build/App.xcarchive archive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | tail -40
+          test -d build/App.xcarchive/Products/Applications/App.app || { echo "::error::Build iOS thất bại"; exit 1; }
+
+      - name: Đóng gói .ipa
+        run: |
+          mkdir -p dist/Payload
+          cp -R build/App.xcarchive/Products/Applications/App.app dist/Payload/
+          cd dist && zip -qry "KhoLanhAnAn-${GITHUB_RUN_NUMBER}-chua-ky.ipa" Payload && rm -rf Payload
+          ls -la
+
+      - name: Lưu file .ipa để tải về
+        uses: actions/upload-artifact@v4
+        with:
+          name: KhoLanhAnAn-IPA
+          path: dist/*.ipa
+          retention-days: 30

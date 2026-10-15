@@ -1533,13 +1533,13 @@ function ksSince_(since) {
 //   - Mỗi bản ghi có id duy nhất; "up" (giờ sửa) lớn hơn thắng; "dl": 0 bình thường · 1 thùng rác · 2 xóa hẳn (xóa file Drive).
 //   - "sq" = số thứ tự do Web App cấp mỗi lần ghi — thiết bị kéo "những dòng có sq > mốc đã nhận" (không phụ thuộc đồng hồ máy).
 //   - Điện thoại chỉ làm việc với tab / thư mục của CHÍNH tài khoản (tên lấy từ token, không từ yêu cầu); PC (PC_TOKEN) truyền tk.
-//   - CẦN QUYỀN DRIVE: sau khi dán Code.gs mới, chạy 1 lần hàm ltCapQuyen_ trong trình soạn Apps Script (Cho phép quyền Drive),
+//   - CẦN QUYỀN DRIVE: sau khi dán Code.gs mới, chạy 1 lần hàm ltCapQuyen trong trình soạn Apps Script (Cho phép quyền Drive),
 //     rồi Triển khai → Quản lý triển khai → Phiên bản mới.
 // ---------------------------------------------------------------------------------------------
 var LT_COLS = ['id', 'k', 'ng', 't', 'tx', 'fn', 'fs', 'mt', 'th', 'fid', 'bg', 'ts', 'up', 'dl', 'pn', 'tg', 'src', 'sq'];
 var LT_FILE_MAX = 15 * 1024 * 1024;   // khớp MAX_DRIVE trong core/luu-tru.js
 var LT_ID_OK_ = /^[A-Za-z0-9_-]{1,64}$/;
-function ltCapQuyen_() { DriveApp.getRootFolder(); return 'OK'; } // chạy tay 1 lần để cấp quyền Drive
+function ltCapQuyen() { DriveApp.getRootFolder(); return 'OK'; } // chạy tay 1 lần để cấp quyền Drive
 function ltTk_(s) { var t = String(s || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '_').slice(0, 40); if (!t) throw new Error('Thiếu tên tài khoản.'); return t; }
 function ltTkOf_(user, req) { return ltTk_(user.admin ? (req.nguoiDung || 'admin') : user.ten); }
 function ltSheet_(tk) {

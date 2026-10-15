@@ -246,4 +246,4 @@ Mặc định **Sáng** (xanh da trời). Đổi sang **Tối** (đỡ chói khi
 **Cài đặt → Giao diện**, có hiệu lực ngay, app nhớ lựa chọn cho lần mở sau.
 
 ## Lưu trữ cá nhân (ĐT 1.02)
-Cần dán lại `apps-script/Code.gs`, chạy 1 lần hàm `ltCapQuyen_` (cấp quyền Drive), rồi Triển khai → Quản lý triển khai → Phiên bản mới. Quyền điện thoại: mã kho `LT`. Dùng LAN cần build lại APK / IPA (native-level 4).
+Cần dán lại `apps-script/Code.gs`, chạy 1 lần hàm `ltCapQuyen` (cấp quyền Drive), rồi Triển khai → Quản lý triển khai → Phiên bản mới. Quyền điện thoại: mã kho `LT`. Dùng LAN cần build lại APK / IPA (native-level 4).

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://generativelanguage.googleapis.com; worker-src 'self' blob:; frame-src 'self' blob: data: about:; object-src 'none'; base-uri 'self'; form-action 'self'"><!-- PC 0.19: CSP — chỉ nạp mã/tài nguyên từ trong app -->
+<script>/* Electron la cua vao duy nhat: mo file HTML bang trinh duyet (khong co preload / window.dbAPI) -> chan, khong chay tiep. */
+(function(){ if (window.dbAPI) return; try{ window.stop(); }catch(e){}
+  document.documentElement.innerHTML = '<head><meta charset="utf-8"><title>Kho Lạnh</title></head><body style="margin:0;font-family:Segoe UI,Arial,sans-serif;background:#f4f6f8;color:#1f2937;display:flex;align-items:center;justify-content:center;height:100vh"><div style="text-align:center;padding:32px;max-width:460px"><h2 style="margin:0 0 12px">Vui l\u00f2ng m\u1edf b\u1eb1ng \u1ee9ng d\u1ee5ng Kho L\u1ea1nh</h2><p style="margin:0;line-height:1.5">Trang n\u00e0y kh\u00f4ng d\u00f9ng \u0111\u01b0\u1ee3c khi m\u1edf tr\u1ef1c ti\u1ebfp b\u1eb1ng tr\u00ecnh duy\u1ec7t. H\u00e3y m\u1edf \u1ee9ng d\u1ee5ng v\u00e0 \u0111\u0103ng nh\u1eadp.</p></div></body>';
+})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="../lib/theme-sync.js"></script>
+<title>Kho Lạnh</title>
+<link rel="icon" type="image/svg+xml" href="img/logo.svg">
+<link rel="stylesheet" href="css/fonts-local.css">
+<link rel="stylesheet" href="css/theme-shared.css">
+<link rel="stylesheet" href="css/copy-context-menu.css">
+<link rel="stylesheet" href="css/global-search.css">
+<link rel="stylesheet" href="css/lich-xuat-cont.css">
+<link rel="stylesheet" href="css/dashboard.css">
+<link rel="stylesheet" href="css/ai-panel.css">
+<link rel="stylesheet" href="css/nut-dong-bo.css">
+<link rel="stylesheet" href="css/kl-ds.css"><!-- hệ thống thiết kế dùng chung -->
+<link rel="stylesheet" href="css/kl-shell.css"><!-- khung ứng dụng: menu trái, thanh trên, đăng nhập, Tổng quan -->
+</head>
+<body class="kla-locked">
+  <!-- ĐĂNG NHẬP — js/auth-gate.js ẩn đi khi đã có phiên (main.js › auth:state). Giữ nguyên mọi id. -->
+  <div id="authOverlay" class="au-ov" role="dialog" aria-modal="true" aria-labelledby="auTitle">
+    <div class="au-side" aria-hidden="true"><img src="img/logo-trang.svg" alt=""></div>
+    <div class="au-pane">
+    <div class="au-card" id="authSetup" hidden>
+      <div class="au-brand"><img src="img/logo.svg" alt=""><div><b>Kho Lạnh</b><small>Quản lý kho lạnh</small></div></div>
+      <h1>Thiết lập máy mới</h1>
+      <p class="au-foot" id="suIntro">Máy này chưa có danh sách tài khoản. Bấm <b>Kéo tài khoản về</b> để lấy danh sách từ Google Sheet, rồi đăng nhập bằng tài khoản đã được cấp.</p>
+      <label id="suUrlWrap" hidden>Đường dẫn Web App (…/exec)<input id="suUrl" autocomplete="off" spellcheck="false"></label>
+      <label id="suTokWrap" hidden>Mã PC_TOKEN<input id="suTok" type="password" autocomplete="off" spellcheck="false"></label>
+      <p class="au-err" id="suErr" role="alert" hidden></p>
+      <p class="au-ok" id="suOk" hidden></p>
+      <button type="button" class="au-btn" id="suPull">Kéo tài khoản về</button>
+      <div id="suMake" hidden>
+        <p class="au-foot">Trên Google Sheet <b>chưa có tài khoản nào</b>. Tạo tài khoản <b>admin</b> (chủ hệ thống) với mã tự đặt:</p>
+        <label>Mã admin (8–64 ký tự, không dùng chữ “admin”)<input id="suCode" type="password" maxlength="64" autocomplete="off"></label>
+        <label>Nhập lại mã<input id="suCode2" type="password" maxlength="64" autocomplete="off"></label>
+        <button type="button" class="au-btn" id="suMakeGo">Tạo tài khoản admin</button>
+      </div>
+      <p class="au-foot au-links"><button type="button" class="au-link" id="suFile">Nạp từ file cấu hình đã sao lưu…</button><button type="button" class="au-link" id="suOffline" hidden>Không có mạng — tạo admin tạm trên máy này</button></p>
+    </div>
+
+    <form class="au-card" id="authForm" autocomplete="off">
+      <div class="au-brand"><img src="img/logo.svg" alt=""><div><b>Kho Lạnh</b><small>Quản lý kho lạnh</small></div></div>
+      <h1 id="auTitle">Đăng nhập</h1>
+      <label>Tên người dùng<input id="auUser" maxlength="40" autocomplete="off" spellcheck="false" autocapitalize="off"></label>
+      <label>Mã truy cập
+        <span class="au-pw"><input id="auPass" type="password" maxlength="64" autocomplete="off" spellcheck="false"><button type="button" id="auEye" title="Hiện / ẩn mã" aria-label="Hiện / ẩn mã">👁</button></span></label>
+      <label class="au-remember" id="auRememberWrap"><input type="checkbox" id="auRemember"><span>Ghi nhớ trên máy này</span></label>
+      <label class="au-remember" id="auAutoWrap"><input type="checkbox" id="auAuto"><span>Tự động đăng nhập khi mở app</span></label>
+      <p class="au-ok" id="auInfo" hidden></p>
+      <p class="au-err" id="auErr" role="alert" hidden></p>
+      <button type="submit" class="au-btn" id="auGo">Đăng nhập</button>
+      <p class="au-foot">Dùng chung tài khoản với điện thoại. Quên mã: nhờ quản trị đặt lại ở Cài đặt › Tài khoản.</p>
+    </form>
+    <p class="au-copy">© 2026 Trương Nhật Đăng Khoa</p>
+    </div>
+  </div>
+
+  <div class="kl-app" id="klApp">
+    <aside class="kl-side" id="klSide" aria-label="Menu chính">
+      <div class="kl-brand" data-tip="Kho Lạnh"><img src="img/logo.svg" alt="" width="34" height="34"><div class="kl-brand__txt"><b>Kho Lạnh</b></div></div>
+      <nav class="kl-nav" id="dashboardGrid">
+        <div class="kl-nav__group g-group" data-g="blue"><div class="kl-nav__head grid-label">Tồn kho</div><button type="button" class="module nav-item kl-nav__item m1" data-fn="showModule1" data-code="M01" data-num="" data-name="tồn kho an an vị trí bột" aria-label="Tồn kho An An"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span class="kl-nav__label">Tồn kho An An</span><span class="nav-dot" data-ov-dot="module1" aria-hidden="true"></span></button><button type="button" class="module nav-item kl-nav__item m2" data-fn="showModule2" data-code="M02" data-num="" data-name="tồn kho gửi" aria-label="Tồn kho gửi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8l9 5 9-5-9-5Z"/><path d="M3 12l9 5 9-5"/><path d="M3 16l9 5 9-5"/></svg><span class="kl-nav__label">Tồn kho gửi</span><span class="nav-dot" data-ov-dot="module2" aria-hidden="true"></span></button><button type="button" class="module nav-item kl-nav__item m3" data-fn="showModule3" data-code="M03" data-num="" data-name="nxt bột sốt nhập xuất tồn" aria-label="NXT Bột/Sốt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="M3 12l9 5 9-5"/></svg><span class="kl-nav__label">NXT Bột/Sốt</span><span class="nav-dot" data-ov-dot="module3" aria-hidden="true"></span></button><button type="button" class="module nav-item kl-nav__item m4" data-fn="showModule4" data-code="M04" data-num="" data-name="nxt tnk tgc hàng nhập khẩu" aria-label="NXT TNK/TGC"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12l-8 5-8-5 8-5 8 5Z"/><path d="M4 12v6l8 5 8-5v-6"/></svg><span class="kl-nav__label">NXT TNK/TGC</span><span class="nav-dot" data-ov-dot="module4" aria-hidden="true"></span></button></div><div class="kl-nav__group g-group" data-g="green"><div class="kl-nav__head grid-label">Chức năng</div><button type="button" class="module nav-item kl-nav__item m13" data-fn="showModule13" data-code="M13" data-num="" data-name="phiếu nhập xuất kho phiếu xuất khẩu cargo list" aria-label="Phiếu nhập/xuất kho"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 13h7M9 17h5"/></svg><span class="kl-nav__label">Phiếu nhập/xuất kho</span></button><button type="button" class="module nav-item kl-nav__item mrd" data-fn="showModuleRaDong" data-code="M08RD" data-num="" data-name="báo cáo rã đông" aria-label="Báo cáo rã đông"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg><span class="kl-nav__label">Báo cáo rã đông</span></button><button type="button" class="module nav-item kl-nav__item mdc" data-fn="showDoiChieu" data-code="M05·07" data-num="" data-name="đối chiếu số liệu kiểm kê cuối kỳ kho xưởng chênh lệch" aria-label="Đối chiếu số liệu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="11" height="11" rx="2"/><rect x="10" y="10" width="11" height="11" rx="2"/></svg><span class="kl-nav__label">Đối chiếu số liệu</span></button><button type="button" class="module nav-item kl-nav__item m5 nav-merged" data-fn="showModule5" data-code="M05" data-num="" data-name="số liệu kiểm kê" aria-label="Số liệu kiểm kê"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="11" height="11" rx="2"/><rect x="10" y="10" width="11" height="11" rx="2"/></svg><span class="kl-nav__label">Số liệu kiểm kê</span></button><button type="button" class="module nav-item kl-nav__item m7 nav-merged" data-fn="showModule7" data-code="M07" data-num="" data-name="số liệu cuối kỳ" aria-label="Số liệu cuối kỳ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="11" height="11" rx="2"/><rect x="10" y="10" width="11" height="11" rx="2"/></svg><span class="kl-nav__label">Số liệu cuối kỳ</span></button><button type="button" class="module nav-item kl-nav__item m16" data-fn="showModule16" data-code="M16" data-num="" data-name="đối chiếu hàng ngày số liệu kho xưởng chênh lệch" aria-label="Đối chiếu hàng ngày"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="m9 15.2 2 2 4-4.2"/></svg><span class="kl-nav__label">Đối chiếu hàng ngày</span></button><button type="button" class="module nav-item kl-nav__item m6" data-fn="showModule6" data-code="M06" data-num="" data-name="in chứng từ kho chứng từ xuất kho" aria-label="In chứng từ kho"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 8V3h10v5"/><rect x="3" y="8" width="18" height="9" rx="2"/><path d="M7 14h10v7H7z"/></svg><span class="kl-nav__label">In chứng từ kho</span></button><button type="button" class="module nav-item kl-nav__item m8" data-fn="showModule8" data-code="M08" data-num="" data-name="tổng hợp mã hóa size kháng sinh" aria-label="Tổng hợp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span class="kl-nav__label">Tổng hợp</span></button></div><div class="kl-nav__group g-group" data-g="gold"><button type="button" class="module nav-item kl-nav__item m17" data-fn="showModule17" data-code="CC" data-num="" data-name="công cụ scan tài liệu container 3d xếp hàng mã qr quản lý file đổi tên sắp xếp file trùng" aria-label="Công cụ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3.5 17.5a1.8 1.8 0 0 0 2.5 2.5l5.8-5.8a4 4 0 0 0 5.4-5.4l-2.4 2.4-2.1-.6-.6-2.1z"/></svg><span class="kl-nav__label">Công cụ</span></button></div><div class="kl-nav__group g-group" data-g="red"><div class="kl-nav__head grid-label">Hệ thống</div><button type="button" class="module nav-item kl-nav__item m9" data-fn="showModule9" data-code="M09" data-num="" data-name="phiếu xuất toàn hệ thống điện thoại" aria-label="Phiếu xuất hệ thống"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/></svg><span class="kl-nav__label">Phiếu xuất hệ thống</span></button><button type="button" class="module nav-item kl-nav__item m10" data-fn="showModule10" data-code="M10" data-num="" data-name="đồng bộ điện thoại google sheet" aria-label="Đồng bộ điện thoại"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/><path d="M10 9.5l2-2 2 2M12 7.5V13"/></svg><span class="kl-nav__label">Đồng bộ điện thoại</span></button><button type="button" class="module nav-item kl-nav__item m11" data-fn="showModule11" data-code="M11" data-num="" data-name="lịch sử thao tác nhật ký" aria-label="Lịch sử thao tác"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l3 2"/></svg><span class="kl-nav__label">Lịch sử thao tác</span></button><button type="button" class="kl-nav__item settings-btn" id="btnHeaderSettings" data-fn="showModuleSettings" data-code="CD" data-num="" data-name="cài đặt sao lưu cập nhật tài khoản mạng lan giao diện" aria-label="Cài đặt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg><span class="kl-nav__label">Cài đặt</span></button></div><p id="noResults" class="kl-nav__empty" hidden>Không có mục phù hợp.</p>
+      </nav>
+      <div class="kl-side__foot">
+        <button type="button" class="kl-side__toggle" id="klSideToggle" aria-label="Thu gọn menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg><span>Thu gọn</span></button>
+      </div>
+    </aside>
+
+    <div class="kl-main">
+      <header class="kl-top">
+        <div class="kl-crumb" id="klCrumb" aria-live="polite"><span class="kl-crumb__g" id="klCrumbG" hidden></span><b id="klCrumbT">Tổng quan</b><span class="kl-crumb__code" id="klCrumbC" hidden></span></div>
+        <label class="kl-search search-box" title="Tìm mã hàng, size, vị trí trong toàn kho (Ctrl K)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="moduleSearch" type="text" placeholder="Tìm mã hàng, size, vị trí…" autocomplete="off" readonly>
+          <kbd>Ctrl K</kbd>
+        </label>
+        <div class="kl-actions hero-right">
+          <button type="button" class="kl-push" id="klPush" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M12 15V8M9 11l3-3 3 3"/></svg><span>Đẩy lên điện thoại</span></button>
+          <span class="kl-clock" title="Giờ máy"><span id="clockText" class="appClockText"></span></span>
+          <button type="button" class="kl-icon" id="btnRefreshOverview" title="Tải lại trang đang xem" aria-label="Tải lại trang đang xem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
+          <button type="button" class="kl-icon" id="klTheme" title="Đổi giao diện Sáng / Tối" aria-label="Đổi giao diện Sáng / Tối"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+          <div class="au-menu" id="authChip" hidden>
+            <button type="button" class="au-trigger" id="authTrigger" aria-haspopup="menu" aria-expanded="false" title="Tài khoản">
+              <span class="au-av" id="authAv" aria-hidden="true"></span>
+              <span class="au-txt"><span class="au-name" id="authName"></span><small class="au-rl" id="authRl"></small></span>
+              <svg class="au-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="au-pop" id="authPop" role="menu" hidden>
+              <div class="au-pop-head"><b id="authPopName"></b><small id="authRole"></small></div>
+              <button type="button" role="menuitem" id="authSettings">Cài đặt</button>
+              <button type="button" role="menuitem" id="authMem" title="Đóng các module đang ẩn để máy chạy nhẹ hơn. Dữ liệu đã lưu không mất; mở lại module sẽ nạp lại.">Giải phóng bộ nhớ</button>
+              <button type="button" role="menuitem" id="authPw">Đổi mật khẩu</button>
+              <button type="button" role="menuitem" id="authOut">Đăng xuất</button>
+            </div>
+          </div>
+        </div>
+        <div class="kl-load" id="klLoad" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      </header>
+
+      <main class="kl-stage" id="klStage">
+        <div id="dashboardView" class="kl-home">
+          <div class="kl-home__head">
+            <div class="kl-home__t"><h1>Tổng quan kho</h1>
+            <p id="klToday"></p></div>
+          </div>
+          <p id="overviewNoApi" class="report-note" style="display:none;">Số liệu chỉ đọc được khi mở bằng ứng dụng Kho Lạnh.</p>
+          <div class="dv" id="dv">
+          <div class="dv-empty" id="dvEmpty" hidden>Chưa có số liệu — vào từng module (Tồn Kho An An, Tồn Kho Gửi…) để nạp file.</div>
+          <div class="dv-empty" id="dvLoading">Đang đọc số liệu…</div>
+          <!-- DẢI SỐ: tổng · An An · Kho gửi · nhập/xuất tháng -->
+          <div class="dv-top dv-band" id="dvTop">
+            <section class="dv-kpi dv-hl" id="dvTotal" hidden>
+              <div class="dv-kh"><span class="dv-name">Tổng khối lượng tồn</span></div>
+              <div class="dv-big"><b id="dvTotalT">—</b><small>tấn</small></div>
+              <div class="dv-share" id="dvShare" hidden><i class="sa"></i><i class="sb"></i></div>
+              <div class="dv-facts" id="dvTotalF"></div>
+            </section>
+            <section class="dv-kpi dv-click" id="dvM1" hidden onclick="showModule1()" title="Mở Tồn Kho An An">
+              <div class="dv-kh"><i class="dv-dot da"></i><span class="dv-name">Tồn kho An An</span><span class="dv-code">M01</span><span class="dv-fresh" id="dvM1D"></span></div>
+              <div class="dv-big"><b id="dvM1T">—</b><small>tấn</small></div>
+              <div class="dv-facts" id="dvM1F"></div>
+            </section>
+            <section class="dv-kpi dv-click" id="dvM2" hidden onclick="showModule2()" title="Mở Tồn Kho Gửi">
+              <div class="dv-kh"><i class="dv-dot db"></i><span class="dv-name">Tồn kho gửi</span><span class="dv-code">M02</span><span class="dv-fresh" id="dvM2D"></span></div>
+              <div class="dv-big"><b id="dvM2T">—</b><small>tấn</small></div>
+              <div class="dv-facts" id="dvM2F"></div>
+            </section>
+          </div>
+          <!-- TAB: Lịch xuất nhập · Thống kê (0.14: bỏ "Cần xử lý" và "Tồn theo loại hàng & size") -->
+          <section class="dv-card dv-main">
+            <div class="dv-tabs" role="tablist" id="dvTabs">
+              <button type="button" class="dv-tab" role="tab" aria-selected="true" data-p="dvP1">Lịch xuất nhập</button>
+              <button type="button" class="dv-tab" role="tab" aria-selected="false" data-p="dvTk">Thống kê</button>
+              <div class="lx-seg" role="group" aria-label="Kiểu xem"><button type="button" id="lxVl" aria-pressed="true">Tuần</button><button type="button" id="lxVc" aria-pressed="false" hidden>Lịch</button><button type="button" id="lxVm" aria-pressed="false">Theo tháng</button></div>
+            </div>
+            <div class="dv-pane on" id="dvP1">
+          <section class="dv-lich" id="dvCont">
+            <div class="lx">
+              <div class="lx-h">
+                <i class="dv-dot da"></i><b class="t">Lịch xuất nhập hàng</b>
+                <div class="lx-m" id="lxM">
+                  <button type="button" class="lx-ib" id="lxPrev" aria-label="Tuần trước"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg></button>
+                  <b id="lxLabel"></b>
+                  <button type="button" class="lx-ib" id="lxNext" aria-label="Tuần sau"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></button>
+                  <button type="button" class="lx-btn" id="lxToday">Hôm nay</button><span class="lx-cm"><button type="button" class="lx-btn lx-cmb" id="lxCalBtn" title="Chọn tháng để xem" aria-label="Chọn tháng"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2.5"/><path d="M3 9h18M8 2.5v3M16 2.5v3"/></svg><span id="lxCalTxt"></span></button><input type="month" id="lxCalMonth" tabindex="-1" aria-hidden="true"></span>
+                </div>
+                <button type="button" class="lx-btn pri" id="lxAdd">+ Thêm lịch</button>
+                <button type="button" class="lx-btn" id="lxEmail" title="Thư Gmail về lịch kéo đóng đang chờ bạn duyệt (thêm / đổi / hủy lịch)">✉ Email</button>
+              </div>
+              <div class="lx-k" id="lxK"></div>
+              <div class="lx-k" id="lxSK"></div>
+              <div class="lx-lg" id="lxLg"><span><i style="background:var(--dok)"></i>Đã xuất</span><span><i style="background:var(--dwarn)"></i>Đang đóng hàng</span><span><i style="background:var(--dd)"></i>Dự kiến</span><span><i style="background:var(--muted)"></i>Chờ xác nhận</span><span class="lx-lg-sp"></span><span><em class="lx-tp xuat">XUẤT</em>Xuất hàng</span><span><em class="lx-tp nhap">NHẬP</em>Nhập hàng</span></div>
+              <div id="lxCal"><div class="lx-cal"><div class="lx-grid" id="lxGrid"></div></div></div>
+              <div id="lxSum" hidden>
+                <div class="lx-sh"><button type="button" class="lx-ib" id="lxMPrev" aria-label="Tháng trước">&#8249;</button><span class="lx-cm"><button type="button" class="lx-btn lx-cmb" id="lxMonthBtn" title="Chọn tháng / Choose month" aria-label="Chọn tháng"><span id="lxMonthTxt"></span></button><input type="month" id="lxMonth" tabindex="-1" aria-hidden="true"></span><button type="button" class="lx-ib" id="lxMNext" aria-label="Tháng sau">&#8250;</button><button type="button" class="lx-btn" id="lxMNow">Tháng này</button></div>
+                <div class="lx-sb" id="lxSB"></div>
+                <div class="lx-tw lx-sc" id="lxSC"></div>
+              </div>
+              <div id="lxList" hidden><div class="lx-fl" id="lxFl" style="margin-bottom:10px"></div>
+                <div class="lx-tw"><table><thead><tr><th class="r" style="width:44px">STT</th><th style="width:96px">Loại</th><th>LSX / Chứng từ</th><th>Khách hàng / NCC</th><th>Mặt hàng · size</th><th>Trạng thái</th></tr></thead><tbody id="lxRows"></tbody></table></div></div>
+            </div>
+            <div class="lx-ov" id="lxOv" hidden><div class="lx-dlg" id="lxDlg" role="dialog" aria-modal="true"></div></div>
+            <div class="lx-ov" id="lxDv" hidden><div class="lx-dlg lx-dv" id="lxDvBox" role="dialog" aria-modal="true" aria-label="Chi tiết LSX"></div></div>
+          </section>
+            </div>
+            <div class="dv-pane" id="dvTk">
+              <div class="tk" id="dvTkBody"><p class="mut">Chưa có số liệu lịch xuất nhập.</p></div>
+            </div>
+          </section>
+          </div>
+        </div>
+      <section id="module1View" class="kl-view" style="display:none"><iframe id="module1Frame" title="module1" src=""></iframe></section>
+      <section id="module2View" class="kl-view" style="display:none"><iframe id="module2Frame" title="module2" src=""></iframe></section>
+      <section id="module3View" class="kl-view" style="display:none"><iframe id="module3Frame" title="module3" src=""></iframe></section>
+      <section id="module4View" class="kl-view" style="display:none"><iframe id="module4Frame" title="module4" src=""></iframe></section>
+      <section id="module5View" class="kl-view has-sub" style="display:none"><nav class="kl-subtabs dc-subtabs" data-dc-subtabs aria-label="Đối chiếu số liệu"></nav><iframe id="module5Frame" allowfullscreen title="module5" src=""></iframe></section>
+      <section id="module6View" class="kl-view" style="display:none"><iframe id="module6Frame" title="module6" src=""></iframe></section>
+      <section id="module7View" class="kl-view has-sub" style="display:none"><nav class="kl-subtabs dc-subtabs" data-dc-subtabs aria-label="Đối chiếu số liệu"></nav><iframe id="module7Frame" title="module7" src=""></iframe></section>
+      <section id="module8View" class="kl-view" style="display:none"><iframe id="module8Frame" title="module8" src=""></iframe></section>
+      <section id="module9View" class="kl-view" style="display:none"><iframe id="module9Frame" title="module9" src=""></iframe></section>
+      <section id="module10View" class="kl-view" style="display:none"><iframe id="module10Frame" title="module10" src=""></iframe></section>
+      <section id="module11View" class="kl-view" style="display:none"><iframe id="module11Frame" title="module11" src=""></iframe></section>
+            <section id="module13View" class="kl-view" style="display:none"><iframe id="module13Frame" title="module13" src=""></iframe></section>
+      <section id="module14View" class="kl-view" style="display:none"><iframe id="module14Frame" title="module14" src=""></iframe></section>
+      <section id="module15View" class="kl-view" style="display:none"><iframe id="module15Frame" title="module15" src=""></iframe></section><!-- PC 0.21: Scan tài liệu -->
+      <section id="module18View" class="kl-view" style="display:none"><iframe id="module18Frame" title="module18" src=""></iframe></section><!-- PC 0.69: Tạo mã QR -->
+      <section id="module19View" class="kl-view" style="display:none"><iframe id="module19Frame" title="module19" src=""></iframe></section><!-- PC 1.02: Quản lý file -->
+      <section id="module20View" class="kl-view" style="display:none"><iframe id="module20Frame" title="module20" src=""></iframe></section><!-- PC 1.03: Lưu trữ cá nhân -->
+      <section id="module17View" class="kl-view" style="display:none"><iframe id="module17Frame" title="module17" src=""></iframe></section><!-- PC 0.67: Công cụ (trang chứa các thẻ công cụ: Scan tài liệu, Container 3D…) -->
+      <section id="module16View" class="kl-view" style="display:none"><iframe id="module16Frame" allowfullscreen title="module16" src=""></iframe></section><!-- PC 0.63: Đối chiếu hàng ngày (trước là M12) -->
+      <section id="moduleSettingsView" class="kl-view" style="display:none"><iframe id="moduleSettingsFrame" title="moduleSettings" src=""></iframe></section>
+      </main>
+    </div>
+  </div>
+
+  <script src="js/index.js" defer></script>
+  <script src="js/auth-gate.js" defer></script><!-- PHẢI nạp ngay sau index.js (bọc các hàm showModuleN theo quyền) -->
+  <script src="js/dashboard-overview.js" defer></script>
+  <script src="js/phieu-nhap-xuat.js" defer></script>
+  <script src="js/lich-xuat-cont.js" defer></script>
+  <script src="js/table-col-search.js" defer></script>
+  <script src="js/global-search.js" defer></script>
+  <script src="js/update-notice.js" defer></script>
+  <script src="js/lan-status.js" defer></script>
+  <script src="js/ai-tools-home.js" defer></script>
+  <script src="js/ai-panel.js" defer></script>
+  <script src="js/copy-context-menu.js"></script>
+</body>
+</html>

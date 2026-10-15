@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '1.04 (15/10/2026)';
+  const APP_VERSION = '1.05 (15/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -485,7 +485,9 @@
       const h = d.maHoa.headers, iS = h.indexOf('seg'), iC = h.indexOf('code'), iN = h.indexOf('name');
       seg8 = d.maHoa.rows.filter((r) => Number(r[iS]) === 8).map((r) => ({ code: r[iC], name: r[iN] }));
     }
-    sizeTagFn = window.KLSize ? window.KLSize.create(seg8) : () => '';
+    // ĐT 1.05: bảng Ánh xạ tên hàng (tab M08_AnhXa, PC đồng bộ về) → tiền tố viết tắt BTP / NL / TGC…; chưa có thì mặc định.
+    const ax = window.KLAnhXa ? (d && d.anhXa && d.anhXa.headers ? window.KLAnhXa.fromTable(d.anhXa.headers, d.anhXa.rows || []) : window.KLAnhXa.create(null)) : null;
+    sizeTagFn = window.KLSize ? window.KLSize.create(seg8, ax) : () => '';
     sizeTagOf = d;
     return sizeTagFn;
   }

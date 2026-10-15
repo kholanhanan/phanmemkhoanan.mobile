@@ -38,7 +38,7 @@ var TAB = {
   M01: 'TonKho_M01', VITRI: 'TonKho_M01_ViTri', VITRIBOT: 'TonKho_M01_ViTriBot', M02: 'TonKho_M02',
   M03: 'TonKho_M03', M03_LSX: 'DanhMuc_M03_LSX', M04: 'TonKho_M04',
   M08_MAHOA: 'M08_MaHoa', M08_MADATAO: 'M08_MaDaTao', M08_TONGHOP: 'M08_TongHop',
-  M08_RADONG: 'M08_RaDong', M08_SIZE: 'M08_SizeLabel', M08_KS: 'M08_KhangSinh', M08_KSXOA: 'M08_KhangSinhXoa',
+  M08_RADONG: 'M08_RaDong', M08_SIZE: 'M08_SizeLabel', M08_KS: 'M08_KhangSinh', M08_KSXOA: 'M08_KhangSinhXoa', M08_ANHXA: 'M08_AnhXa',
   META: 'Meta', PX: 'PhieuXuat', PXI: 'PhieuXuatItems', PQ: 'PhanQuyen',
   M01_BAOCAO: 'BaoCao_M01', // file Excel "Báo Cáo Tổng Tồn" + "Bảng Tổng Hợp HLSO" (base64 cắt nhiều ô) do PC dựng
   LX: 'LichXuat_Cont', LX_THANG: 'LichXuat_Thang', // Lịch xuất nhập hàng (PC 7.31) — điện thoại XEM
@@ -213,7 +213,7 @@ function doPost(e) {
       case 'm08': {
         var pick = function (name) { var t = readTab_(name); return { headers: t.headers, rows: t.rows }; };
         return json_({ ok: true, meta: getMeta_(), maHoa: pick(TAB.M08_MAHOA), maDaTao: pick(TAB.M08_MADATAO),
-          tongHop: pick(TAB.M08_TONGHOP), raDong: pick(TAB.M08_RADONG), sizeLabel: pick(TAB.M08_SIZE),
+          tongHop: pick(TAB.M08_TONGHOP), raDong: pick(TAB.M08_RADONG), sizeLabel: pick(TAB.M08_SIZE), anhXa: pick(TAB.M08_ANHXA), // ĐT 1.05: Ánh xạ tên hàng
           // Điện thoại bản 2.0+ gửi noKs: tải kháng sinh riêng theo kiểu "chỉ phần mới" (ksSince) → không gửi lại cả bảng
           khangSinh: req.noKs ? { headers: [], rows: [] } : pick(TAB.M08_KS) });
       }
@@ -1230,7 +1230,7 @@ function buildItemsVTB_(id, reqItems, pending) {
 // CÁC LỆNH DÀNH RIÊNG CHO APP PC (PC_TOKEN) — xem app/sheets-webapp-client.js
 // ============================================================================================
 var PC_ALLOWED_TABS = [TAB.PQ, TAB.M01, TAB.VITRI, TAB.VITRIBOT, TAB.M02, TAB.M03, TAB.M03_LSX, TAB.M04, TAB.META, TAB.PX, TAB.PXI,
-  TAB.M08_MAHOA, TAB.M08_MADATAO, TAB.M08_TONGHOP, TAB.M08_RADONG, TAB.M08_SIZE, TAB.M08_KS, TAB.M08_KSXOA, TAB.M01_BAOCAO, TAB.M02_BAOCAO, TAB.LX, TAB.LX_THANG, TAB.LX_YC, TAB.LX_EM, TAB.C3D, TAB.PX_LUUTRU, TAB.PXI_LUUTRU];
+  TAB.M08_MAHOA, TAB.M08_MADATAO, TAB.M08_TONGHOP, TAB.M08_RADONG, TAB.M08_SIZE, TAB.M08_ANHXA, TAB.M08_KS, TAB.M08_KSXOA, TAB.M01_BAOCAO, TAB.M02_BAOCAO, TAB.LX, TAB.LX_THANG, TAB.LX_YC, TAB.LX_EM, TAB.C3D, TAB.PX_LUUTRU, TAB.PXI_LUUTRU];
 function assertPcTab_(name) {
   if (PC_ALLOWED_TABS.indexOf(name) < 0) throw new Error('Không được phép thao tác tab "' + name + '".');
 }

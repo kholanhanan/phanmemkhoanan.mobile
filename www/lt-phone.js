@@ -2,7 +2,7 @@
 // Giao diện dùng chung với PC (lt-ui.js); dữ liệu + đồng bộ ở lt-backend.js (IndexedDB, LAN → Drive). Quyền: mã kho 'LT' (app.js › canLt). Kết nối lấy qua window.LTHost (app.js).
 (function () {
   'use strict';
-  const V = '?v=1.04-20261015';
+  const V = '?v=1.05-20261015';
   let loaded = false;
   function layout() { // iframe nằm giữa thanh trên và thanh tab dưới
     const f = document.getElementById('ltFrame'); if (!f) return;

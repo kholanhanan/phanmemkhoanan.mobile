@@ -71,6 +71,14 @@ jobs:
           sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />#' $M
           grep -n "STORAGE\|requestLegacy\|CAMERA\|hardware.camera" $M
 
+      # ĐT 1.02 — Lưu trữ cá nhân: điện thoại gọi PC trong mạng LAN bằng http:// (PC chạy máy chủ nhỏ, không có chứng chỉ HTTPS).
+      # Android 9+ chặn http mặc định → bật cleartext (cũng đặt trong capacitor.config.json: server.cleartext + android.allowMixedContent).
+      - name: Cho phép http tới PC trong LAN (Lưu trữ cá nhân)
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          grep -q usesCleartextTraffic $M || sed -i 's#<application#<application android:usesCleartextTraffic="true"#' $M
+          grep -n "usesCleartextTraffic" $M
+
       # Icon ứng dụng: chép các file trong icons/res/ đè lên icon mặc định của Capacitor.
       - name: Đặt icon ứng dụng
         run: |

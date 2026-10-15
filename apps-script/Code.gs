@@ -1539,7 +1539,7 @@ function ksSince_(since) {
 var LT_COLS = ['id', 'k', 'ng', 't', 'tx', 'fn', 'fs', 'mt', 'th', 'fid', 'bg', 'ts', 'up', 'dl', 'pn', 'tg', 'src', 'sq'];
 var LT_FILE_MAX = 15 * 1024 * 1024;   // khớp MAX_DRIVE trong core/luu-tru.js
 var LT_ID_OK_ = /^[A-Za-z0-9_-]{1,64}$/;
-function ltCapQuyen() { DriveApp.getRootFolder(); return 'OK'; } // chạy tay 1 lần để cấp quyền Drive
+function ltCapQuyen() { DriveApp.createFolder('kholanh_tam').setTrashed(true); return 'OK'; } // tạo + xóa 1 thư mục tạm để BUỘC xin quyền Drive đầy đủ (getRootFolder chỉ cần quyền đọc) // chạy tay 1 lần để cấp quyền Drive
 function ltTk_(s) { var t = String(s || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '_').slice(0, 40); if (!t) throw new Error('Thiếu tên tài khoản.'); return t; }
 function ltTkOf_(user, req) { return ltTk_(user.admin ? (req.nguoiDung || 'admin') : user.ten); }
 function ltSheet_(tk) {

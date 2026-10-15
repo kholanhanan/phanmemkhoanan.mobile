@@ -209,7 +209,9 @@
   }
   let timer = null;
   function schedule() { clearTimeout(timer); timer = setTimeout(() => { if (!document.hidden) runSync(); }, 3000); }
-  setInterval(() => { if (loaded && !document.hidden && !sync.busy) runSync(); }, 60000);
+  setInterval(() => { if (loaded && !document.hidden && !sync.busy) runSync(); }, 60000); // Drive / thử lại: 60 giây, hoặc bấm tay
+  // ĐT 1.04 — đang nối được PC qua LAN thì hỏi PC mỗi 3 giây (nhẹ: không có gì mới thì PC trả rỗng) → tin mới tới gần như tức thì. Mất LAN thì tự về 60 giây.
+  setInterval(() => { if (loaded && !document.hidden && !sync.busy && sync.mode === 'lan' && lanCfg().on) runSync(); }, 3000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && loaded) runSync(); });
 
   // ------------------------------------------------------------------ lấy file về máy khi mở

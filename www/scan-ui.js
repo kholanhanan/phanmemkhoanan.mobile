@@ -8,7 +8,7 @@
   'use strict';
   var S = global.KLScan;
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
-  var LS_DEF = 'kl_scan_mac_dinh', LS_HIST = 'kl_scan_lich_su';
+  var LS_DEF = 'kl_scan_mac_dinh', LS_HIST = 'kl_scan_lich_su', LS_NOLIVE = 'kl_scan_khong_live'; // LS_NOLIVE: lúc (ms) camera trực tiếp không hiện hình → 3 ngày sau mới thử lại
   var lsGet = function (k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
   var lsSet = function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* đầy / bị chặn: bỏ qua */ } };
   var p2 = function (n) { return String(n).padStart(2, '0'); };
@@ -400,7 +400,7 @@
     var liveOK = host.live !== false && !!(global.navigator && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
     function openLive() {
       if (st.busy) return;
-      if (!liveOK) { if (phone) return $('scCam').click(); return toast('Máy này không mở được camera trong app.', true); }
+      if (!liveOK || (phone && lsGet(LS_NOLIVE, 0) > Date.now() - 3 * 864e5)) { if (phone) return $('scCam').click(); return toast('Máy này không mở được camera trong app.', true); }
       var box = $('scLive'), stream = null, track = null, alive = true, mode = 'live', added = 0, auto = true, drag = -1, miss = 0, found = null;
       var torchOn = false, lw = 0, lh = 0, detT = 0, raf = 0, result = null, cur = S.defaultQuad(), tgt = S.defaultQuad();
       st.busy = true;
@@ -493,13 +493,28 @@
             if (!alive) { s.getTracks().forEach(function (t) { t.stop(); }); return; }
             stream = s; track = s.getVideoTracks()[0]; vid.srcObject = s;
             var pl = vid.play(); if (pl && pl.catch) pl.catch(function () { tip('Chạm vào màn hình để bật hình camera'); });
-            // Canh chừng: camera đã mở mà 3 giây sau vẫn chưa có hình → thử phát lại + báo thông số để biết lỗi ở đâu
+            // Canh chừng (ĐT 1.09): sau 2,5 giây mà KHÔNG có hình, hoặc khung camera không hiện ra trên màn hình (bị che / cao 0)
+            // → thôi camera trực tiếp, hỏi mở camera của điện thoại (chụp xong ảnh vào app như nút Ảnh, vẫn chỉnh 4 góc được).
             setTimeout(function () {
-              if (!alive || mode !== 'live' || vid.videoWidth > 0) return;
+              if (!alive || mode !== 'live') return;
+              var noVideo = !(vid.videoWidth > 0), hidden = false;
+              try {
+                var r = box.getBoundingClientRect(), cs = global.getComputedStyle(box);
+                var mid = document.elementFromPoint(Math.round(global.innerWidth / 2), Math.round(global.innerHeight / 2));
+                hidden = cs.display === 'none' || cs.visibility === 'hidden' || r.width < 50 || r.height < 120 || !(mid && box.contains(mid));
+              } catch (e) { /* bỏ qua */ }
+              if (!noVideo && !hidden) return;
               try { vid.play(); } catch (e) { /* bỏ qua */ }
+              if (phone && (hidden || vid.readyState < 2 || vid.paused)) {
+                close();
+                lsSet(LS_NOLIVE, Date.now());
+                var go = false; try { go = global.confirm('Camera trực tiếp không hiện hình trên máy này.\n\nMở camera của điện thoại để chụp? (3 ngày tới nút Chụp sẽ mở thẳng camera máy.)'); } catch (x) { /* bỏ qua */ }
+                if (go) $('scCam').click(); else toast('Bạn vẫn có thể bấm \"Chụp\" lần nữa hoặc \"Ảnh\" để chọn ảnh đã chụp.', true);
+                return;
+              }
               var ts = ''; try { ts = track ? track.readyState + '/' + (track.muted ? 'muted' : 'live') : 'none'; } catch (e) { /* bỏ qua */ }
               tip('Camera đã bật nhưng chưa có hình (rs=' + vid.readyState + ', paused=' + vid.paused + ', track=' + ts + '). Chạm vào màn hình; nếu vẫn không được, bấm Đóng rồi dùng nút Ảnh.');
-            }, 3000);
+            }, 2500);
             var caps = {}; try { caps = (track.getCapabilities && track.getCapabilities()) || {}; } catch (e) { /* bỏ qua */ }
             q$('scLvTorch').hidden = !caps.torch;
             try { if (caps.focusMode && caps.focusMode.indexOf('continuous') >= 0) track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (e) { /* bỏ qua */ }

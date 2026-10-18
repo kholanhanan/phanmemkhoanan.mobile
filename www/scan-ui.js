@@ -417,6 +417,8 @@
       var vid = q$('scLvVid'), vbox = q$('scLvBox'), ov = q$('scLvCv'), prev = q$('scLvPrev'), stage = q$('scLvStage'), bar1 = q$('scLvBar1'), bar2 = q$('scLvBar2');
       vid.muted = true; vid.setAttribute('playsinline', ''); vid.setAttribute('webkit-playsinline', '');
       var tip = function (s) { q$('scLvS').textContent = s; };
+      stage.addEventListener('click', function () { try { if (vid.paused) vid.play(); } catch (e) { /* bỏ qua */ } });
+      vid.addEventListener('loadedmetadata', function () { try { vid.play(); } catch (e) { /* bỏ qua */ } layout(); });
       var HINT = 'Kéo 4 chấm vào 4 góc tờ giấy, rồi bấm nút tròn để chụp';
       function head(t) { q$('scLvT').textContent = t; }
       head('Chụp tài liệu');
@@ -490,7 +492,14 @@
           .then(function (s) {
             if (!alive) { s.getTracks().forEach(function (t) { t.stop(); }); return; }
             stream = s; track = s.getVideoTracks()[0]; vid.srcObject = s;
-            var pl = vid.play(); if (pl && pl.catch) pl.catch(function () { /* iOS: chờ người dùng chạm */ });
+            var pl = vid.play(); if (pl && pl.catch) pl.catch(function () { tip('Chạm vào màn hình để bật hình camera'); });
+            // Canh chừng: camera đã mở mà 3 giây sau vẫn chưa có hình → thử phát lại + báo thông số để biết lỗi ở đâu
+            setTimeout(function () {
+              if (!alive || mode !== 'live' || vid.videoWidth > 0) return;
+              try { vid.play(); } catch (e) { /* bỏ qua */ }
+              var ts = ''; try { ts = track ? track.readyState + '/' + (track.muted ? 'muted' : 'live') : 'none'; } catch (e) { /* bỏ qua */ }
+              tip('Camera đã bật nhưng chưa có hình (rs=' + vid.readyState + ', paused=' + vid.paused + ', track=' + ts + '). Chạm vào màn hình; nếu vẫn không được, bấm Đóng rồi dùng nút Ảnh.');
+            }, 3000);
             var caps = {}; try { caps = (track.getCapabilities && track.getCapabilities()) || {}; } catch (e) { /* bỏ qua */ }
             q$('scLvTorch').hidden = !caps.torch;
             try { if (caps.focusMode && caps.focusMode.indexOf('continuous') >= 0) track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (e) { /* bỏ qua */ }

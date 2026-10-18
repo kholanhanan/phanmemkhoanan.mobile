@@ -4,7 +4,7 @@
 // Quyền: mã kho 'SCAN' (Cài đặt › Tài khoản › Kho điện thoại) — kiểm ở app.js › canScan.
 (function () {
   'use strict';
-  const V = '?v=1.03';
+  const V = '?v=1.04';
   const loading = {};
   function loadScript(src) {
     if (!loading[src]) {

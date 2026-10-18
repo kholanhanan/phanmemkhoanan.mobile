@@ -46,6 +46,9 @@
   function canvasOf(w, h) {
     var c = document.createElement('canvas');
     c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h));
+    // ĐT 1.10: mọi canvas ở đây đều bị đọc điểm ảnh (getImageData) rất nhiều → bảo trình duyệt dùng bộ nhớ thường thay vì GPU
+    // (canvas GPU đọc ngược về CPU rất chậm trên WebView Android). Lần getContext('2d') đầu tiên quyết định → gọi ngay ở đây.
+    try { c.getContext('2d', { willReadFrequently: true }); } catch (e) { /* bỏ qua */ }
     return c;
   }
   function fitSize(w, h, max) { var k = Math.min(1, max / Math.max(w, h)); return { w: Math.round(w * k), h: Math.round(h * k) }; }

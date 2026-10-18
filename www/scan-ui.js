@@ -194,7 +194,7 @@
     function addFiles(files) {
       files = Array.prototype.slice.call(files || []).filter(Boolean);
       if (!files.length || st.busy) return;
-      var start = st.pages.length, i = 0, skipped = [];
+      var start = st.pages.length, i = 0, skipped = [], T0 = Date.now(), tDec = 0, tAdd = 0;
       setBusy(true, 'Đang đọc…');
       function next() {
         if (i >= files.length) return Promise.resolve();
@@ -209,12 +209,14 @@
         }
         if (!/^image\//i.test(f.type || '') && !/\.(jpe?g|png|webp|gif|bmp|heic|heif)$/i.test(f.name || '')) { skipped.push(f.name + ': không phải ảnh / PDF'); return next(); }
         setBusy(true, 'Đang đọc ảnh' + tag);
-        return S.decodeImage(f).then(addCanvas).catch(function (e) { skipped.push((f.name || 'ảnh') + ': ' + e.message); }).then(next);
+        var t1 = Date.now();
+        return S.decodeImage(f).then(function (c) { var t2 = Date.now(); tDec += t2 - t1; return addCanvas(c).then(function (r) { tAdd += Date.now() - t2; return r; }); }).catch(function (e) { skipped.push((f.name || 'ảnh') + ': ' + e.message); }).then(next);
       }
       next().then(function () {
         setBusy(false);
         if (st.pages.length > start) { st.cur = start; st.dirty = true; }
         if (skipped.length) toast('Bỏ qua: ' + skipped.join(' · '), true);
+        else if (phone && tDec + tAdd > 0) toast('Đọc ảnh ' + ((Date.now() - T0) / 1000).toFixed(1) + ' giây (giải mã ' + (tDec / 1000).toFixed(1) + ' · lưu + dò góc + ảnh nhỏ ' + (tAdd / 1000).toFixed(1) + ')');
         renderAll();
       });
     }
@@ -461,7 +463,7 @@
           try {
             var k = 360 / Math.max(vid.videoWidth, vid.videoHeight);
             small.width = Math.max(24, Math.round(vid.videoWidth * k)); small.height = Math.max(24, Math.round(vid.videoHeight * k));
-            small.getContext('2d').drawImage(vid, 0, 0, small.width, small.height);
+            small.getContext('2d', { willReadFrequently: true }).drawImage(vid, 0, 0, small.width, small.height);
             var q = S.detectQuad(small);
             if (q) { miss = 0; tgt = q.map(function (p) { return { x: p.x, y: p.y }; }); if (found !== true) { found = true; tip('Đã bám 4 góc tờ giấy — bấm nút tròn để chụp'); } }
             else if (++miss > 6 && found !== false) { found = false; tip('Chưa thấy rìa tờ giấy — hãy kéo 4 chấm bằng tay (hoặc đặt giấy lên nền tối)'); }
@@ -548,6 +550,7 @@
       // ---- chụp: lấy ảnh nét nhất có thể (takePhoto nếu cùng khung hình với video, không thì chính khung hình video)
       function hiRes(vw, vh) {
         if (!(global.ImageCapture && track)) return Promise.resolve(null);
+        if (Math.max(vw, vh) >= 1900) return Promise.resolve(null); // ĐT 1.10: hình video đã ≥ 1900px (đủ nét cho A4) → khỏi chờ takePhoto 1–3 giây
         return Promise.race([
           new global.ImageCapture(track).takePhoto().then(function (b) { return S.decodeImage(b); }).then(function (c) {
             var same = Math.abs((c.width / c.height) / (vw / vh) - 1) < 0.02, better = c.width * c.height > vw * vh * 1.2;
@@ -561,7 +564,7 @@
         mode = 'busy'; tip('Đang chụp…');
         var vw = vid.videoWidth, vh = vid.videoHeight, quad = cur.map(function (p) { return { x: p.x, y: p.y }; });
         var k = Math.min(1, S.MAX_SIDE / Math.max(vw, vh)), fr = document.createElement('canvas');
-        fr.width = Math.round(vw * k); fr.height = Math.round(vh * k); fr.getContext('2d').drawImage(vid, 0, 0, fr.width, fr.height);
+        fr.width = Math.round(vw * k); fr.height = Math.round(vh * k); fr.getContext('2d', { willReadFrequently: true }).drawImage(vid, 0, 0, fr.width, fr.height);
         hiRes(vw, vh).then(function (hi) {
           var src = hi || fr; if (hi) fr.width = fr.height = 1;
           if (!alive) { src.width = src.height = 1; return; }

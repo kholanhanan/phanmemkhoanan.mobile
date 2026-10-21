@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '1.13 (22/10/2026)';
+  const APP_VERSION = '1.14 (22/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -346,7 +346,16 @@
       }
       state[k] = v || null;
     }
+    // Báo cáo (tab Báo cáo): nạp bản đã lưu — mở app xem ngay, không phải tải lại (bản 1.14)
+    for (const k of REPORT_SRCS) {
+      try {
+        const v = await store.get(BC_PREFIX + k);
+        if (v && v.data && Array.isArray(v.data.files)) repState[k] = { data: v.data, err: '', loading: false, at: v.at || 0, stamp: v.stamp || '' };
+      } catch (e) { /* không đọc được → tải mới */ }
+    }
   }
+  const BC_PREFIX = 'bc_';
+  const REP_MAX_AGE = 12 * 3600 * 1000; // dự phòng: bản lưu quá 12 giờ thì tải lại 1 lần khi mở tab Báo cáo
   // Bảng trên Google Sheet ứng với từng nguồn — để so mốc "PC đẩy lúc" (Meta.lastPushAt_<bảng>).
   const TABLE_OF = { m02: 'M02', m01: 'M01', vitri: 'M01VT', vitribot: 'M01VTB', m03: 'M03', m04: 'M04', m08: 'M08' };
   const stampIn = (meta, k) => (meta && (meta['lastPushAt_' + TABLE_OF[k]] || meta.lastPushAt)) || '';
@@ -3039,16 +3048,21 @@
 
   // repState[src] = { data, err, loading, at (ms lúc tải) }
   const repState = {};
-  const REP_TTL = 5 * 60 * 1000;
+  const repStale = new Set(); // báo cáo mà PC đã đẩy bản mới hơn bản đang lưu trên máy
   async function loadReports(force) {
-    const srcs = REPORT_SRCS.filter((k) => canReport(k) && (force || !repState[k] || (!repState[k].loading && Date.now() - (repState[k].at || 0) > REP_TTL)));
+    // Bản 1.14: dùng bản ĐÃ LƯU TRÊN MÁY; chỉ tải khi chưa có, PC vừa đẩy báo cáo mới (repStale), bản quá cũ, hoặc bấm ↻.
+    const srcs = REPORT_SRCS.filter((k) => canReport(k) && (force || !repState[k] || !repState[k].data
+      || (!repState[k].loading && (repStale.has(k) || Date.now() - (repState[k].at || 0) > REP_MAX_AGE))));
     if (!srcs.length || !state.cfg.url) return;
     srcs.forEach((k) => { repState[k] = Object.assign({}, repState[k] || {}, { loading: true }); });
     if (state.tab === 'baocao') renderBaoCao();
     await Promise.all(srcs.map(async (k) => {
       try {
         const data = await api(REPORT_CFG[k].action);
-        repState[k] = { data, err: '', loading: false, at: Date.now() };
+        const stamp = stampIn(data.meta, k);
+        repState[k] = { data, err: '', loading: false, at: Date.now(), stamp };
+        repStale.delete(k);
+        store.set(BC_PREFIX + k, { data, at: repState[k].at, stamp }); // lưu vào máy (IndexedDB) — lần sau mở app không tải lại
       } catch (e) {
         repState[k] = { data: (repState[k] && repState[k].data) || null, err: e.message, loading: false, at: Date.now() };
         if (e.code === 'FORBIDDEN') fetchMe().then(renderAll).catch(() => {});
@@ -3712,7 +3726,14 @@
       const pc = stampIn(st.meta, k), mine = stampIn(d.meta, k);
       if (pc && pc > mine && !state.stale.has(k)) { state.stale.add(k); changed = true; }
     });
+    REPORT_SRCS.forEach((k) => { // báo cáo đã lưu: PC đẩy mốc mới hơn → đánh dấu để tải lại
+      const r = repState[k];
+      if (!r || !r.data) return;
+      const pc = stampIn(st.meta, k);
+      if (pc && pc > (r.stamp || '') && !repStale.has(k)) { repStale.add(k); changed = true; }
+    });
     if (changed) { buildLots(); renderAll(); }
+    if (state.tab === 'baocao') loadReports(false);
     // + kho vừa được cấp quyền (chưa có số liệu trên máy)
     const now = neededFor(state.tab).filter((k) => state.stale.has(k) || !(state[k] && state[k].data));
     if (now.length) refresh(now);
@@ -4408,6 +4429,8 @@
   // Cài đặt: xóa dữ liệu đã lưu trên máy (khi cần tải lại sạch từ đầu).
   async function clearSavedData() {
     for (const k of CACHE_KEYS) { await store.del(k); state[k] = null; }
+    for (const k of REPORT_SRCS) { await store.del(BC_PREFIX + k); delete repState[k]; }
+    repStale.clear();
     state.stale.clear();
     buildLots(); SOURCES.forEach(buildTonRows);
     renderAll();

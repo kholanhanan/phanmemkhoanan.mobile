@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '1.12 (21/10/2026)';
+  const APP_VERSION = '1.13 (22/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -3060,7 +3060,7 @@
   // ---- PHÂN LOẠI (ĐT 1.12) — dữ liệu PC dựng sẵn (PC 1.56), đi chung đường với file báo cáo (tab BaoCao_M01 / BaoCao_M02, file key 'phanloai') ----
   // 3 màn: ① danh sách loại (tổng NET) · ② một loại: tổng + từng Size (bấm Size mở mã hàng) · ③ Thành Phẩm Chính: lọc "Sắp hết" theo ngưỡng PC.
   let bcMode = 'pl';
-  const pl = { src: '', loai: '', q: '', sort: 'size', low: false, open: {} };
+  const pl = { src: '', loai: '', q: '', sort: 'size', low: false, open: {}, view: 'size', cell: '' }; // view: 'size' | 'cross' (bảng chéo Size × Đặc tính)
   const plCache = {};
   const plFmt = (n) => Number(n || 0).toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   function plData(k) {
@@ -3104,6 +3104,24 @@
         </button>${items}</div>`;
     }).join('');
   }
+  // ---- BẢNG CHÉO Size × Đặc tính (ĐT 1.13 / PC 1.64): tổng kg của từng ô, bấm ô xem các mã lớn nhất của ô đó ----
+  const plFmtC = (n) => (n === 0 ? '·' : (Math.abs(n - Math.round(n)) < 0.05 ? Math.round(n).toLocaleString('vi-VN') : plFmt(n)));
+  function plCrossBody(lo) {
+    const X = lo.cross, mainSet = new Set(X.cols.filter((c) => !c.other).map((c) => c.label));
+    const sel = pl.cell ? pl.cell.split('|').map(Number) : null;
+    const head = '<tr><th class="pl-x-s">Size</th>' + X.cols.map((c) => `<th>${esc(c.label)}${c.other ? `<small>${esc(c.other)} loại</small>` : ''}</th>`).join('') + '<th>Tổng</th></tr>';
+    const body = X.rows.map((r, ri) => `<tr><th class="pl-x-s">${esc(r.label)}</th>` + r.cells.map((v, ci) => `<td class="pl-xc${v === 0 ? ' z' : ''}${sel && sel[0] === ri && sel[1] === ci ? ' sel' : ''}" data-pl-cell="${ri}|${ci}">${esc(plFmtC(v))}</td>`).join('') + `<td class="pl-xt">${esc(plFmt(r.total))}</td></tr>`).join('');
+    const foot = '<tr><th class="pl-x-s">Tổng</th>' + X.totals.map((v) => `<td>${esc(plFmt(v))}</td>`).join('') + `<td>${esc(plFmt(X.total))}</td></tr>`;
+    let info = '<p class="pl-xhint">Bấm một ô để xem các mã hàng trong ô đó. Vuốt ngang nếu bảng rộng.</p>';
+    if (sel && X.rows[sel[0]] && X.cols[sel[1]]) {
+      const row = X.rows[sel[0]], col = X.cols[sel[1]], sz = (lo.sizes || []).find((s) => s.label === row.label) || { items: [] };
+      const items = (sz.items || []).filter((i) => { const l = i.dt || '(Trống)'; return col.other ? !mainSet.has(l) : l === col.label; });
+      info = `<div class="pl-xinfo"><div class="pl-xinfo-h"><b>${esc(row.label)} · ${esc(col.label)}</b><span>${esc(plFmt(row.cells[sel[1]]))} kg</span></div>`
+        + (items.length ? items.slice(0, 12).map((i) => `<div class="pl-item"><div class="pl-item-l"><b>${esc(i.ma || '—')}</b>${i.low ? ' <span class="pl-tag pl-low">Sắp hết</span>' : ''}<small>${esc(i.sub || '')}</small></div><div class="pl-item-n">${esc(plFmt(i.net))}</div></div>`).join('') : '<p class="pl-more">Không có mã nào của ô này trong các mã lớn nhất của Size.</p>')
+        + '<p class="pl-more">Chỉ liệt kê trong các mã lớn nhất của Size (tối đa 25 mã / Size). Xem đầy đủ ở tab Tồn kho.</p><button type="button" class="pl-go" data-pl-go="1">Mở tab Tồn kho ›</button></div>';
+    }
+    return `<div class="pl-xwrap"><table class="pl-x"><thead>${head}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table></div>${info}`;
+  }
   function plHtml(srcs) {
     if (!state.cfg.url) return emptyHtml('Chưa cài đặt kết nối', 'Mở Cài đặt để nhập đường dẫn Web App.');
     if (!srcs.includes(pl.src)) { pl.src = srcs[0]; pl.loai = ''; }
@@ -3123,7 +3141,11 @@
     const lowTotal = (lo.sizes || []).reduce((a, z) => a + (z.low || 0), 0);
     h += `<div class="pl-head"><button type="button" class="pl-back" data-pl-back="1" aria-label="Quay lại danh sách loại">‹</button><div><b>${esc(lo.name)}</b><small>${esc(cfg.kho)}</small></div></div>
       <div class="pl-total"><small>TỔNG NET</small><div><b>${esc(plFmt(lo.net))}</b> kg</div><small>${esc(lo.rows)} dòng · ${esc((lo.sizes || []).length)} size</small></div>
-      <div class="pl-tools"><input type="search" id="plQ" class="pl-q" placeholder="Tìm size hoặc mã hàng…" aria-label="Tìm size hoặc mã hàng" value="${esc(pl.q)}" autocomplete="off">
+      `;
+    const hasX = !!(lo.cross && lo.cross.rows && lo.cross.rows.length);
+    if (hasX) h += `<div class="pl-seg pl-seg2" role="tablist"><button type="button" role="tab" data-pl-view="size" class="${pl.view === 'size' ? 'on' : ''}" aria-selected="${pl.view === 'size'}">Theo Size</button><button type="button" role="tab" data-pl-view="cross" class="${pl.view === 'cross' ? 'on' : ''}" aria-selected="${pl.view === 'cross'}">Size × Đặc tính</button></div>`;
+    if (hasX && pl.view === 'cross') return h + `<div id="plX">${plCrossBody(lo)}</div>`;
+    h += `<div class="pl-tools"><input type="search" id="plQ" class="pl-q" placeholder="Tìm size hoặc mã hàng…" aria-label="Tìm size hoặc mã hàng" value="${esc(pl.q)}" autocomplete="off">
         <button type="button" class="pl-sortb" data-pl-sort="1">Xếp: ${pl.sort === 'net' ? 'NET' : 'Size'}</button></div>`;
     if (lowTotal > 0 || (lo.id === 'tpc' && Number.isFinite(data.threshold))) {
       h += `<div class="pl-chips"><button type="button" data-pl-low="0" class="${pl.low ? '' : 'on'}">Tất cả</button><button type="button" data-pl-low="1" class="pl-chip-low ${pl.low ? 'on' : ''}">Sắp hết (${esc(lowTotal)})</button><span>${Number.isFinite(data.threshold) && lo.id === 'tpc' ? 'Ngưỡng ≤ ' + esc(data.threshold) + ' · lấy từ PC' : ''}</span></div>`;
@@ -4101,8 +4123,17 @@
     if (md) { bcMode = md.dataset.bcMode === 'file' ? 'file' : 'pl'; renderBaoCao(); return; }
     const ps = e.target.closest('[data-pl-src]');
     if (ps) { pl.src = ps.dataset.plSrc; pl.loai = ''; pl.q = ''; pl.low = false; renderBaoCao(); return; }
+    const pv = e.target.closest('[data-pl-view]');
+    if (pv) { pl.view = pv.dataset.plView === 'cross' ? 'cross' : 'size'; pl.cell = ''; renderBaoCao(); return; }
+    const px = e.target.closest('[data-pl-cell]');
+    if (px) {
+      pl.cell = pl.cell === px.dataset.plCell ? '' : px.dataset.plCell;
+      const lo0 = (plData(pl.src) || { loai: [] }).loai.find((x) => x.id === pl.loai), wr = document.querySelector('.pl-xwrap'), sl = wr ? wr.scrollLeft : 0;
+      if (lo0 && lo0.cross && $('plX')) { $('plX').innerHTML = plCrossBody(lo0); const w2 = document.querySelector('.pl-xwrap'); if (w2) w2.scrollLeft = sl; }
+      return;
+    }
     const pc = e.target.closest('[data-pl-loai]');
-    if (pc) { pl.loai = pc.dataset.plLoai; pl.q = ''; pl.low = false; pl.sort = 'size'; renderBaoCao(); window.scrollTo(0, 0); return; }
+    if (pc) { pl.loai = pc.dataset.plLoai; pl.q = ''; pl.low = false; pl.sort = 'size'; pl.view = 'size'; pl.cell = ''; renderBaoCao(); window.scrollTo(0, 0); return; }
     if (e.target.closest('[data-pl-back]')) { pl.loai = ''; renderBaoCao(); return; }
     const pz = e.target.closest('[data-pl-size]');
     if (pz) { const id = pz.dataset.plSize; pl.open[id] = !pl.open[id]; const lo = (plData(pl.src) || { loai: [] }).loai.find((x) => x.id === pl.loai); if (lo && $('plSizes')) $('plSizes').innerHTML = plSizesHtml(pl.src, lo); return; }

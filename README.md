@@ -251,3 +251,6 @@ Cần dán lại `apps-script/Code.gs`, chạy 1 lần hàm `ltCapQuyen` (cấp 
 ## Phân loại (ĐT 1.12 / PC 1.56)
 Tab **Báo cáo** có thêm mục **Phân loại**: tổng NET (kg) từng loại của Tồn kho An An (8 loại) và Tồn kho gửi (6 loại), chi tiết từng Size, bấm Size để xem các mã hàng. Thành Phẩm Chính có bộ lọc "Sắp hết" theo ngưỡng đặt trên PC. Dữ liệu do PC dựng sẵn và đẩy lên cùng file báo cáo (cần PC bản 1.56 trở lên; mở Module 01 / 02 rồi bấm "Đồng bộ ngay"). Dùng chung quyền Báo cáo, không cần cập nhật Code.gs.
 
+### Bảng chéo Size × Đặc tính (ĐT 1.13 / PC 1.64)
+Trong chi tiết một loại ở mục **Phân loại**, chuyển sang **Size × Đặc tính** để xem tổng kg của từng ô (mỗi Size × từng đặc tính, tối đa 6 đặc tính lớn nhất + cột Khác). Bấm một ô để xem các mã lớn nhất trong ô đó. Cần PC bản 1.64 trở lên (mở Module 01 / 02 rồi "Đồng bộ ngay").
+

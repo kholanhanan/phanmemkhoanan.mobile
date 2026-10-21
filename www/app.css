@@ -969,3 +969,22 @@ body.has-totalbar .multibar { bottom: calc(var(--tabbar-h) + var(--safe-bottom) 
 .pl-item-n { font-weight: 700; }
 .pl-more { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
 .pl-go { min-height: 44px; margin-top: 4px; padding: 0; border: 0; background: transparent; color: var(--cobalt); font: inherit; font-weight: 600; }
+
+/* ===== BẢNG CHÉO Size × Đặc tính (ĐT 1.13) ===== */
+.pl-xwrap { margin: 0 16px 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); overflow-x: auto; }
+.pl-x { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+.pl-x th, .pl-x td { padding: 10px 9px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+.pl-x thead th { background: var(--chip-bg); color: var(--muted); font-size: 12px; font-weight: 700; }
+.pl-x thead th small { display: block; font-weight: 500; font-size: 10.5px; }
+.pl-x .pl-x-s { position: sticky; left: 0; text-align: left; background: var(--paper); color: var(--ink); font-weight: 700; z-index: 1; }
+.pl-x thead .pl-x-s { background: var(--chip-bg); color: var(--muted); }
+.pl-x .pl-xc { min-width: 56px; cursor: pointer; }
+.pl-x .pl-xc.z { color: var(--muted); }
+.pl-x .pl-xc.sel { background: var(--cobalt-soft); color: var(--cobalt); font-weight: 700; box-shadow: inset 0 0 0 2px var(--cobalt); }
+.pl-x .pl-xt { font-weight: 700; }
+.pl-x tfoot th, .pl-x tfoot td { background: var(--cobalt-soft); color: var(--ink); font-weight: 700; border-bottom: 0; }
+.pl-xhint { margin: 0 16px 10px; font-size: 12px; color: var(--muted); }
+.pl-xinfo { margin: 0 16px 14px; padding: 10px 14px; border: 1px solid var(--cobalt); border-radius: 14px; background: var(--paper); }
+.pl-xinfo-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.pl-xinfo-h b { font-size: 14px; }
+.pl-xinfo-h span { font-weight: 700; color: var(--cobalt); }

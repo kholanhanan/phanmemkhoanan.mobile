@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '1.11 (19/10/2026)';
+  const APP_VERSION = '1.12 (21/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -3057,17 +3057,92 @@
     if (state.tab === 'baocao') { renderBaoCao(); renderFreshness(); }
   }
   function repFiles(k) { return ((repState[k] && repState[k].data && repState[k].data.files) || []).filter((f) => f.complete !== false && f.b64); }
+  // ---- PHÂN LOẠI (ĐT 1.12) — dữ liệu PC dựng sẵn (PC 1.56), đi chung đường với file báo cáo (tab BaoCao_M01 / BaoCao_M02, file key 'phanloai') ----
+  // 3 màn: ① danh sách loại (tổng NET) · ② một loại: tổng + từng Size (bấm Size mở mã hàng) · ③ Thành Phẩm Chính: lọc "Sắp hết" theo ngưỡng PC.
+  let bcMode = 'pl';
+  const pl = { src: '', loai: '', q: '', sort: 'size', low: false, open: {} };
+  const plCache = {};
+  const plFmt = (n) => Number(n || 0).toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  function plData(k) {
+    const f = ((repState[k] && repState[k].data && repState[k].data.files) || []).find((x) => x.key === 'phanloai' && x.complete !== false && x.b64);
+    if (!f) return null;
+    const key = String(f.generatedAt) + '|' + f.b64.length;
+    if (plCache[k] && plCache[k].key === key) return plCache[k].data;
+    try {
+      const bin = atob(f.b64), bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const data = JSON.parse(new TextDecoder().decode(bytes));
+      if (!data || !Array.isArray(data.loai)) return null;
+      data._at = f.generatedAt; data._date = f.reportDate;
+      plCache[k] = { key, data }; return data;
+    } catch (e) { return null; }
+  }
+  const plNorm = (v) => String(v == null ? '' : v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase().replace(/\s+/g, '');
+  function plSizeRows(lo) {
+    const q = plNorm(pl.q);
+    let arr = (lo.sizes || []).filter((sz) => {
+      if (pl.low && !(sz.low > 0)) return false;
+      if (!q) return true;
+      return plNorm(sz.label).includes(q) || (sz.items || []).some((i) => plNorm(i.ma + i.sub + i.dt).includes(q));
+    });
+    if (pl.sort === 'net') arr = arr.slice().sort((a, b) => b.net - a.net);
+    return arr;
+  }
+  function plSizesHtml(k, lo) {
+    const arr = plSizeRows(lo), max = Math.max.apply(null, [1].concat((lo.sizes || []).map((x) => x.net)));
+    if (!arr.length) return '<p class="bc-note">Không có Size nào khớp.</p>';
+    return arr.map((sz) => {
+      const id = k + '|' + lo.id + '|' + sz.label, open = !!pl.open[id], w = Math.max(3, Math.round((Math.max(0, sz.net) / max) * 100));
+      const items = open ? `<div class="pl-items">${(sz.items || []).map((i) => `
+          <div class="pl-item"><div class="pl-item-l"><b>${esc(i.ma || '—')}</b>${i.low ? ' <span class="pl-tag pl-low">Sắp hết</span>' : ''}<small>${esc([i.sub, i.dt].filter(Boolean).join(' · '))}</small></div><div class="pl-item-n">${esc(plFmt(i.net))}</div></div>`).join('')}
+          ${sz.more > 0 ? `<p class="pl-more">… và ${esc(sz.more)} mã nhỏ hơn — xem đầy đủ ở tab Tồn kho.</p>` : ''}
+          <button type="button" class="pl-go" data-pl-go="1">Mở tab Tồn kho ›</button></div>` : '';
+      return `<div class="pl-size${sz.low > 0 ? ' is-low' : ''}">
+        <button type="button" class="pl-size-h" data-pl-size="${esc(id)}" aria-expanded="${open}">
+          <span class="pl-size-top"><span class="pl-size-n">${esc(sz.label)}</span>${sz.low > 0 ? `<span class="pl-tag pl-low">Sắp hết ${esc(sz.low)} mã</span>` : ''}<span class="pl-size-r">${esc(sz.rows)} dòng</span><span class="pl-size-v">${esc(plFmt(sz.net))}</span></span>
+          <span class="pl-bar"><span style="width:${w}%"></span></span>
+        </button>${items}</div>`;
+    }).join('');
+  }
+  function plHtml(srcs) {
+    if (!state.cfg.url) return emptyHtml('Chưa cài đặt kết nối', 'Mở Cài đặt để nhập đường dẫn Web App.');
+    if (!srcs.includes(pl.src)) { pl.src = srcs[0]; pl.loai = ''; }
+    const k = pl.src, cfg = REPORT_CFG[k], st = repState[k] || {}, data = plData(k);
+    let h = srcs.length > 1 ? `<div class="pl-seg pl-seg2">${srcs.map((s2) => `<button type="button" data-pl-src="${s2}" class="${s2 === k ? 'on' : ''}">${esc(REPORT_CFG[s2].kho)}</button>`).join('')}</div>` : '';
+    if (st.loading && !data) return h + '<p class="bc-note">Đang tải Phân loại…</p>';
+    if (st.err && !data) return h + `<div class="notice err">${esc(st.err)}</div>`;
+    if (!data) return h + emptyHtml('Chưa có dữ liệu Phân loại', `Trên PC (bản 1.56 trở lên): mở ${cfg.pc} (${cfg.need}), rồi bấm "🔄 Đồng bộ ngay" có tick ${cfg.kho}.`);
+    const lo = data.loai.find((x) => x.id === pl.loai);
+    h += `<p class="pl-upd">PC lập lúc ${esc(fmtTime(data._at))} · ngày số liệu <b>${esc(data._date || '—')}</b></p>`;
+    if (st.err) h += `<div class="notice err">Chưa tải lại được (${esc(st.err)}) — đang xem bản đã tải trước đó.</div>`;
+    if (!lo) {
+      return h + data.loai.map((c) => `<button type="button" class="pl-cat" data-pl-loai="${esc(c.id)}"><span class="pl-dot" style="background:${esc(c.color || '#1257D6')}"></span>
+        <span class="pl-cat-m"><b>${esc(c.name)}</b><small>${esc(c.rows)} dòng · ${esc((c.sizes || []).length)} size</small></span>
+        <span class="pl-cat-r"><b>${esc(plFmt(c.net))}</b><small>kg</small>${(c.sizes || []).some((z) => z.low > 0) ? `<span class="pl-tag pl-low">Sắp hết ${esc((c.sizes || []).reduce((a, z) => a + (z.low || 0), 0))}</span>` : ''}</span></button>`).join('');
+    }
+    const lowTotal = (lo.sizes || []).reduce((a, z) => a + (z.low || 0), 0);
+    h += `<div class="pl-head"><button type="button" class="pl-back" data-pl-back="1" aria-label="Quay lại danh sách loại">‹</button><div><b>${esc(lo.name)}</b><small>${esc(cfg.kho)}</small></div></div>
+      <div class="pl-total"><small>TỔNG NET</small><div><b>${esc(plFmt(lo.net))}</b> kg</div><small>${esc(lo.rows)} dòng · ${esc((lo.sizes || []).length)} size</small></div>
+      <div class="pl-tools"><input type="search" id="plQ" class="pl-q" placeholder="Tìm size hoặc mã hàng…" aria-label="Tìm size hoặc mã hàng" value="${esc(pl.q)}" autocomplete="off">
+        <button type="button" class="pl-sortb" data-pl-sort="1">Xếp: ${pl.sort === 'net' ? 'NET' : 'Size'}</button></div>`;
+    if (lowTotal > 0 || (lo.id === 'tpc' && Number.isFinite(data.threshold))) {
+      h += `<div class="pl-chips"><button type="button" data-pl-low="0" class="${pl.low ? '' : 'on'}">Tất cả</button><button type="button" data-pl-low="1" class="pl-chip-low ${pl.low ? 'on' : ''}">Sắp hết (${esc(lowTotal)})</button><span>${Number.isFinite(data.threshold) && lo.id === 'tpc' ? 'Ngưỡng ≤ ' + esc(data.threshold) + ' · lấy từ PC' : ''}</span></div>`;
+    }
+    return h + `<div id="plSizes">${plSizesHtml(k, lo)}</div>`;
+  }
   function renderBaoCao() {
     const box = $('bcBody');
     if (!box) return;
     const srcs = REPORT_SRCS.filter(canReport);
     if (!state.cfg.url) { box.innerHTML = emptyHtml('Chưa cài đặt kết nối', 'Mở Cài đặt để nhập đường dẫn Web App.'); return; }
     if (!srcs.length) { box.innerHTML = emptyHtml('Chưa được cấp báo cáo', 'Tài khoản này chưa được chọn báo cáo nào. Liên hệ người quản lý app PC.'); return; }
-    box.innerHTML = srcs.map((k) => {
+    const modeBar = `<div class="pl-seg" role="tablist"><button type="button" role="tab" data-bc-mode="pl" class="${bcMode === 'pl' ? 'on' : ''}" aria-selected="${bcMode === 'pl'}">Phân loại</button><button type="button" role="tab" data-bc-mode="file" class="${bcMode === 'file' ? 'on' : ''}" aria-selected="${bcMode === 'file'}">Báo cáo Excel</button></div>`;
+    if (bcMode === 'pl') { box.innerHTML = modeBar + plHtml(srcs); return; }
+    box.innerHTML = modeBar + srcs.map((k) => {
       const cfg = REPORT_CFG[k], st = repState[k] || {};
       const meta = (st.data && st.data.meta) || {};
-      const all = (st.data && st.data.files) || [];
-      const files = repFiles(k);
+      const all = ((st.data && st.data.files) || []).filter((f) => f.key !== 'phanloai');
+      const files = repFiles(k).filter((f) => f.key !== 'phanloai');
       const broken = all.filter((f) => f.complete === false || !f.b64);
       let body = '';
       if (st.loading && !st.data) body = '<p class="bc-note">Đang tải báo cáo…</p>';
@@ -4022,6 +4097,19 @@
   });
   $('homeLx').addEventListener('change', (e) => { if (e.target.id === 'lxPickDate') lxGo(e.target.value); });
   $('bcBody').addEventListener('click', (e) => {
+    const md = e.target.closest('[data-bc-mode]');
+    if (md) { bcMode = md.dataset.bcMode === 'file' ? 'file' : 'pl'; renderBaoCao(); return; }
+    const ps = e.target.closest('[data-pl-src]');
+    if (ps) { pl.src = ps.dataset.plSrc; pl.loai = ''; pl.q = ''; pl.low = false; renderBaoCao(); return; }
+    const pc = e.target.closest('[data-pl-loai]');
+    if (pc) { pl.loai = pc.dataset.plLoai; pl.q = ''; pl.low = false; pl.sort = 'size'; renderBaoCao(); window.scrollTo(0, 0); return; }
+    if (e.target.closest('[data-pl-back]')) { pl.loai = ''; renderBaoCao(); return; }
+    const pz = e.target.closest('[data-pl-size]');
+    if (pz) { const id = pz.dataset.plSize; pl.open[id] = !pl.open[id]; const lo = (plData(pl.src) || { loai: [] }).loai.find((x) => x.id === pl.loai); if (lo && $('plSizes')) $('plSizes').innerHTML = plSizesHtml(pl.src, lo); return; }
+    if (e.target.closest('[data-pl-sort]')) { pl.sort = pl.sort === 'size' ? 'net' : 'size'; renderBaoCao(); return; }
+    const pw = e.target.closest('[data-pl-low]');
+    if (pw) { pl.low = pw.dataset.plLow === '1'; renderBaoCao(); return; }
+    if (e.target.closest('[data-pl-go]')) { const tb = document.querySelector('.tab[data-tab="xuat"]'); if (tb) tb.click(); return; }
     const b = e.target.closest('[data-rsave],[data-rshare]');
     if (!b) {
       // Chạm vào thẻ (ngoài 2 nút) → xem trước số liệu trong file trước khi Lưu / Gửi.
@@ -4035,6 +4123,12 @@
     const [k, key] = String(b.dataset.rsave || b.dataset.rshare).split('|');
     const f = canReport(k) && repFiles(k).find((x) => x.key === key);
     if (f) openReportDate(f, b.dataset.rsave ? 'save' : 'share');
+  });
+  $('bcBody').addEventListener('input', (e) => { // ô tìm Size / mã: chỉ vẽ lại danh sách Size, không vẽ lại cả trang (giữ bàn phím)
+    if (e.target.id !== 'plQ') return;
+    pl.q = e.target.value;
+    const lo = (plData(pl.src) || { loai: [] }).loai.find((x) => x.id === pl.loai);
+    if (lo && $('plSizes')) $('plSizes').innerHTML = plSizesHtml(pl.src, lo);
   });
   $('settingsBtn').addEventListener('click', () => openSettings(false));
   $('scrim').addEventListener('click', () => { if (cfgOk()) closeSheet(); });

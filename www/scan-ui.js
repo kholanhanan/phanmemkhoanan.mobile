@@ -90,6 +90,7 @@
       '<div class="sc-head"><div class="sc-title"><b>Scan tài liệu</b><small>Chụp / chọn ảnh hoặc PDF → tự cắt trang, khử bóng, làm trắng nền → lưu PDF để in</small></div>' +
       '<div class="sc-add">' +
         (host.camera !== false ? '<button type="button" class="sc-btn sc-pri" data-act="pick-cam">' + svg('cam') + '<span>Chụp</span></button>' : '') +
+        (phone && host.camera !== false ? '<button type="button" class="sc-btn" data-act="cam-native" title="Mở camera gốc của điện thoại — ảnh nét tối đa, chỉnh 4 góc sau khi chụp">' + svg('cam') + '<span>Camera máy</span></button>' : '') +
         '<button type="button" class="sc-btn" data-act="pick-img">' + svg('img') + '<span>Ảnh</span></button>' +
         '<button type="button" class="sc-btn" data-act="pick-pdf">' + svg('pdf') + '<span>PDF</span></button>' +
         '<button type="button" class="sc-btn sc-save" data-act="save-local" id="scHeadSave" hidden>' + svg('disk') + '<span id="scHeadSaveTxt">Lưu</span></button>' +
@@ -99,7 +100,7 @@
       '<input type="file" id="scPdf" accept="application/pdf,.pdf" multiple hidden>' +
       '<div class="sc-empty" id="scEmpty">' +
         '<div class="sc-drop">' + svg('pdf') + '<b>Chưa có trang nào</b>' +
-        '<p>' + (phone ? 'Bấm <b>Chụp</b>, kéo 4 chấm vào 4 góc tờ giấy rồi bấm nút tròn để chụp (chỉ phần trong 4 chấm được giữ). Hoặc chọn ảnh, file PDF có sẵn. App khử bóng và làm trắng nền.' : 'Bấm <b>Chụp</b> để dùng camera máy tính, kéo thả ảnh / PDF vào đây, dán ảnh bằng <kbd>Ctrl</kbd>+<kbd>V</kbd>, hoặc dùng các nút ở trên.') + '</p>' +
+        '<p>' + (phone ? 'Bấm <b>Chụp</b>, kéo 4 chấm vào 4 góc tờ giấy rồi bấm nút tròn để chụp (chỉ phần trong 4 chấm được giữ). Cần ảnh nét tối đa: bấm <b>Camera máy</b> (camera gốc), chụp xong kéo 4 góc. Hoặc chọn ảnh, file PDF có sẵn. App khử bóng và làm trắng nền.' : 'Bấm <b>Chụp</b> để dùng camera máy tính, kéo thả ảnh / PDF vào đây, dán ảnh bằng <kbd>Ctrl</kbd>+<kbd>V</kbd>, hoặc dùng các nút ở trên.') + '</p>' +
         '<p class="sc-note">Ảnh được xử lý ngay trên máy, không gửi đi đâu. Nhiều ảnh = nhiều trang trong cùng 1 file PDF. Chỉnh xong bấm <b>Lưu</b> để cất vào máy — muốn sửa lại thì chọn ở danh sách bên dưới.</p></div>' +
         '<div class="sc-libbox" id="scLib"></div>' +
         '<div class="sc-hist" id="scHist"></div></div>' +
@@ -489,7 +490,7 @@
       // ---- camera
       function startStream() {
         var md = navigator.mediaDevices;
-        return md.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1440 } }, audio: false })
+        return md.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 2048 }, height: { ideal: 1536 }, aspectRatio: { ideal: 4 / 3 } }, audio: false })
           .catch(function (e) { if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) throw e; return md.getUserMedia({ video: true, audio: false }); })
           .then(function (s) {
             if (!alive) { s.getTracks().forEach(function (t) { t.stop(); }); return; }
@@ -548,36 +549,61 @@
       }
 
       // ---- chụp: lấy ảnh nét nhất có thể (takePhoto nếu cùng khung hình với video, không thì chính khung hình video)
+      // ĐT 1.14 — ẢNH NÉT CHẠY NỀN: bấm nút tròn → xem trước hiện NGAY bằng khung video; ảnh tĩnh độ phân giải cao (takePhoto) chụp song song,
+      // xong thì thay vào (xem trước vẽ lại nét hơn). "Thêm trang" / "Xong" chờ ảnh nét về (thường đã xong trong lúc xem trước).
+      // Luồng video xin tỉ lệ 4:3 để khớp ảnh tĩnh (4 chấm canh toạ độ 0–1 trùng khít); máy không khớp / không hỗ trợ → giữ khung video như cũ.
+      function photoOpt(cp, vw, vh) {
+        var o = {};
+        if (!torchOn) o.fillLightMode = 'off'; // không tự nháy đèn flash khi chụp giấy tờ (đang bật đèn tay thì giữ nguyên)
+        if (cp && cp.imageWidth && cp.imageHeight && cp.imageWidth.max) {
+          var L = Math.max(vw, vh), Sd = Math.min(vw, vh), lg = Math.min(3264, cp.imageWidth.max), sh = Math.round(lg * Sd / L);
+          var land = cp.imageWidth.max >= (cp.imageHeight.max || 0), w = land ? lg : sh, h = land ? sh : lg;
+          var fit = function (v, c) { var st2 = c.step || 1; v = Math.max(c.min || 0, Math.min(c.max, v)); return Math.round(v / st2) * st2; };
+          o.imageWidth = fit(w, cp.imageWidth); o.imageHeight = fit(h, cp.imageHeight || cp.imageWidth);
+        }
+        return o;
+      }
       function hiRes(vw, vh) {
-        if (!(global.ImageCapture && track)) return Promise.resolve(null);
-        if (Math.max(vw, vh) >= 1900) return Promise.resolve(null); // ĐT 1.10: hình video đã ≥ 1900px (đủ nét cho A4) → khỏi chờ takePhoto 1–3 giây
-        return Promise.race([
-          new global.ImageCapture(track).takePhoto().then(function (b) { return S.decodeImage(b); }).then(function (c) {
-            var same = Math.abs((c.width / c.height) / (vw / vh) - 1) < 0.02, better = c.width * c.height > vw * vh * 1.2;
+        if (!(global.ImageCapture && track) || Math.max(vw, vh) >= 3000) return Promise.resolve(null);
+        var ic; try { ic = new global.ImageCapture(track); } catch (e) { return Promise.resolve(null); }
+        function shot(opt) {
+          return ic.takePhoto(opt).then(function (b) { return S.decodeImage(b); }).then(function (c) {
+            var same = Math.abs((c.width / c.height) / (vw / vh) - 1) < 0.03, better = c.width * c.height > vw * vh * 1.3;
             if (same && better) return c; c.width = c.height = 1; return null;
-          }),
-          new Promise(function (r) { setTimeout(function () { r(null); }, 2500); })
+          });
+        }
+        var caps = ic.getPhotoCapabilities ? ic.getPhotoCapabilities().catch(function () { return null; }) : Promise.resolve(null);
+        return Promise.race([
+          caps.then(function (cp) { var opt = photoOpt(cp, vw, vh); return shot(opt).catch(function () { return shot(undefined); }); }),
+          new Promise(function (r) { setTimeout(function () { r(null); }, 7000); })
         ]).catch(function () { return null; });
       }
+      function paintPrev(src, quad) {
+        var out = S.process(src, { quad: quad, rot: 0, mode: def.mode, p: clone(presetP(def.mode)), maxSide: PREVIEW });
+        prev.width = out.width; prev.height = out.height; prev.getContext('2d').drawImage(out, 0, 0); if (out !== src) out.width = out.height = 1;
+      }
+      function reviewTip(extra) { return 'Chỉ phần trong 4 chấm được giữ lại, đã nắn thẳng và làm trắng nền' + (added ? ' · đã có ' + added + ' trang' : '') + (extra ? ' · ' + extra : ''); }
       function shoot() {
         if (mode !== 'live' || !vid.videoWidth) return;
-        mode = 'busy'; tip('Đang chụp…');
+        mode = 'busy';
         var vw = vid.videoWidth, vh = vid.videoHeight, quad = cur.map(function (p) { return { x: p.x, y: p.y }; });
         var k = Math.min(1, S.MAX_SIDE / Math.max(vw, vh)), fr = document.createElement('canvas');
         fr.width = Math.round(vw * k); fr.height = Math.round(vh * k); fr.getContext('2d', { willReadFrequently: true }).drawImage(vid, 0, 0, fr.width, fr.height);
-        hiRes(vw, vh).then(function (hi) {
-          var src = hi || fr; if (hi) fr.width = fr.height = 1;
-          if (!alive) { src.width = src.height = 1; return; }
-          var out = S.process(src, { quad: quad, rot: 0, mode: def.mode, p: clone(presetP(def.mode)), maxSide: PREVIEW });
-          prev.width = out.width; prev.height = out.height; prev.getContext('2d').drawImage(out, 0, 0); if (out !== src) out.width = out.height = 1;
-          result = { src: src, quad: quad }; mode = 'review';
-          vbox.hidden = true; prev.hidden = false; bar1.hidden = true; bar2.hidden = false;
-          head('Xem trước trang vừa chụp'); tip('Chỉ phần trong 4 chấm được giữ lại, đã nắn thẳng và làm trắng nền' + (added ? ' · đã có ' + added + ' trang' : ''));
-        }).catch(function (e) { toast('Không chụp được: ' + (e && e.message || e), true); backToLive(); });
+        var rec = { src: fr, quad: quad, dead: false, wait: null };
+        try { paintPrev(fr, quad); } catch (e) { fr.width = fr.height = 1; toast('Không chụp được: ' + (e && e.message || e), true); return backToLive(); }
+        result = rec; mode = 'review';
+        vbox.hidden = true; prev.hidden = false; bar1.hidden = true; bar2.hidden = false;
+        head('Xem trước trang vừa chụp'); tip(reviewTip('đang làm nét ảnh…'));
+        rec.wait = hiRes(vw, vh).then(function (hi) {
+          if (!hi) { if (alive && result === rec && mode === 'review') tip(reviewTip()); return; }
+          if (rec.dead || !alive) { hi.width = hi.height = 1; return; }
+          var old = rec.src; rec.src = hi; old.width = old.height = 1;
+          if (result === rec && mode === 'review') { try { paintPrev(hi, quad); } catch (e) { /* giữ xem trước cũ */ } tip(reviewTip('ảnh nét ✓')); }
+        }).catch(function () { /* giữ khung video */ });
       }
       function backToLive() {
         if (!alive) return;
-        if (result) { result.src.width = result.src.height = 1; result = null; }
+        if (result) { result.dead = true; result.src.width = result.src.height = 1; result = null; }
         mode = 'live'; prev.hidden = true; vbox.hidden = false; bar1.hidden = false; bar2.hidden = true; lw = 0; miss = 0; found = null;
         q$('scLvClose').textContent = added ? 'Xong (' + added + ')' : 'Đóng';
         head('Chụp tài liệu'); tip(added ? 'Đã có ' + added + ' trang — chụp tiếp hoặc bấm Xong' : HINT);
@@ -585,8 +611,9 @@
       function keep(finish) {
         if (!result) return;
         var r = result; result = null; mode = 'busy'; tip('Đang thêm trang…');
-        addCanvas(r.src, true, r.quad).then(function () { added++; if (finish) close(); else backToLive(); })
-          .catch(function (e) { r.src.width = r.src.height = 1; toast('Không thêm được trang: ' + (e && e.message || e), true); backToLive(); });
+        Promise.resolve(r.wait).then(function () { return addCanvas(r.src, true, r.quad); }) // chờ ảnh nét (nếu còn đang chụp) rồi mới thêm
+          .then(function () { added++; if (finish) close(); else backToLive(); })
+          .catch(function (e) { r.dead = true; r.src.width = r.src.height = 1; toast('Không thêm được trang: ' + (e && e.message || e), true); backToLive(); });
       }
       function close() {
         if (!alive) return; alive = false;
@@ -594,7 +621,7 @@
         document.removeEventListener('keydown', onKey); document.removeEventListener('visibilitychange', onVis);
         try { if (stream) stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) { /* bỏ qua */ }
         try { vid.srcObject = null; } catch (e) { /* bỏ qua */ }
-        if (result) { result.src.width = result.src.height = 1; result = null; }
+        if (result) { result.dead = true; result.src.width = result.src.height = 1; result = null; }
         box.onclick = null; box.hidden = true; box.innerHTML = ''; st.busy = false;
         if (added) { st.cur = Math.max(0, st.pages.length - added); st.dirty = true; renderAll(); }
       }
@@ -801,6 +828,7 @@
       if (t.dataset.pg != null) { st.cur = +t.dataset.pg; renderStrip(); renderPanel(); return drawPreview(true); }
       var pg = curPage(), a = t.dataset.act, i = st.cur;
       if (a === 'pick-cam') return openLive();
+      if (a === 'cam-native') return $('scCam').click(); // ĐT 1.14: camera gốc của máy (ảnh nét tối đa) → vào app như nút Ảnh, tự dò + chỉnh 4 góc
       if (a === 'pick-img') return $('scImg').click();
       if (a === 'pick-pdf') return $('scPdf').click();
       if (a === 'clear-hist') { lsSet(LS_HIST, []); return renderHist(); }

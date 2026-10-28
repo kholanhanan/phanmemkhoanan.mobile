@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '1.14 (22/10/2026)';
+  const APP_VERSION = '1.15 (29/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -1321,10 +1321,10 @@
     const SAMPLE = 'A.12.03 BE6FH 1234';
     const probe = document.createElement('span');
     probe.textContent = SAMPLE;
-    probe.style.cssText = `position:absolute;left:-9999px;top:0;visibility:hidden;white-space:nowrap;font:700 20px ${family};letter-spacing:0`;
+    probe.style.cssText = `position:absolute;left:-9999px;top:0;visibility:hidden;white-space:nowrap;font-weight:700;font-size:calc(20px * var(--fs, 1));font-family:${family};letter-spacing:0`;
     el.appendChild(probe);
     cv.font = `700 20px ${family}`;
-    const zoom = Math.max(1, (probe.getBoundingClientRect().width || 0) / (cv.measureText(SAMPLE).width || 1)) || 1;
+    const zoom = Math.max(0.6, (probe.getBoundingClientRect().width || 0) / (cv.measureText(SAMPLE).width || 1)) || 1;
     probe.remove();
     const widest = (font, arr) => { cv.font = font; return zoom * arr.reduce((m, t) => Math.max(m, cv.measureText(String(t)).width), 0); };
     let fs = 12.5, qfs = 18, kp, kq, code;
@@ -2029,7 +2029,7 @@
       meta.textContent = '';
       $('phieuDraft').innerHTML = `<div class="draft-card">
         <div class="dc-top"><div><b>${c.editOf ? 'Đang sửa phiếu ' + esc(c.editOf.maPhieu) : 'Phiếu đang soạn'}</b><div class="lead" style="margin:2px 0 0">${esc(SRC_LABEL[c.module] || '')} · lưu trên máy, chưa gửi</div></div>
-          <div style="text-align:right"><div class="qty-num" style="font-size:22px">${fmt(tong)}</div><div class="qty-unit">${fmt(c.items.length)} dòng</div>${kgText(cartKg(c)) ? `<div class="qty-kg">${esc(kgText(cartKg(c)))}</div>` : ''}</div></div>
+          <div style="text-align:right"><div class="qty-num" style="font-size: calc(22px * var(--fs, 1))">${fmt(tong)}</div><div class="qty-unit">${fmt(c.items.length)} dòng</div>${kgText(cartKg(c)) ? `<div class="qty-kg">${esc(kgText(cartKg(c)))}</div>` : ''}</div></div>
         <div class="dc-lines">${c.items.slice(0, 6).map((it) => `<div><span>${esc(noTpc(it.maHang || it.title))}${it.viTri ? ' · ' + esc(shortPlace(it.viTri)) : ''}</span><b>${fmt(num(it.qty))}</b></div>`).join('')}${c.items.length > 6 ? `<div><span>… và ${fmt(c.items.length - 6)} dòng nữa</span></div>` : ''}</div>
         <div class="dc-actions"><button type="button" class="btn btn-ghost" data-draft="kho">+ Thêm hàng</button><button type="button" class="btn btn-primary" data-draft="open">Xem &amp; gửi</button></div>
       </div>`;
@@ -2092,16 +2092,16 @@
         </button>
         ${open ? `<dl class="details">
           ${p.ghiChu ? `<dt>Ghi chú</dt><dd>${esc(p.ghiChu)}</dd>` : ''}
-          <dt></dt><dd><button type="button" class="btn btn-ghost" data-export="${esc(p.id)}" style="min-height:44px;font-size:15px;margin:4px 0">📄 Xuất file (PDF / Excel / Ảnh)</button></dd>
+          <dt></dt><dd><button type="button" class="btn btn-ghost" data-export="${esc(p.id)}" style="min-height:44px;font-size: calc(15px * var(--fs, 1));margin:4px 0">📄 Xuất file (PDF / Excel / Ảnh)</button></dd>
           ${phieuEditable(p) && canEditPhieu(p)
-            ? `<dt></dt><dd><button type="button" class="btn btn-ghost" data-edit="${esc(p.id)}" style="min-height:44px;font-size:15px;margin:4px 0">✏️ Sửa phiếu</button><button type="button" class="btn btn-danger" data-huy="${esc(p.id)}" style="min-height:44px;font-size:15px;margin:2px 0 4px">🗑 Xóa phiếu</button></dd>`
-            : phieuEditable(p) ? `<dt></dt><dd style="color:var(--muted);font-size:13.5px">${canCreate() ? 'Phiếu của người khác — chỉ người tạo hoặc quản lý mới sửa / xóa được.' : 'Phiếu đang chờ PC nhận. Cần sửa / xóa: báo người quản lý.'}</dd>`
+            ? `<dt></dt><dd><button type="button" class="btn btn-ghost" data-edit="${esc(p.id)}" style="min-height:44px;font-size: calc(15px * var(--fs, 1));margin:4px 0">✏️ Sửa phiếu</button><button type="button" class="btn btn-danger" data-huy="${esc(p.id)}" style="min-height:44px;font-size: calc(15px * var(--fs, 1));margin:2px 0 4px">🗑 Xóa phiếu</button></dd>`
+            : phieuEditable(p) ? `<dt></dt><dd style="color:var(--muted);font-size: calc(13.5px * var(--fs, 1))">${canCreate() ? 'Phiếu của người khác — chỉ người tạo hoặc quản lý mới sửa / xóa được.' : 'Phiếu đang chờ PC nhận. Cần sửa / xóa: báo người quản lý.'}</dd>`
             : (seg === 'huy'
-              ? `<dt></dt><dd style="color:var(--muted);font-size:13.5px">Phiếu đã hủy — không còn giữ hàng; PC sẽ bỏ qua phiếu này.</dd>`
-              : `<dt></dt><dd style="color:var(--muted);font-size:13.5px">Phiếu đã vào PC nên không sửa/xóa được trên điện thoại. Xem / hủy trên PC: ${esc(SRC_DEST[modOf(String(p.module || '').trim())])}.</dd>`)
+              ? `<dt></dt><dd style="color:var(--muted);font-size: calc(13.5px * var(--fs, 1))">Phiếu đã hủy — không còn giữ hàng; PC sẽ bỏ qua phiếu này.</dd>`
+              : `<dt></dt><dd style="color:var(--muted);font-size: calc(13.5px * var(--fs, 1))">Phiếu đã vào PC nên không sửa/xóa được trên điện thoại. Xem / hủy trên PC: ${esc(SRC_DEST[modOf(String(p.module || '').trim())])}.</dd>`)
               + `<dt></dt><dd>${hiddenPhieu[p.id]
-                ? `<button type="button" class="btn btn-ghost" data-unhide="${esc(p.id)}" style="min-height:44px;font-size:15px;margin:2px 0 4px">👁 Bỏ ẩn phiếu này</button>`
-                : `<button type="button" class="btn btn-ghost" data-an="${esc(p.id)}" style="min-height:44px;font-size:15px;margin:2px 0 4px">🙈 Ẩn khỏi danh sách (chỉ trên máy này)</button>`}</dd>`}
+                ? `<button type="button" class="btn btn-ghost" data-unhide="${esc(p.id)}" style="min-height:44px;font-size: calc(15px * var(--fs, 1));margin:2px 0 4px">👁 Bỏ ẩn phiếu này</button>`
+                : `<button type="button" class="btn btn-ghost" data-an="${esc(p.id)}" style="min-height:44px;font-size: calc(15px * var(--fs, 1));margin:2px 0 4px">🙈 Ẩn khỏi danh sách (chỉ trên máy này)</button>`}</dd>`}
           ${sortVt(p.items || []).map((it) => `<dt>${esc(fmt(num(it.soLuongXuat)))}</dt><dd>${it.viTri ? '[' + esc(shortPlace(it.viTri)) + '] ' : ''}${esc(noTpc(['M01VT', 'M01VTB'].includes(modOf(String(p.module || '').trim())) ? (it.maHang || it.tenHang) : (it.tenHang || it.maHang)))}${it.soLo && modOf(String(p.module || '').trim()) !== 'M01VT' ? (modOf(String(p.module || '').trim()) === 'M03' ? ' — LSX ' : modOf(String(p.module || '').trim()) === 'M04' ? ' — ' : modOf(String(p.module || '').trim()) === 'M01VTB' ? ' — NSX ' : ' — lô ') + esc(it.soLo) : ''}${it.hopDong ? ' — HĐ ' + esc(it.hopDong) : ''}${it.size !== '' && it.size !== undefined ? ', size ' + esc(it.size) : ''}</dd>`).join('')}
         </dl>` : ''}
       </li>`;
@@ -3319,11 +3319,15 @@
     try { localStorage.setItem(LS_THEME, choice); } catch (e) { /* bỏ qua */ }
   }
   applyTheme(themeChoice()); // đồng bộ màu thanh trạng thái lúc mở app
+  // Đổi cỡ chữ (ui-scale.js): độ rộng cột Vị trí/SL tính bằng canvas nên phải vẽ lại danh sách khi cỡ chữ đổi.
+  { let fsT = null; window.addEventListener('klfontscale', () => { clearTimeout(fsT); fsT = setTimeout(() => { try { renderAll(); } catch (e) { /* bỏ qua */ } }, 120); }); }
   // "Theo máy": điện thoại đổi Sáng/Tối (VD tự động theo giờ) → app đổi theo ngay.
   if (darkMQ) {
     const onSys = () => { if (themeChoice() === 'auto') applyTheme('auto'); };
     if (darkMQ.addEventListener) darkMQ.addEventListener('change', onSys); else if (darkMQ.addListener) darkMQ.addListener(onSys);
   }
+
+  const fontPct = () => (window.KLFontScale ? window.KLFontScale.get() : 100);
 
   function openSettings(first) {
     const c = state.cfg;
@@ -3353,11 +3357,27 @@
           <button type="button" class="seg${themeChoice() === 'auto' ? ' is-on' : ''}" data-theme-pick="auto">📱 Theo máy</button>
         </div>
       </div>
-      <p class="lead" style="margin:14px 0 0;text-align:center;font-size:12px">Phiên bản app: <b>${APP_VERSION}</b><span id="luVer"></span></p>
+      <div class="field theme-field"><span>Cỡ chữ <b id="fsVal">${fontPct()}%</b></span>
+        <div class="fs-row">
+          <span class="fs-a fs-a-s" aria-hidden="true">A</span>
+          <input type="range" id="fsRange" min="80" max="150" step="5" value="${fontPct()}" aria-label="Cỡ chữ (%)">
+          <span class="fs-a fs-a-l" aria-hidden="true">A</span>
+        </div>
+        <button type="button" class="btn btn-ghost" id="fsReset" style="margin-top:6px">Cỡ chữ mặc định (100%)</button>
+      </div>
+      <p class="lead" style="margin:14px 0 0;text-align:center;font-size: calc(12px * var(--fs, 1))">Phiên bản app: <b>${APP_VERSION}</b><span id="luVer"></span></p>
       ${window.KLLiveUpdate && window.KLLiveUpdate.isNative ? '<button type="button" class="btn btn-ghost" id="luCheck" style="margin-top:8px">⟳ Kiểm tra cập nhật app</button>' : ''}
     `);
     // Mã bản giao diện đang chạy (live-update.js) — để biết máy đã nhận bản mới từ GitHub chưa.
     if (window.KLLiveUpdate) window.KLLiveUpdate.localInfo().then((L) => { const el = $('luVer'); if (el && L.version) el.textContent = ' · gói ' + L.version; }).catch(() => {});
+    { // Thanh kéo cỡ chữ: kéo tới đâu chữ đổi tới đó; thả tay thì lưu (ui-scale.js)
+      const rg = $('fsRange'), fv = $('fsVal'), fr = $('fsReset');
+      if (rg && window.KLFontScale) {
+        rg.addEventListener('input', () => { fv.textContent = window.KLFontScale.set(rg.value, false) + '%'; });
+        rg.addEventListener('change', () => { fv.textContent = window.KLFontScale.set(rg.value, true) + '%'; });
+        fr.addEventListener('click', () => { rg.value = 100; fv.textContent = window.KLFontScale.set(100, true) + '%'; });
+      }
+    }
     $('sheetBody').onclick = async (e) => {
       if (e.target.closest('[data-close]')) { closeSheet(); return; }
       if (e.target.closest('#luCheck')) {

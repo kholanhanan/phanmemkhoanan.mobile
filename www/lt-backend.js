@@ -123,10 +123,13 @@
   const blobToB64 = (blob) => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1] || ''); fr.onerror = () => rej(fr.error); fr.readAsDataURL(blob); });
 
   // ------------------------------------------------------------------ đồng bộ
-  const lanCfg = () => { try { const o = JSON.parse(localStorage.getItem('kl_lt_lan') || '{}'); return { on: o.on !== false && !!o.url, url: String(o.url || '').replace(/\/+$/, '') }; } catch (e) { return { on: false, url: '' }; } };
+  // ĐT 1.16: chỉ nhận địa chỉ mạng NỘI BỘ (lan-guard.js) — cấu hình cũ trỏ ra Internet bị coi như tắt LAN
+  const lanOk = (u) => { try { return !window.LanGuard || window.LanGuard.isAllowedUrl(u); } catch (e) { return false; } };
+  const lanCfg = () => { try { const o = JSON.parse(localStorage.getItem('kl_lt_lan') || '{}'), url = String(o.url || '').replace(/\/+$/, ''); return { on: o.on !== false && !!url && lanOk(url), url: lanOk(url) ? url : '' }; } catch (e) { return { on: false, url: '' }; } };
   const driveOk = () => { try { const c = cfg(); return !!(c.url && c.token); } catch (e) { return false; } };
   async function lanFetch(path, opt, timeout) {
     const L = lanCfg(), c = cfg(), ctl = new AbortController(), t = setTimeout(() => ctl.abort(), timeout || 10000);
+    if (!L.url) { clearTimeout(t); throw new Error('Địa chỉ LAN chưa đặt hoặc không thuộc mạng nội bộ.'); } // ĐT 1.16
     try {
       return await fetch(L.url + path, { method: (opt && opt.method) || 'GET', headers: Object.assign({ 'X-LT-User': String(c.user || ''), 'X-LT-Token': String(c.token || '') }, (opt && opt.headers) || {}), body: opt && opt.body, signal: ctl.signal });
     } finally { clearTimeout(t); }
@@ -300,14 +303,14 @@
         '<div class="lt-sec"><h4>' + u.svg('trash') + ' Bộ nhớ trên máy</h4><p>Giải phóng chỗ: xóa file đã tải về máy nhưng vẫn còn trên PC / Drive (tin nhắn và ảnh thu nhỏ giữ nguyên, mở lại sẽ tải lại).</p>' +
         '<div class="lt-dlgbtn" style="margin-top:6px"><button class="lt-btn" id="stFree">Giải phóng file đã đồng bộ</button></div></div>' +
         '<div class="lt-dlgbtn"><button class="lt-btn" id="stNo">Đóng</button><button class="lt-btn" id="stNow">' + u.svg('sync') + ' Đồng bộ ngay</button><button class="lt-btn pri" id="stOk">Lưu</button></div>', function (m, close) {
-        const norm = () => { let v = m.querySelector('#stLan').value.trim(); if (!v) return ''; if (!/^https?:\/\//i.test(v)) v = 'http://' + v; if (!/:\d+$/.test(v)) v += ':47821'; return v.replace(/\/+$/, ''); };
+        const norm = () => { const r = window.LanGuard ? window.LanGuard.normalize(m.querySelector('#stLan').value) : { ok: true, url: m.querySelector('#stLan').value.trim() }; if (!r.ok) { m.querySelector('#stLan').dataset.bad = r.error; return null; } delete m.querySelector('#stLan').dataset.bad; return r.url; };
         const msg = (t, bad) => { const p = m.querySelector('#stLanMsg'); p.textContent = t; p.style.color = bad ? 'var(--lt-red)' : ''; };
-        const save = () => { const v = norm(); localStorage.setItem('kl_lt_lan', JSON.stringify({ on: !!v, url: v })); return v; };
+        const save = () => { const v = norm(); if (v === null) { msg(m.querySelector('#stLan').dataset.bad, true); return null; } localStorage.setItem('kl_lt_lan', JSON.stringify({ on: !!v, url: v })); return v; };
         m.querySelector('#stNo').onclick = close;
-        m.querySelector('#stOk').onclick = () => { save(); close(); u.toast('Đã lưu.'); runSync().then(u.reload); };
-        m.querySelector('#stNow').onclick = () => { save(); close(); u.toast('Đang đồng bộ…'); runSync().then((r) => { if (r.ok) u.toast('Đã đồng bộ qua ' + (r.mode === 'lan' ? 'mạng LAN' : 'Drive') + '.'); else u.toast(r.error, true); u.reload(); }); };
+        m.querySelector('#stOk').onclick = () => { if (save() === null) return; close(); u.toast('Đã lưu.'); runSync().then(u.reload); };
+        m.querySelector('#stNow').onclick = () => { if (save() === null) return; close(); u.toast('Đang đồng bộ…'); runSync().then((r) => { if (r.ok) u.toast('Đã đồng bộ qua ' + (r.mode === 'lan' ? 'mạng LAN' : 'Drive') + '.'); else u.toast(r.error, true); u.reload(); }); };
         m.querySelector('#stTest').onclick = async () => {
-          const v = save(); if (!v) { msg('Nhập địa chỉ PC trước.', true); return; } msg('Đang kiểm tra…');
+          const v = save(); if (v === null) return; if (!v) { msg('Nhập địa chỉ PC trước.', true); return; } msg('Đang kiểm tra…');
           if (!(await lanUp())) { msg('Không tới được PC. Kiểm tra: cùng wifi, PC đang bật Lưu trữ cá nhân › Cài đặt › máy chủ LAN, địa chỉ + cổng đúng, tường lửa cho phép.', true); return; }
           try { await lanJson('/lt/pull', { since: 2147483647000 }, 8000); msg('✔ Kết nối PC thành công, tài khoản hợp lệ.'); } catch (e) { msg(e.code === 'AUTH' ? 'PC từ chối: sai tên người dùng / mã truy cập.' : e.code === 'FORBIDDEN' ? 'Tài khoản chưa được cấp quyền “Lưu trữ cá nhân” (kho LT).' : 'Lỗi: ' + e.message, true); }
         };

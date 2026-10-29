@@ -162,7 +162,12 @@
     var cv = $('scCv');
     $('scName').value = st.name;
 
-    function setBusy(on, txt) { st.busy = !!on; $('scBusy').hidden = !on; if (txt) $('scBusyTxt').textContent = txt; }
+    // PC 2.56 / ĐT 1.17: dùng popup tiến trình chung (kl-progress.js, mẫu 1) — tách "k/n" trong câu chữ thành %; không có KLProgress thì dùng lớp phủ cũ.
+    function setBusy(on, txt) {
+      st.busy = !!on;
+      if (window.KLProgress) { $('scBusy').hidden = true; if (on) { var m = /(\d+)\s*\/\s*(\d+)/.exec(txt || ''); window.KLProgress.busy(txt || 'Đang xử lý…', m && +m[2] > 0 ? (+m[1] - 1) / +m[2] * 100 : null); } else window.KLProgress.idle(); return; }
+      $('scBusy').hidden = !on; if (txt) $('scBusyTxt').textContent = txt;
+    }
     var curPage = function () { return st.pages[st.cur]; };
 
     // ---- nguồn ảnh: giữ dạng JPEG (Blob) cho nhẹ RAM, chỉ giải mã trang đang xem + 1 trang gần nhất

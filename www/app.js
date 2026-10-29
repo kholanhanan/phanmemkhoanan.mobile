@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '1.16 (28/10/2026)';
+  const APP_VERSION = '1.17 (29/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -3659,7 +3659,9 @@
   }
 
   const queuedKeys = new Set();
-  async function refresh(keys) {
+  // ĐT 1.17: tên nguồn trong popup tiến trình tải dữ liệu (mẫu 1)
+  const REFRESH_LBL = { m02: SRC_LABEL.M02, m01: SRC_LABEL.M01, vitri: SRC_LABEL.M01VT, vitribot: SRC_LABEL.M01VTB, m03: SRC_LABEL.M03, m04: SRC_LABEL.M04, m08: 'Tổng hợp (M08)', phieu: 'Phiếu đã gửi' };
+  async function refresh(keys, opt) {
     if (!cfgOk()) { openSettings(true); return; }
     const list = keys || neededFor(state.tab);
     // Đang tải dở (VD vừa mở app, đang tải Phiếu) mà người dùng chuyển sang màn khác → GHI NHỚ phần cần tải thêm,
@@ -3668,7 +3670,9 @@
     state.busy = true;
     $('refreshBtn').classList.add('is-busy');
     const errors = [];
-    await Promise.all(list.map((k) => fetchInto(k, ACTION[k]).catch((e) => errors.push(e))));
+    // ĐT 1.17: popup tiến trình (mẫu 1) — chỉ khi bấm nút tải lại hoặc tải lần đầu (chưa có bản lưu); tải ngầm khi chuyển tab vẫn im lặng
+    const kp = opt && opt.dialog && window.KLProgress ? window.KLProgress.open({ title: 'Đang tải dữ liệu…', sub: 'Từ Google Sheet của kho', steps: list.map((k) => ({ key: k, label: REFRESH_LBL[k] || k })), note: 'Giữ app mở cho đến khi tải xong.', delay: 350 }) : null;
+    await Promise.all(list.map((k) => fetchInto(k, ACTION[k]).then(() => { if (kp) kp.step(k, 'ok'); }).catch((e) => { errors.push(e); if (kp) kp.step(k, 'err', e.message); })));
     if (list.some((k) => SOURCES.includes(k) || k === 'm08')) buildLots();
     list.filter((k) => SOURCES.includes(k)).forEach(buildTonRows);
     state.busy = false;
@@ -3677,11 +3681,12 @@
     const more = Array.from(queuedKeys).filter((k) => !list.includes(k) && tabOk(state.tab));
     queuedKeys.clear();
     if (more.length) refresh(more);
+    if (kp) kp.done({ ok: !errors.length, title: errors.length ? 'Tải chưa trọn vẹn' : 'Đã tải xong', errors: errors.map((x) => x.message) });
     if (errors.length) {
       const e = errors[0];
       if (e.code === 'FORBIDDEN') { fetchMe().then(renderAll).catch(() => {}); }
       if (e.code === 'AUTH' || e.code === 'CFG') openSettings(false);
-      toast(e.message, true);
+      if (!kp) toast(e.message, true);
     }
   }
 
@@ -3704,7 +3709,7 @@
     const need = neededFor(state.tab).filter((k) => !state[k] || !state[k].data || state.stale.has(k) ||
       (k === 'm08' && !state.ksOff && !(state.ks && state.ks.rows)) ||
       (k === 'phieu' && Date.now() - new Date(state[k].fetchedAt || 0).getTime() > 120000));
-    if (need.length) refresh(need);
+    if (need.length) refresh(need, { dialog: need.some((k) => !state[k] || !state[k].data) });
     checkUpdates(false);
   }
 
@@ -4128,7 +4133,7 @@
     if (b) switchTab(b.dataset.tool);
   });
   document.querySelectorAll('[data-toolback]').forEach((b) => b.addEventListener('click', () => switchTab('tools')));
-  $('refreshBtn').addEventListener('click', () => { if (state.tab === 'c3d' || state.tab === 'scan' || state.tab === 'qr' || state.tab === 'lt' || state.tab === 'tools') return; if (state.tab === 'baocao') loadReports(true); else { if (state.tab === 'home') loadLx(true); refresh(); } });
+  $('refreshBtn').addEventListener('click', () => { if (state.tab === 'c3d' || state.tab === 'scan' || state.tab === 'qr' || state.tab === 'lt' || state.tab === 'tools') return; if (state.tab === 'baocao') loadReports(true); else { if (state.tab === 'home') loadLx(true); refresh(undefined, { dialog: true }); } });
   $('homeLx').addEventListener('click', (e) => {
     if (e.target.closest('[data-lxbadx]')) { lxBadDismiss(); return; }
     if (e.target.closest('[data-lxadd]')) { openLxQuick(lxq.loai); return; }

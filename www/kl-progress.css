@@ -1,0 +1,44 @@
+/* =====================================================================================================
+   PC 2.56 / ĐT 1.17 — POPUP TIẾN TRÌNH CHỜ DÙNG CHUNG (mẫu 1 anh đã chọn: hộp thoại có thanh %, đếm bước và danh sách từng bước).
+   Dùng bởi js/kl-progress.js (window.KLProgress). Màu riêng (--kp-*), KHÔNG phụ thuộc css của module; tối = html[data-theme="dark"].
+   ===================================================================================================== */
+.kp-ov{
+  --kp-bg:#FFFFFF; --kp-sf2:#F1F5FA; --kp-line:#DCE5F0; --kp-tx:#0F2540; --kp-t2:#44566C; --kp-t3:#586A80; --kp-pr:#1F6FDB; --kp-trk:#E3EAF3;
+  --kp-ok:#0F6B3E; --kp-okb:#DDF3E6; --kp-err:#B3261E; --kp-errb:#FBE3E1; --kp-dim:rgba(15,37,64,.42); --kp-sh:0 18px 48px rgba(15,37,64,.28);
+  position:fixed; inset:0; z-index:2147483000; display:flex; align-items:center; justify-content:center; padding:16px; box-sizing:border-box;
+  background:var(--kp-dim); font-family:'Be Vietnam Pro','Segoe UI',system-ui,sans-serif; -webkit-tap-highlight-color:transparent;
+}
+html[data-theme="dark"] .kp-ov{
+  --kp-bg:#202020; --kp-sf2:#2B2B2B; --kp-line:#434343; --kp-tx:#F2F2F2; --kp-t2:#D2D2D2; --kp-t3:#B3B3B3; --kp-pr:#6FA3DE; --kp-trk:#3A3A3A;
+  --kp-ok:#72C27E; --kp-okb:#162E1B; --kp-err:#F08D86; --kp-errb:#3B1A18; --kp-dim:rgba(0,0,0,.6); --kp-sh:0 20px 56px rgba(0,0,0,.6);
+}
+.kp-ov[hidden]{ display:none; }
+.kp-box{ width:min(500px,100%); max-height:calc(100vh - 32px); overflow:auto; box-sizing:border-box; background:var(--kp-bg); color:var(--kp-tx); border:1px solid var(--kp-line); border-radius:16px;
+  box-shadow:var(--kp-sh); padding:22px 24px; display:flex; flex-direction:column; gap:14px; outline:none; }
+.kp-hd{ display:flex; align-items:center; gap:14px; min-width:0; }
+.kp-ic{ flex:none; width:34px; height:34px; display:grid; place-items:center; }
+.kp-ic svg{ width:34px; height:34px; display:block; }
+.kp-spin{ animation:kp-rot .9s linear infinite; transform-origin:50% 50%; }
+@keyframes kp-rot{ to{ transform:rotate(360deg); } }
+.kp-tt{ min-width:0; } .kp-t{ font-size:17px; font-weight:700; line-height:1.3; overflow-wrap:anywhere; } .kp-s{ font-size:13px; color:var(--kp-t3); overflow-wrap:anywhere; } .kp-s:empty{ display:none; }
+.kp-pg{ display:flex; flex-direction:column; gap:6px; }
+.kp-bar{ position:relative; height:10px; border-radius:10px; background:var(--kp-trk); overflow:hidden; }
+.kp-bar i{ display:block; height:100%; width:0; border-radius:10px; background:var(--kp-pr); transition:width .25s ease; }
+.kp-bar.ind i{ position:absolute; left:0; width:38%; animation:kp-ind 1.3s ease-in-out infinite; transition:none; }
+@keyframes kp-ind{ 0%{ transform:translateX(-100%); } 100%{ transform:translateX(262%); } }
+.kp-nums{ display:flex; justify-content:space-between; gap:10px; font-size:13px; color:var(--kp-t2); } .kp-nums b{ color:var(--kp-tx); font-variant-numeric:tabular-nums; }
+.kp-steps{ border:1px solid var(--kp-line); border-radius:10px; padding:6px 12px; background:var(--kp-sf2); max-height:240px; overflow:auto; }
+.kp-steps:empty{ display:none; }
+.kp-st{ display:flex; align-items:center; gap:10px; min-height:32px; font-size:13.5px; }
+.kp-st > span:nth-child(2){ flex:1; min-width:0; overflow-wrap:anywhere; }
+.kp-st em{ font-style:normal; font-size:12.5px; color:var(--kp-t3); text-align:right; }
+.kp-st.run em{ color:var(--kp-pr); font-weight:600; } .kp-st.ok em{ color:var(--kp-ok); font-weight:600; } .kp-st.err em{ color:var(--kp-err); font-weight:600; }
+.kp-st svg{ width:18px; height:18px; flex:none; display:block; }
+.kp-note{ font-size:12.5px; color:var(--kp-t3); overflow-wrap:anywhere; } .kp-note:empty{ display:none; }
+.kp-err{ margin:0; padding:10px 12px 10px 28px; border-radius:10px; background:var(--kp-errb); color:var(--kp-err); font-size:13px; max-height:160px; overflow:auto; overflow-wrap:anywhere; } .kp-err:empty{ display:none; }
+.kp-ft{ display:flex; justify-content:flex-end; gap:10px; } .kp-ft[hidden]{ display:none; }
+.kp-btn{ min-height:44px; padding:0 20px; border-radius:10px; border:1px solid var(--kp-line); background:var(--kp-bg); color:var(--kp-tx); font:600 14px 'Be Vietnam Pro','Segoe UI',system-ui,sans-serif; cursor:pointer; }
+.kp-btn:hover{ border-color:var(--kp-pr); } .kp-btn.pri{ background:var(--kp-pr); border-color:var(--kp-pr); color:#fff; } .kp-btn:focus-visible{ outline:2px solid var(--kp-pr); outline-offset:2px; }
+.kp-btn[hidden]{ display:none; }
+@media (max-width:520px){ .kp-box{ padding:18px 16px; } .kp-btn{ flex:1; } }
+@media (prefers-reduced-motion:reduce){ .kp-spin, .kp-bar.ind i{ animation:none; } .kp-bar i{ transition:none; } }

@@ -172,7 +172,12 @@
       let nx = lsGet(LS_NEXT);
       if (!nx || nx.version !== R.version) {
         if (manual) banner('Đang tải bản mới…', []);
-        const path = await downloadBundle(L, R, manual ? (d, n) => banner('Đang tải bản mới… ' + d + '/' + n, []) : null);
+        // ĐT 1.17: popup tiến trình (mẫu 1) khi bấm "Kiểm tra cập nhật" — tải ngầm lúc mở app vẫn chỉ hiện dải thông báo
+        const kp = manual && window.KLProgress ? window.KLProgress.open({ title: 'Đang tải bản mới…', sub: 'Phiên bản ' + R.version, note: 'Giữ app mở cho đến khi tải xong.', pct: 0, label: '0 / ' + (R.files ? R.files.length : '?') + ' file', delay: 0 }) : null;
+        let path;
+        try { path = await downloadBundle(L, R, manual ? (d, n) => { banner('Đang tải bản mới… ' + d + '/' + n, []); if (kp) kp.set({ pct: n ? d / n * 100 : null, label: d + ' / ' + n + ' file' }); } : null); }
+        catch (e) { if (kp) kp.done({ ok: false, title: 'Không tải được bản mới', errors: [e && e.message || String(e)] }); throw e; }
+        if (kp) kp.done({ ok: true, title: 'Đã tải xong bản mới' });
         nx = { version: R.version, path, tries: 0, message: R.message || '' };
         lsSet(LS_NEXT, nx);
         lsSet(LS_BAD, null);

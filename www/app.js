@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '1.18 (30/10/2026)';
+  const APP_VERSION = '1.20 (30/10/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -94,6 +94,8 @@
   const HIDDEN_SOURCES = [];
   // SOURCES = kho đang dùng được = bỏ kho ẩn + bỏ kho token không có quyền (applyPerms() tính lại khi biết quyền).
   let SOURCES = ALL_SOURCES.filter((k) => !HIDDEN_SOURCES.includes(k));
+  // PC 3.04 / ĐT 1.20: KHO MẶC ĐỊNH = "Tồn vị trí An An" (vitri); không có quyền kho đó thì lấy kho đầu tiên được cấp. Đã BỎ mục "Tổng — tất cả kho" khỏi danh sách chọn kho.
+  function defaultKho() { return SOURCES.includes('vitri') ? 'vitri' : (SOURCES[0] || 'm02'); }
   // Bố cục mới: các kho trong 1 tab "Kho". place = cột giữa của dòng hàng (Mã · <place> · SL).
   const KHO = {
     m02: { name: 'Tồn kho gửi', mod: 'Module 02', desc: 'theo lô', place: 'Lô', placeOf: (it) => it.soLo },
@@ -182,11 +184,11 @@
     phieuSeg: 'cho',                    // nhóm đang xem ở tab Phiếu: soan | cho | nhan | huy
     pcf: {},                            // (bản 1.07) lọc nhiều cột danh sách phiếu: { cột: [giá trị] }
     phieuMonth: '',                     // (bản 1.4) lọc phiếu Đã nhận / Đã hủy theo tháng 'YYYY-MM' — rỗng = tất cả
-    // Tab Kho MỞ APP luôn vào "Tổng — tất cả kho" (người dùng yêu cầu 30/09/2026, bản 3.63). Đổi kho trong lúc dùng
-    // vẫn giữ tới khi tắt app. Chỉ được dùng 1 kho thì vào thẳng kho đó (applyPerms).
-    xuatSrc: SOURCES.length > 1 ? 'tong' : (SOURCES[0] || 'm02'),
+    // Tab Kho MỞ APP vào kho mặc định "Tồn vị trí An An" (yêu cầu 30/10/2026; trước đó là "Tổng — tất cả kho", nay đã bỏ). Đổi kho trong lúc dùng
+    // vẫn giữ tới khi tắt app. Chỉ liệt kê kho mà tài khoản được phân quyền (applyPerms).
+    xuatSrc: defaultKho(),
     // Tab Tồn kho: xem 5 bảng như Xuất kho (dùng chung dữ liệu đã lưu trên máy, không tải 2 lần).
-    tonMode: SOURCES.includes(load('klanan.tonMode', 'm01')) ? load('klanan.tonMode', 'm01') : 'm01',
+    tonMode: SOURCES.includes(load('klanan.tonMode', defaultKho())) ? load('klanan.tonMode', defaultKho()) : defaultKho(),
     m02: null, m01: null, vitri: null, vitribot: null, phieu: null,  // { data, fetchedAt, error }
     lots: { m02: [], m01: [], vitri: [], vitribot: [], m03: [], m04: [] }, // dòng có thể xuất, theo từng nguồn
     tonRows: { m02: [], m01: [], vitri: [], vitribot: [], m03: [], m04: [] },
@@ -254,7 +256,7 @@
       if (state.lots[k]) state.lots[k] = [];
       if (state.tonRows[k]) state.tonRows[k] = [];
     });
-    if (state.xuatSrc === 'tong' ? SOURCES.length <= 1 : !SOURCES.includes(state.xuatSrc)) state.xuatSrc = SOURCES.length > 1 ? 'tong' : (SOURCES[0] || 'm02');
+    if (state.xuatSrc === 'tong' || !SOURCES.includes(state.xuatSrc)) state.xuatSrc = defaultKho();
     // Phiếu đang soạn thuộc kho không còn quyền / token chỉ xem → bỏ (không gửi được nữa).
     if (state.cart && state.cart.items.length && (!canCreate() || !SOURCES.includes(SRC_OF[state.cart.module]))) { state.cart = null; localStorage.removeItem(LS_CART); }
     const myName = state.me && !state.me.admin ? (state.me.hienThi || state.me.ten) : '';
@@ -2270,18 +2272,6 @@
     openSheet(`
       <h2>Chọn kho</h2>
       <p class="lead">Xem tồn và xuất hàng trong cùng một màn hình. Kho đã tải được lưu trên máy.</p>
-      ${SOURCES.length > 1 ? (() => {
-        const n = SOURCES.filter((k) => state[k] && state[k].data).length;
-        const rows = SOURCES.reduce((a, k) => a + (state.lots[k] || []).length, 0);
-        const on = state.xuatSrc === 'tong';
-        return `<button type="button" class="kho-opt${on ? ' is-on' : ''}" data-kho="tong">
-          <span class="ko-mark">${on ? '<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>' : ''}</span>
-          <span class="ko-body">
-            <span class="ko-head"><b class="ko-name">Tổng — tất cả kho</b><small class="ko-qty">${fmt(rows)} dòng</small></span>
-            <small class="ko-sub">Tìm mã / size / vị trí trong mọi kho cùng lúc · ${n}/${SOURCES.length} kho đã lưu</small>
-          </span>
-        </button>`;
-      })() : ''}
       ${SOURCES.map((k) => {
         const m = khoSummary(k);
         return `<button type="button" class="kho-opt${k === state.xuatSrc ? ' is-on' : ''}" data-kho="${k}">

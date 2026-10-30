@@ -5,7 +5,7 @@
 //   const h = KLProgress.open({ title:'Đang khôi phục từ Drive…', sub:'Thư mục khoa', steps:[{key:'m1', label:'M01 · Tồn kho An An'}, …], note:'Đừng tắt app.', cancel: fn|null, delay:250 });
 //   h.step('m1','run');  h.step('m1','ok','Đã xong');  h.step('m2','err','Lỗi mạng');   // 'wait' | 'run' | 'ok' | 'err'
 //   h.set({ pct: 40, label:'6 / 15', sub:'…', title:'…' });   // pct = null → thanh chạy qua lại (chưa biết bao lâu). Có steps mà không đặt pct → tự tính theo số bước xong.
-//   h.done({ ok:true, title:'Xong', text:'…', errors:['…'], keep:false });   // ok + không có lỗi → tự đóng sau 0,7 giây (keep:true = giữ lại); có lỗi → giữ + hiện danh sách + nút Đóng
+//   h.done({ ok:true, title:'Xong', text:'…', errors:['…'], keep:false, hold:2200 });   // ok + không có lỗi → hiện dải xanh "Hoàn thành" rồi tự đóng sau 2,2 giây (keep:true = giữ lại); có lỗi → giữ + hiện danh sách + nút Đóng
 //   h.close();
 //   Việc ngắn (< delay ms, mặc định 250) KHÔNG hiện popup → không nháy. h.close()/h.done() trước thời gian đó thì không vẽ gì.
 //   KLProgress.busy('Đang đọc PDF trang 2/5…', 40) / KLProgress.idle() — kiểu bật / tắt đơn giản cho chỗ cũ dùng setBusy(on, text).
@@ -35,11 +35,12 @@
     t.id = id + 't'; tt.appendChild(t); tt.appendChild(s); hd.appendChild(ic); hd.appendChild(tt);
     var pg = mk('div', 'kp-pg'), bar = mk('div', 'kp-bar'), fill = mk('i'), nums = mk('div', 'kp-nums'), nl = mk('span'), np = mk('b');
     bar.appendChild(fill); nums.appendChild(nl); nums.appendChild(np); pg.appendChild(bar); pg.appendChild(nums);
-    var steps = mk('div', 'kp-steps'), note = mk('div', 'kp-note'), err = mk('ul', 'kp-err'), ft = mk('div', 'kp-ft');
+    var steps = mk('div', 'kp-steps'), note = mk('div', 'kp-note'), fin = mk('div', 'kp-fin'), err = mk('ul', 'kp-err'), ft = mk('div', 'kp-ft');
+    fin.hidden = true; fin.setAttribute('role', 'status');
     var bCancel = mk('button', 'kp-btn', 'Hủy'), bClose = mk('button', 'kp-btn pri', 'Đóng');
     bCancel.type = 'button'; bClose.type = 'button'; bClose.hidden = true; bCancel.hidden = typeof o.cancel !== 'function'; ft.hidden = bCancel.hidden;
     ft.appendChild(bCancel); ft.appendChild(bClose);
-    [hd, pg, steps, note, err, ft].forEach(function (e) { box.appendChild(e); }); ov.appendChild(box);
+    [hd, pg, steps, note, fin, err, ft].forEach(function (e) { box.appendChild(e); }); ov.appendChild(box);
 
     function stepRow(k) { var r = st.map[k]; return r; }
     function paintStep(r) {
@@ -88,15 +89,17 @@
       done: function (r) {
         if (closed) return h; r = r || {}; finished = true; clearTimeout(timer);
         var errs = (r.errors || []).filter(Boolean), ok = r.ok !== false && !errs.length;
-        if (!shown && ok && !r.keep) { remove(); return h; }          // xong nhanh, chưa kịp hiện → không hiện gì
+        if (!shown && ok && !r.keep) { remove(); return h; }          // xong quá nhanh, popup chưa kịp hiện → không hiện gì (không nháy)
         if (!shown) show();
         st.title = r.title || (ok ? 'Hoàn tất' : 'Chưa trọn vẹn'); if (r.text != null) st.sub = r.text; st.pct = ok ? 100 : (st.pct == null ? counts().n ? null : 0 : st.pct);
         if (ok) st.label = r.label != null ? r.label : (counts().n ? counts().n + ' / ' + counts().n : '');
         ic.innerHTML = ok ? ICON.ok : ICON.err; ic.style.color = ok ? 'var(--kp-ok)' : 'var(--kp-err)';
+        // Khi xong không lỗi: hiện dải xanh lá "Hoàn thành" (màu tự đổi theo giao diện sáng / tối) để người dùng biết chắc việc đã xong
+        if (ok) { fin.innerHTML = ICON.ok + '<span>' + esc(r.doneText || 'Hoàn thành') + '</span>'; fin.hidden = false; box.className = 'kp-box kp-ok'; } else { fin.hidden = true; box.className = 'kp-box'; }
         err.innerHTML = errs.map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('');
         bCancel.hidden = true; bClose.hidden = false; ft.hidden = false; paint();
         try { bClose.focus({ preventScroll: true }); } catch (e) { /* bỏ qua */ }
-        if (ok && !r.keep) autoT = setTimeout(remove, 700);
+        if (ok && !r.keep) autoT = setTimeout(remove, r.hold == null ? 2200 : r.hold);   // giữ 2,2 giây cho kịp nhìn chữ Hoàn thành (bấm Đóng / Esc để tắt sớm)
         return h;
       },
       close: function () { if (!closed) remove(); },

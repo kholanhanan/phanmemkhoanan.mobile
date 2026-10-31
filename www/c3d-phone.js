@@ -186,7 +186,7 @@
       '<label class="c3-chk big"><input type="checkbox" id="c3Merge"' + (o.mergeTail ? ' checked' : '') + '> Ghép lấp chỗ trống cạnh vách cuối (tiết kiệm chỗ)</label>' +
       '<label class="c3-chk big"><input type="checkbox" id="c3Spread"' + (o.spread ? ' checked' : '') + '> Hàng ít: trải đều nhiều dãy thấp (chắc hàng, không để dãy cao đứng riêng)</label>' + (o.spread ? fld('Trải tối đa (% chiều dài cont)', 'id="c3SpreadPct"', o.spreadPct || 70) : '') +
       '<label class="c3-chk big"><input type="checkbox" id="c3Auto"' + (o.autoLayout !== false ? ' checked' : '') + '> Tự sắp xếp hợp lý khi trống một bên (so le trái/phải, ưu tiên thoáng khí)</label>' +
-      '<label class="c3-chk big"><input type="checkbox" id="c3Stack"' + (o.stackTop !== false ? ' checked' : '') + '> Cho mặt hàng sau chồng lên khoảng trống phía trên mặt hàng trước</label>' +
+      '<label class="c3-chk big"><input type="checkbox" id="c3Stack"' + (o.stackTop !== false ? ' checked' : '') + '> Ưu tiên cho mặt hàng sau CHỒNG LÊN phía trên mặt hàng trước (không đủ chỗ mới xếp sang hai bên)</label>' +
       '<label class="c3-chk big"><input type="checkbox" id="c3Height"' + (o.heightRule !== false ? ' checked' : '') + '> Xếp từ cao xuống thấp (trong cùng → cửa cont)</label>' +
       '<label class="c3-chk big"><input type="checkbox" id="c3SampOn"' + (o.sampleOn !== false ? ' checked' : '') + '> Hàng mẫu hải quan: tự chia ở các dãy cuối, trộn đủ mọi mặt hàng</label>' +
       '<div class="c3-g2"><label class="c3-f"><span>Thứ tự đóng</span><select id="c3Sort"><option value="auto"' + (o.sortMode !== 'manual' ? ' selected' : '') + '>Mặt hàng › Size › Ngày</option><option value="manual"' + (o.sortMode === 'manual' ? ' selected' : '') + '>Đúng thứ tự nhập</option></select></label>' +

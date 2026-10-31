@@ -293,7 +293,19 @@
     const note = (p) => { const tx = describe(p) + (sku._auto && p.kind === 'sole' ? ' [tự động]' : ''); if (!out.patterns.some((q) => q.text === tx)) out.patterns.push({ text: tx, kind: p.kind, o: p.o }); };
     const describe = (p) => p.kind === 'cols' ? 'dãy mẫu: ' + p.label + ' · sâu ' + r1(p.D) + ' mm' : orientText(p.o, sku) + ' · ' + r1(p.o.dx) + '×' + r1(p.o.dy) + '×' + r1(p.o.dz) + (p.kind === 'sole' ? ' · sole (so le trái/phải từng tầng, khe ' + r1(p.gap) + ' mm)' : (p.kind === 'mix' ? ' · trộn hướng cùng chiều sâu' : ''));
     let lastTail = null;
-    // 1) lấp phần trống cạnh vách cuối của nhóm trước (nếu bật "ghép")
+    // 1) (PC 3.11) ƯU TIÊN CHỒNG: mặt hàng kế tiếp được CHỒNG LÊN khoảng trống phía trên vách cuối của mặt hàng trước (nếu còn chiều cao dưới red line) — tối đa 2 mặt hàng / dãy
+    if (opts.stackTop && S.top && !(sku.sole || sku._auto) && left > 0) { // chồng lên chỗ hổng phía trên vách cuối của mặt hàng trước (dùng được cả khi bật "ghép lấp")
+      const t = S.top, sp2 = Object.assign({}, sp, { Lu: t.depth, Wu: t.w, effH: sp.effH - t.z });
+      const o2 = orientationsOf(sku, sp2), pats2 = o2.length ? buildPatterns(sku, o2, sp2, t.w, null).filter((p) => p.kind !== 'sole') : [];
+      let bst = null;
+      pats2.forEach((p) => { const rows = Math.floor((t.depth + EPS) / p.D); if (rows < 1) return; const r = placeWalls(p, Math.min(left, rows * p.cap), t.x0, t.x0 + rows * p.D, 'wide', t.y0, true); if (r.placed > 0 && (!bst || r.placed > bst.placed || (r.placed === bst.placed && prefOf(p) < prefOf(bst.p)))) bst = { p, rows, placed: r.placed }; });
+      if (bst) {
+        const res = placeWalls(bst.p, Math.min(left, bst.rows * bst.p.cap), t.x0, t.x0 + bst.rows * bst.p.D, 'wide', t.y0, false);
+        res.boxes.forEach((b) => { b.z += t.z; b.tier += t.tiers; b.onPrev = true; });
+        out.boxes.push(...res.boxes); left -= res.placed; out.stackedOn = res.placed; note(bst.p);
+      }
+    }
+    // 1b) (PC 3.11) KHÔNG ĐỦ chỗ chồng mới xếp SANG HAI BÊN trong cùng dãy: lấp phần trống cạnh vách cuối của nhóm trước (nếu bật "ghép")
     if (opts.mergeTail && S.strip && !(sku.sole || sku._auto) && left > 0) {
       const st = S.strip;
       const pats = buildPatterns(sku, ors, sp, st.w, null).filter((p) => p.kind !== 'cross');
@@ -308,18 +320,6 @@
           const want = Math.min(left, rows * ps.cap), res = placeWalls(ps, want, st.x0, st.x0 + rows * D, 'wide', st.y0, false);
           if (res.placed > 0) { out.boxes.push(...res.boxes); left -= res.placed; S.cursor = Math.max(S.cursor, res.end); note(ps); out.stripUsed = res.placed; }
         }
-      }
-    }
-    // 1b) chồng lên khoảng trống phía trên vách cuối của nhóm trước (nếu cho phép)
-    if (opts.stackTop && S.top && !(sku.sole || sku._auto) && left > 0) { // chồng lên chỗ hổng phía trên vách cuối của mặt hàng trước (dùng được cả khi bật "ghép lấp")
-      const t = S.top, sp2 = Object.assign({}, sp, { Lu: t.depth, Wu: t.w, effH: sp.effH - t.z });
-      const o2 = orientationsOf(sku, sp2), pats2 = o2.length ? buildPatterns(sku, o2, sp2, t.w, null).filter((p) => p.kind !== 'sole') : [];
-      let bst = null;
-      pats2.forEach((p) => { const rows = Math.floor((t.depth + EPS) / p.D); if (rows < 1) return; const r = placeWalls(p, Math.min(left, rows * p.cap), t.x0, t.x0 + rows * p.D, 'wide', t.y0, true); if (r.placed > 0 && (!bst || r.placed > bst.placed || (r.placed === bst.placed && prefOf(p) < prefOf(bst.p)))) bst = { p, rows, placed: r.placed }; });
-      if (bst) {
-        const res = placeWalls(bst.p, Math.min(left, bst.rows * bst.p.cap), t.x0, t.x0 + bst.rows * bst.p.D, 'wide', t.y0, false);
-        res.boxes.forEach((b) => { b.z += t.z; b.tier += t.tiers; b.onPrev = true; });
-        out.boxes.push(...res.boxes); left -= res.placed; out.stackedOn = res.placed; note(bst.p);
       }
     }
     // 2) các vách chính
@@ -390,13 +390,13 @@
     // 3) ghi lại phần trống bên cạnh vách cuối để nhóm sau lấp (chỉ khi ghép + vách cuối đang xếp "cột đầy")
     // Nhóm quá ít, nằm gọn trong chỗ hổng của nhóm trước (không mở vách mới) → phần hổng chưa dùng vẫn để dành cho nhóm sau.
     const absorbed = !lastTail && left === 0 && out.placed > 0;
-    if (!(absorbed && !out.stripUsed)) S.strip = null;
+    S.strip = null; // PC 3.11: mỗi dãy chỉ tối đa 2 mặt hàng (nhóm vừa nằm gọn trong chỗ hổng KHÔNG để dồn thêm nhóm thứ 3 vào cùng dãy)
     if (opts.mergeTail && !isLast && left === 0 && lastTail && lastTail.style === 'tall' && lastTail.boxes && lastTail.kind === 'col' && Math.abs(S.cursor - (lastTail.x0 + lastTail.used)) < EPS) {
       let yEnd = sp.y0; lastTail.boxes.forEach((b) => { yEnd = Math.max(yEnd, b.y + b.dy); });
       const w = sp.y1 - yEnd; if (w > 1) S.strip = { x0: lastTail.x0, depth: lastTail.used, y0: yEnd, w, aW: yEnd - sp.y0 };
     }
     // 4) ghi lại mặt phẳng trống phía trên vách cuối: cột còn thiếu tầng (vách "cột đầy" thiếu vài thùng) hoặc vách xếp "từng tầng"
-    if (!(absorbed && !out.stackedOn)) S.top = null;
+    S.top = null;
     if (opts.stackTop && !isLast && left === 0 && lastTail && lastTail.kind === 'col' && lastTail.boxes && Math.abs(S.cursor - (lastTail.x0 + lastTail.used)) < EPS) {
       const pt = lastTail.pat, tops = []; for (let c = 0; c < pt.nc; c++) tops.push(0);
       lastTail.boxes.forEach((b) => { const c = Math.round((b.y - sp.y0) / pt.o.dy); if (c >= 0 && c < pt.nc) tops[c] = Math.max(tops[c], b.z + b.dz); });

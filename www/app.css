@@ -994,3 +994,9 @@ body.has-totalbar .multibar { bottom: calc(var(--tabbar-h) + var(--safe-bottom) 
 .fs-row input[type=range] { flex: 1; min-width: 0; height: 44px; accent-color: var(--cobalt); }
 .fs-a { font-weight: 800; color: var(--muted); line-height: 1; }
 .fs-a-s { font-size: 13px; } .fs-a-l { font-size: 24px; }
+
+/* ĐT 1.23 — huy hiệu tài khoản mới */
+.role-badge { height: 28px; width: auto; vertical-align: middle; margin-right: 8px; flex: none; user-select: none; -webkit-user-drag: none; }
+.me-card .role-badge { height: 34px; }
+.ua-item .role-badge { float: left; height: 36px; margin: 0 10px 0 0; }
+.ua-item small { overflow: hidden; }

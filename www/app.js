@@ -241,6 +241,9 @@
   const canView = (k) => !state.me || (state.me.kho || []).includes(TABLE_OF[k]);
   // Quyền xem trang Báo cáo của từng nguồn (mã BC01 / BC02 trong "Kho được dùng").
   const canReport = (src) => !state.me || (state.me.kho || []).includes(REPORT_CFG[src].perm);
+  // ĐT 1.23: huy hiệu tài khoản (img/huy-hieu/*.svg, nạp bằng <img> nên id gradient của từng file không đè nhau)
+  const BADGE_FILE = { xem: 'cap-1', xuat: 'cap-2', quanly: 'quan-ly', quantri: 'quan-tri', admin: 'admin' };
+  const badgeImg = (role, isAdm) => `<img class="role-badge" src="img/huy-hieu/${BADGE_FILE[isAdm ? 'admin' : role] || BADGE_FILE.xem}.svg" alt="" draggable="false">`;
   const QUYEN_TEXT = { xem: 'Người dùng cấp 1 — chỉ xem tồn kho', xuat: 'Người dùng cấp 2 — xem + tạo phiếu xuất', quanly: 'Quản lý', quantri: 'Quản trị' };
   // 4 vai trò (màu chữ ở app.css: .role-xem vàng · .role-xuat xanh lá · .role-quanly xanh đậm · .role-quantri đỏ)
   const ROLE_SHORT = { xem: 'Người dùng', xuat: 'Người dùng', quanly: 'Quản lý', quantri: 'Quản trị' }; // 3.2: không ghi số cấp — phân biệt bằng màu (.role-xem vàng · .role-xuat xanh lá)
@@ -3336,7 +3339,7 @@
       <label class="field"><span>${FIXED_URL ? 'Mật khẩu' : 'Mã truy cập'}</span>
         <input type="password" id="cfgToken" value="${esc(c.token)}" autocomplete="current-password">
       </label>
-      ${state.me && !state.me.admin ? `<div class="me-card"><b class="role-${esc(state.me.vaiTro || state.me.quyen)}">${esc(state.me.hienThi || state.me.ten)}</b> · <span class="role-${esc(state.me.vaiTro || state.me.quyen)}">${esc(ROLE_SHORT[state.me.vaiTro || state.me.quyen] || QUYEN_TEXT[state.me.quyen] || state.me.quyen)}</span></div>` : ''}
+      ${state.me && !state.me.admin ? `<div class="me-card">${badgeImg(state.me.vaiTro || state.me.quyen, false)}<b class="role-${esc(state.me.vaiTro || state.me.quyen)}">${esc(state.me.hienThi || state.me.ten)}</b> · <span class="role-${esc(state.me.vaiTro || state.me.quyen)}">${esc(ROLE_SHORT[state.me.vaiTro || state.me.quyen] || QUYEN_TEXT[state.me.quyen] || state.me.quyen)}</span></div>` : ''}
       <div class="notice" id="cfgMsg" hidden></div>
       <button type="button" class="btn btn-primary" id="cfgSave">Lưu và kiểm tra</button>
       ${first || !state.me || state.me.admin ? '' : `<button type="button" class="btn btn-ghost" id="cfgPw">🔑 Đổi mật khẩu</button>`}
@@ -3512,7 +3515,7 @@
     const listView = () => {
       openSheet(`<h2>Người dùng &amp; phân quyền</h2>
         <p class="lead">${lv === 3 ? 'Bạn quản lý được người dùng cấp 1 &amp; 2 (chỉ cấp được kho / module bạn có). Dòng mờ 🔒 là cùng cấp hoặc cao hơn — không xem / sửa được.' : 'Chạm 1 người để sửa vai trò / kho / module PC / mã. Dòng 🔒 là cùng cấp hoặc cao hơn bạn. Thay đổi có hiệu lực ngay; app PC tự cập nhật khi mở Cài Đặt → Điện Thoại.'}</p>
-        ${list.length ? list.map((u, i) => `<button type="button" class="ua-item${u.bat ? '' : ' is-off'}${u.khoa ? ' is-lock' : ''}" data-i="${i}"${u.khoa ? ' data-lock="1"' : ''}><b>${esc(u.tenHienThi || u.ten)}</b> <span class="ua-id">(${esc(u.ten)})</span>${u.khoa ? ' 🔒' : ''}<small><span class="role-${esc(u.quyen)}">${esc(PQ_QUYEN[u.quyen] || u.quyen)}</span> · ${u.kho.length} kho · ${(u.pc || []).length} quyền PC${u.bat ? '' : ' · ĐÃ KHÓA'}</small></button>`).join('') : '<p class="lead">Chưa có người dùng nào.</p>'}
+        ${list.length ? list.map((u, i) => `<button type="button" class="ua-item${u.bat ? '' : ' is-off'}${u.khoa ? ' is-lock' : ''}" data-i="${i}"${u.khoa ? ' data-lock="1"' : ''}>${badgeImg(u.quyen, String(u.ten).toLowerCase() === 'admin')}<b>${esc(u.tenHienThi || u.ten)}</b> <span class="ua-id">(${esc(u.ten)})</span>${u.khoa ? ' 🔒' : ''}<small><span class="role-${esc(u.quyen)}">${esc(PQ_QUYEN[u.quyen] || u.quyen)}</span> · ${u.kho.length} kho · ${(u.pc || []).length} quyền PC${u.bat ? '' : ' · ĐÃ KHÓA'}</small></button>`).join('') : '<p class="lead">Chưa có người dùng nào.</p>'}
         <button type="button" class="btn btn-primary" data-add>➕ Thêm người dùng</button>
         <button type="button" class="btn btn-ghost" data-back>Quay lại</button>`);
       $('sheetBody').onclick = (e) => {

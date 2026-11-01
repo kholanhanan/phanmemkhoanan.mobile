@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '1.21 (31/10/2026)';
+  const APP_VERSION = '1.22 (01/11/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -2719,12 +2719,15 @@
       const data = await blobToBase64(file.blob);
       await Cap.Filesystem.writeFile({ path: file.name, data, directory: 'CACHE' });
       const { uri } = await Cap.Filesystem.getUri({ path: file.name, directory: 'CACHE' });
-      await Cap.Share.share({ title: file.name, text: file.name, files: [uri], dialogTitle: 'Gửi phiếu qua…' });
+      // ĐT 1.22: KHÔNG truyền text/title = tên file — Zalo (và vài app khác) lấy chúng làm LỜI NHẮN kèm theo nên ảnh gửi đi bị dính tên file.
+      // Ảnh: chỉ gửi file. File khác (Excel/PDF): giữ title (làm tiêu đề thư khi gửi Gmail), vẫn không có text.
+      const isImg = /^image\//i.test(file.mime || '') || /\.(png|jpe?g|gif|webp)$/i.test(file.name || '');
+      await Cap.Share.share(isImg ? { files: [uri], dialogTitle: 'Gửi phiếu qua…' } : { title: file.name, files: [uri], dialogTitle: 'Gửi phiếu qua…' });
       return true;
     }
     const f = new File([file.blob], file.name, { type: file.mime });
     if (navigator.canShare && navigator.canShare({ files: [f] })) {
-      await navigator.share({ files: [f], title: file.name });
+      await navigator.share(/^image\//i.test(file.mime || '') ? { files: [f] } : { files: [f], title: file.name }); // ĐT 1.22: ảnh không kèm tên file
       return true;
     }
     browserDownload(file);

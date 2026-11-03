@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<title>Liên kết Google Drive — Kho Lạnh An An</title>
+<style>
+  body { font-family: system-ui, Arial, sans-serif; text-align: center; margin: 0; padding: 16vh 16px 0; color: #1b2430; background: #fff; }
+  h2 { margin: 0 0 12px; font-size: 22px; } p { margin: 0; line-height: 1.5; color: #5b6573; }
+  .ok { color: #0B6A3A; } .err { color: #B3261E; } .wait { color: #1b2430; }
+  @media (prefers-color-scheme: dark) { body { background: #12171d; color: #e6eaf0; } p { color: #a4adba; } .wait { color: #e6eaf0; } .ok { color: #5fd08f; } .err { color: #ff8a80; } }
+</style>
+</head>
+<body>
+<h2 id="t" class="wait">Đang hoàn tất…</h2>
+<p id="m">Vui lòng chờ vài giây.</p>
+<script src="app-config.js"></script>
+<script>
+(function () {
+  var t = document.getElementById('t'), m = document.getElementById('m');
+  function show(cls, title, msg) { t.className = cls; t.textContent = title; m.textContent = msg; }
+  var q = new URLSearchParams(location.search);
+  var state = q.get('state') || '', code = q.get('code') || '', error = q.get('error') || '';
+  try { history.replaceState(null, '', location.pathname); } catch (e) { /* bỏ qua */ }   // không để mã Google nằm lại trên thanh địa chỉ / lịch sử
+  var url = (window.KLANAN_CONFIG && window.KLANAN_CONFIG.url) || '';
+  if (!state || (!code && !error)) { show('err', 'Liên kết không hợp lệ', 'Quay lại ứng dụng Kho Lạnh An An và bấm đăng nhập lại.'); return; }
+  if (!url) { show('err', 'Chưa cấu hình', 'Thiếu đường dẫn Web App trong app-config.js.'); return; }
+  // text/plain: yêu cầu "đơn giản", không cần CORS preflight (Apps Script không hỗ trợ).
+  fetch(url, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'gdCallback', state: state, code: code, error: error }) })
+    .then(function (r) { return r.text(); })
+    .then(function (txt) {
+      var j = {}; try { j = JSON.parse(txt); } catch (e) { /* không phải JSON */ }
+      if (!j.ok) { show('err', 'Chưa liên kết được', (j.error || 'Web App chưa cập nhật bản mới (dán lại Code.gs rồi Triển khai → Phiên bản mới).')); return; }
+      if (error || !code) { show('err', 'Chưa liên kết được', 'Google báo lỗi hoặc bạn đã từ chối. Quay lại ứng dụng và thử lại.'); return; }
+      show('ok', 'Đã liên kết Google Drive', 'Quay lại ứng dụng Kho Lạnh An An để hoàn tất.');
+    })
+    .catch(function () { show('err', 'Không kết nối được', 'Kiểm tra mạng rồi quay lại ứng dụng và bấm đăng nhập lại.'); });
+})();
+</script>
+</body>
+</html>

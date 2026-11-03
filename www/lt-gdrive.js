@@ -30,7 +30,7 @@
   async function startLogin() {
     const h = need(), info = await h.api('ltGInfo', { readOnly: true });
     if (!info.ready) throw coded('NOSERVER', info.hint || 'Web App chưa cài liên kết Google Drive.');
-    const redirect = String(h.cfg().url || ''); if (!redirect) throw new Error('Chưa có đường dẫn Web App.');
+    const redirect = String((window.KLANAN_CONFIG && window.KLANAN_CONFIG.loginRedirect) || h.cfg().url || ''); if (!redirect) throw new Error('Chưa có đường dẫn Web App.'); // ĐT 1.27: ưu tiên trang tĩnh dang-nhap-xong.html
     const state = rand();
     const url = 'https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams({ client_id: info.clientId, redirect_uri: redirect, response_type: 'code', scope: SCOPE, state,
       access_type: 'offline', prompt: 'consent select_account' }).toString();

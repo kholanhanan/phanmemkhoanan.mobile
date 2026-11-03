@@ -153,6 +153,9 @@ function doPost(e) {
   } catch (err) {
     return json_({ ok: false, error: 'Yêu cầu không đúng định dạng.' });
   }
+  if (String(req.action || '') === 'gdCallback') { // ĐT 1.27: trang tĩnh dang-nhap-xong.html (GitHub Pages) chuyển mã Google về đây — không cần token, chỉ cần `state` ngẫu nhiên
+    try { return json_(gdStore_(req)); } catch (err) { return json_({ ok: false, error: String(err && err.message || err) }); }
+  }
   var props = PropertiesService.getScriptProperties();
   var appToken = props.getProperty('APP_TOKEN');
   var pcToken = props.getProperty('PC_TOKEN');
@@ -1682,6 +1685,15 @@ function gdPost_(url, payload) {
   var j = {}; try { j = JSON.parse(r.getContentText() || '{}'); } catch (e) { /* không phải JSON */ }
   return { ok: r.getResponseCode() < 300, status: r.getResponseCode(), json: j };
 }
+// ĐT 1.27: lưu mã Google do trang tĩnh gửi về (cùng khóa bộ nhớ đệm với gdCallback_) để điện thoại hỏi (ltGPoll) rồi đổi mã (ltGExchange).
+function gdStore_(r) {
+  var state = String(r.state || '');
+  if (!/^[A-Za-z0-9_-]{16,80}$/.test(state)) throw new Error('Mã phiên đăng nhập không hợp lệ.');
+  var code = String(r.code || ''), err = String(r.error || '');
+  if (code.length > 2000 || err.length > 200) throw new Error('Dữ liệu quá dài.');
+  CacheService.getScriptCache().put('gd_' + state, JSON.stringify({ code: code, error: err }), 600);
+  return { ok: true };
+}
 function gdCallback_(q) {
   var okState = /^[A-Za-z0-9_-]{16,80}$/.test(String(q.state || ''));
   if (okState) CacheService.getScriptCache().put('gd_' + q.state, JSON.stringify({ code: String(q.code || ''), error: String(q.error || '') }), 600);
@@ -1704,7 +1716,7 @@ function gdPoll_(state) {
 }
 function gdExchange_(state, redirect) {
   state = gdState_(state);
-  if (!/^https:\/\/script\.google\.com\/[A-Za-z0-9_\/.-]*\/exec$/.test(String(redirect || ''))) throw new Error('Địa chỉ chuyển hướng không hợp lệ.');
+  if (!/^https:\/\/(script\.google\.com\/[A-Za-z0-9_\/.-]*\/exec|[A-Za-z0-9-]+\.github\.io\/[A-Za-z0-9_.\/-]*dang-nhap-xong\.html)$/.test(String(redirect || ''))) throw new Error('Địa chỉ chuyển hướng không hợp lệ.');
   var cache = CacheService.getScriptCache(), v = cache.get('gd_' + state);
   if (!v) throw new Error('Chưa nhận được phản hồi từ Google (hết hạn?). Bấm đăng nhập lại.');
   cache.remove('gd_' + state);

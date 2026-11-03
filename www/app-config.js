@@ -8,5 +8,8 @@
    Link KHÔNG đủ để vào dữ liệu — vẫn phải có ID + mật khẩu hợp lệ.
    ========================================================================== */
 window.KLANAN_CONFIG = {
-  url: 'https://script.google.com/macros/s/AKfycbxRpvFkCmWjYDQqF5OSoEarCpaLxbTi87o-NPkTTpuT27RRqM2KW4-J3_KSglFa1U9eZQ/exec'
+  url: 'https://script.google.com/macros/s/AKfycbxRpvFkCmWjYDQqF5OSoEarCpaLxbTi87o-NPkTTpuT27RRqM2KW4-J3_KSglFa1U9eZQ/exec',
+  // ĐT 1.27: địa chỉ Google chuyển về sau khi chọn Gmail (trang tĩnh trên GitHub Pages — tránh lỗi "không thể mở tệp" của script.google.com khi trình duyệt đăng nhập nhiều tài khoản).
+  // PHẢI có trong "Authorized redirect URIs" của OAuth client loại Web application (kholanh-mobile). Để '' = dùng địa chỉ Web App như bản cũ.
+  loginRedirect: 'https://kholanhanan.github.io/phanmemkhoanan.mobile/dang-nhap-xong.html'
 };

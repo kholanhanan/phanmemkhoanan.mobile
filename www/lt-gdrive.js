@@ -27,10 +27,17 @@
   const saveTok = (t) => lsSet(LS_TOK + userKey(), t);
 
   // ------------------------------------------------------------------ đăng nhập (qua Web App)
+  // ĐT 1.29: file này chạy trong iframe luu-tru.html — iframe KHÔNG nạp app-config.js nên window.KLANAN_CONFIG ở đây là rỗng (lỗi của 1.27/1.28: vẫn chuyển về script.google.com).
+  // Lấy từ app mẹ (window.parent), không có thì dùng địa chỉ mặc định bên dưới (phải trùng "Authorized redirect URIs" của client kholanh-mobile).
+  const LOGIN_REDIRECT_DEFAULT = 'https://kholanhanan.github.io/phanmemkhoanan.mobile/dang-nhap-xong.html';
+  function loginRedirect() {
+    try { const c = window.KLANAN_CONFIG || (window.parent && window.parent.KLANAN_CONFIG); if (c && c.loginRedirect) return String(c.loginRedirect); } catch (e) { /* khác nguồn → dùng mặc định */ }
+    return LOGIN_REDIRECT_DEFAULT;
+  }
   async function startLogin() {
     const h = need(), info = await h.api('ltGInfo', { readOnly: true });
     if (!info.ready) throw coded('NOSERVER', info.hint || 'Web App chưa cài liên kết Google Drive.');
-    const redirect = String((window.KLANAN_CONFIG && window.KLANAN_CONFIG.loginRedirect) || h.cfg().url || ''); if (!redirect) throw new Error('Chưa có đường dẫn Web App.'); // ĐT 1.27: ưu tiên trang tĩnh dang-nhap-xong.html
+    const redirect = loginRedirect() || String(h.cfg().url || ''); if (!redirect) throw new Error('Chưa có đường dẫn Web App.'); // ĐT 1.29: ưu tiên trang tĩnh dang-nhap-xong.html
     const state = rand();
     const url = 'https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams({ client_id: info.clientId, redirect_uri: redirect, response_type: 'code', scope: SCOPE, state,
       access_type: 'offline', prompt: 'consent select_account' }).toString();

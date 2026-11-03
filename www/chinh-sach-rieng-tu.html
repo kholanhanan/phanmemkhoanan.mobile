@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chính sách quyền riêng tư — Kho Lạnh An An</title>
+<style>
+  body { font-family: system-ui, "Segoe UI", Arial, sans-serif; line-height: 1.6; max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; color: #1b2430; background: #fff; }
+  h1 { font-size: 24px; margin: 0 0 4px; } h2 { font-size: 18px; margin-top: 28px; }
+  .sub { color: #5b6573; margin: 0 0 20px; } code { background: #eef1f5; padding: 1px 5px; border-radius: 4px; }
+  @media (prefers-color-scheme: dark) { body { background: #12171d; color: #e6eaf0; } .sub { color: #a4adba; } code { background: #232b35; } }
+</style>
+</head>
+<body>
+<h1>Chính sách quyền riêng tư</h1>
+<p class="sub">Ứng dụng nội bộ “Kho Lạnh An An” (bản máy tính và bản điện thoại) · Cập nhật: 03/11/2026</p>
+
+<p>Kho Lạnh An An là ứng dụng quản lý kho dùng nội bộ trong doanh nghiệp. Trang này mô tả cách ứng dụng dùng tài khoản Google (Gmail / Google Drive) khi người dùng chọn <b>“Liên kết Google Drive”</b> hoặc <b>“Đăng nhập Gmail”</b>.</p>
+
+<h2>1. Dữ liệu ứng dụng truy cập</h2>
+<ul>
+  <li><b>Địa chỉ email</b> của tài khoản Google đã đăng nhập — chỉ để hiển thị cho người dùng biết đang liên kết email nào.</li>
+  <li><b>Google Drive</b> với quyền <code>drive.file</code>: ứng dụng chỉ thấy và thao tác trên những file / thư mục <b>do chính ứng dụng tạo</b> (thư mục <code>KhoLanh_AnAn</code>). Ứng dụng <b>không</b> đọc, không liệt kê các file khác trong Drive của bạn.</li>
+</ul>
+
+<h2>2. Mục đích sử dụng</h2>
+<ul>
+  <li>Bản máy tính: sao lưu dữ liệu của chính người dùng (Lưu trữ cá nhân, các module được phân quyền) lên Drive cá nhân, và khôi phục khi người dùng yêu cầu.</li>
+  <li>Bản điện thoại: <b>chỉ đọc</b> các bản sao lưu đó để lấy lại dữ liệu Lưu trữ cá nhân về điện thoại. Điện thoại không ghi và không xóa gì trên Drive.</li>
+</ul>
+
+<h2>3. Lưu trữ và chia sẻ</h2>
+<ul>
+  <li>Khóa đăng nhập (token) được lưu <b>trên chính thiết bị của người dùng</b> (máy tính: mã hóa bằng hệ điều hành khi có; điện thoại: bộ nhớ của ứng dụng). Người dùng có thể <b>Đăng xuất email</b> bất cứ lúc nào — khóa bị thu hồi và xóa khỏi thiết bị.</li>
+  <li>Việc đổi mã đăng nhập lấy token trên điện thoại đi qua Web App (Google Apps Script) do chính doanh nghiệp quản lý. Mã bí mật của ứng dụng (client secret) chỉ nằm ở đó.</li>
+  <li>Dữ liệu Google của người dùng <b>không được bán, không chia sẻ</b> cho bên thứ ba, không dùng cho quảng cáo, và không dùng để huấn luyện mô hình AI.</li>
+</ul>
+
+<h2>4. Thu hồi quyền</h2>
+<p>Người dùng có thể ngắt kết nối bất cứ lúc nào bằng nút <b>Đăng xuất email</b> trong ứng dụng, hoặc vào <a href="https://myaccount.google.com/connections">myaccount.google.com/connections</a> để gỡ quyền của ứng dụng.</p>
+
+<h2>5. Tuân thủ</h2>
+<p>Việc sử dụng và chuyển giao thông tin nhận được từ các API của Google tuân theo <a href="https://developers.google.com/terms/api-services-user-data-policy">Chính sách dữ liệu người dùng của Google API Services</a>, bao gồm các yêu cầu về Sử dụng có giới hạn (Limited Use).</p>
+
+<h2>6. Liên hệ</h2>
+<p>Mọi thắc mắc về dữ liệu, vui lòng liên hệ người quản lý hệ thống Kho Lạnh An An tại doanh nghiệp.</p>
+</body>
+</html>

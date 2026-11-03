@@ -1,91 +1,61 @@
-/* LƯU TRỮ CÁ NHÂN — ĐĂNG NHẬP GMAIL / GOOGLE DRIVE CÁ NHÂN TRÊN ĐIỆN THOẠI (ĐT 1.19).
+/* LƯU TRỮ CÁ NHÂN — ĐĂNG NHẬP GMAIL / GOOGLE DRIVE CÁ NHÂN TRÊN ĐIỆN THOẠI (ĐT 1.25).
    Mục đích: lấy dữ liệu Lưu trữ cá nhân mà bản PC đã sao lưu lên Drive CÁ NHÂN của chính người dùng
    (Drive cá nhân › M19: KhoLanh_AnAn/<tài khoản>/LuuTruCaNhan/data.json + files/<YYYY-MM~mã__tên file>) về điện thoại.
-   • CHỈ ĐỌC Drive (không ghi / không xóa gì trên Drive). Dữ liệu lấy về được trộn vào kho trên máy bằng đúng luật `up` lớn hơn thắng (lt-backend.js › merge).
-   • Đăng nhập kiểu "thiết bị nhập hạn chế" (OAuth 2.0 device flow): app hiện MÃ → người dùng mở google.com/device, nhập mã, chọn Gmail, cho phép.
-     Không cần chuyển hướng về app, không cần plugin gốc nào thêm. Quyền xin: drive.file + openid email.
-   • Cần Client ID loại "TVs and Limited Input devices" (+ Client secret) tạo trong CÙNG dự án Google Cloud mà PC đang dùng cho Drive cá nhân
-     (quyền drive.file chỉ thấy file do chính dự án đó tạo). Nhập 1 lần trên điện thoại.
+   • CHỈ ĐỌC Drive (không ghi / không xóa gì trên Drive). Dữ liệu lấy về được trộn vào kho trên máy bằng luật `up` lớn hơn thắng (lt-backend.js › merge).
+   • Đăng nhập GIỐNG PC: bấm "Đăng nhập Gmail" → trình duyệt mở trang Google → chọn email → Cho phép → quay lại app. Không nhập Client ID, không gõ mã.
+     Google chuyển hướng về chính Web App (Apps Script, địa chỉ /exec) rồi app nhận kết quả qua Web App; Client secret chỉ nằm trong Thuộc tính tập lệnh của Web App
+     (DRIVE_WEB_CLIENT_ID / DRIVE_WEB_CLIENT_SECRET — xem apps-script/Code.gs, khối gd*_). Quyền xin: drive.file + openid email.
    • Refresh token lưu trong localStorage của app (riêng từng tài khoản app) — Đăng xuất sẽ thu hồi + xóa token. */
 (function () {
   'use strict';
   const SCOPE = 'openid email https://www.googleapis.com/auth/drive.file';
   const FOLDER_MIME = 'application/vnd.google-apps.folder';
   const ROOT_FOLDER = 'KhoLanh_AnAn';
-  const LS_CLI = 'kl_lt_gcli', LS_TOK = 'kl_lt_gtok_';
+  const LS_TOK = 'kl_lt_gtok_';
   const H = window.parent && window.parent !== window ? window.parent.LTHost : null;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const coded = (code, msg, extra) => Object.assign(new Error(msg), { code }, extra || {});
+  const need = () => { if (!H) throw new Error('Mở Lưu trữ cá nhân từ trong ứng dụng Kho Lạnh.'); return H; };
   const userKey = () => { try { return String(H && H.cfg().user || 'admin').trim().toLowerCase() || 'admin'; } catch (e) { return 'admin'; } };
   const lsGet = (k) => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* bỏ qua */ } };
   const lsDel = (k) => { try { localStorage.removeItem(k); } catch (e) { /* bỏ qua */ } };
-
-  // ------------------------------------------------------------------ Client ID (dùng chung mọi tài khoản trên máy này)
-  const getCli = () => { const o = lsGet(LS_CLI) || {}; return { id: String(o.id || '').trim(), secret: String(o.secret || '').trim() }; };
-  const setCli = (id, secret) => lsSet(LS_CLI, { id: String(id || '').trim(), secret: String(secret || '').trim() });
+  const rand = () => Array.from(crypto.getRandomValues(new Uint8Array(18))).map((b) => b.toString(16).padStart(2, '0')).join('');
 
   // ------------------------------------------------------------------ token (riêng từng tài khoản app)
   const tok = () => lsGet(LS_TOK + userKey());
   const saveTok = (t) => lsSet(LS_TOK + userKey(), t);
 
-  // ------------------------------------------------------------------ HTTP
-  // Điểm cấp mã thiết bị của Google không chắc có CORS → ưu tiên HTTP gốc của Capacitor (không bị CORS), không có thì dùng fetch.
-  const nativeHttp = () => { try { const c = window.Capacitor || (window.parent && window.parent.Capacitor); return c && c.isNativePlatform && c.isNativePlatform() && c.Plugins && c.Plugins.CapacitorHttp || null; } catch (e) { return null; } };
-  async function oauthPost(url, params) {
-    const h = nativeHttp();
-    if (h) {
-      try {
-        const r = await h.post({ url, headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, data: params });
-        let j = r.data; if (typeof j === 'string') { try { j = JSON.parse(j); } catch (e) { j = {}; } }
-        return { ok: r.status >= 200 && r.status < 300, status: r.status, json: j || {} };
-      } catch (e) { /* thử lại bằng fetch */ }
-    }
-    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(params).toString() });
-    let j = {}; try { j = await r.json(); } catch (e) { /* không phải JSON */ }
-    return { ok: r.ok, status: r.status, json: j };
-  }
-  const idEmail = (t) => { try { const p = String(t).split('.')[1].replace(/-/g, '+').replace(/_/g, '/'); return JSON.parse(decodeURIComponent(escape(atob(p + '='.repeat((4 - p.length % 4) % 4))))).email || ''; } catch (e) { return ''; } };
-  const errText = (r) => (r.json && (r.json.error_description || r.json.error)) || r.status;
-
-  // ------------------------------------------------------------------ đăng nhập (device flow)
+  // ------------------------------------------------------------------ đăng nhập (qua Web App)
   async function startLogin() {
-    const c = getCli(); if (!c.id) throw coded('NOCLIENT', 'Chưa nhập Client ID.');
-    let r; try { r = await oauthPost('https://oauth2.googleapis.com/device/code', { client_id: c.id, scope: SCOPE }); } catch (e) { throw new Error('Không kết nối được Google. Kiểm tra mạng.'); }
-    if (!r.ok || !r.json.device_code) {
-      const er = r.json && r.json.error;
-      throw new Error(er === 'invalid_client' ? 'Client ID không đúng, hoặc không phải loại “TVs and Limited Input devices”.' : er === 'invalid_scope' || er === 'access_denied' ? 'Google không cho dùng quyền Drive với Client ID này.' : 'Google từ chối: ' + errText(r));
-    }
-    const j = r.json;
-    return { deviceCode: j.device_code, userCode: j.user_code, url: j.verification_url || j.verification_uri || 'https://www.google.com/device', interval: Math.max(3, +j.interval || 5), expiresAt: Date.now() + (+j.expires_in || 1800) * 1000 };
+    const h = need(), info = await h.api('ltGInfo', { readOnly: true });
+    if (!info.ready) throw coded('NOSERVER', info.hint || 'Web App chưa cài liên kết Google Drive.');
+    const redirect = String(h.cfg().url || ''); if (!redirect) throw new Error('Chưa có đường dẫn Web App.');
+    const state = rand();
+    const url = 'https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams({ client_id: info.clientId, redirect_uri: redirect, response_type: 'code', scope: SCOPE, state,
+      access_type: 'offline', prompt: 'consent select_account' }).toString();
+    return { state, url, redirect, expiresAt: Date.now() + 5 * 60 * 1000 };
   }
   // sig.cancel = true → dừng chờ. Thành công: lưu token, trả email.
   async function waitLogin(dev, sig) {
-    const c = getCli(); let iv = dev.interval;
+    const h = need();
     while (Date.now() < dev.expiresAt) {
-      await sleep(iv * 1000); if (sig && sig.cancel) throw coded('CANCEL', 'Đã hủy đăng nhập.');
-      let r; try { r = await oauthPost('https://oauth2.googleapis.com/token', Object.assign({ client_id: c.id, device_code: dev.deviceCode, grant_type: 'urn:ietf:params:oauth:grant-type:device_code' }, c.secret ? { client_secret: c.secret } : {})); } catch (e) { continue; } // mất mạng thoáng qua → chờ vòng sau
-      if (r.ok && r.json.access_token) {
-        const scope = String(r.json.scope || '');
-        if (scope && scope.indexOf('drive.file') < 0) throw coded('SCOPE', 'Google chưa cấp quyền Drive (ô quyền Drive chưa được tick). Đăng nhập lại và tick đủ các ô quyền.');
-        if (!r.json.refresh_token) throw new Error('Google không trả khóa làm mới phiên. Thử đăng nhập lại.');
-        const old = tok() || {}, email = idEmail(r.json.id_token);
-        saveTok({ email, refresh: r.json.refresh_token, access: r.json.access_token, exp: Date.now() + (+r.json.expires_in || 3000) * 1000, acc: old.email === email ? old.acc || '' : '', at: Date.now() });
-        return email;
-      }
-      const er = r.json && r.json.error;
-      if (er === 'authorization_pending') continue;
-      if (er === 'slow_down') { iv += 5; continue; }
-      if (er === 'access_denied') throw new Error('Bạn đã từ chối cấp quyền.');
-      if (er === 'expired_token') throw new Error('Mã đã hết hạn. Bấm đăng nhập lại để lấy mã mới.');
-      if (er === 'invalid_client' || er === 'unauthorized_client') throw new Error('Client ID / Client secret không đúng (cần loại “TVs and Limited Input devices”).');
-      throw new Error('Google báo lỗi: ' + errText(r));
+      await sleep(2000); if (sig && sig.cancel) throw coded('CANCEL', 'Đã hủy đăng nhập.');
+      let r; try { r = await h.api('ltGPoll', { state: dev.state, readOnly: true }); } catch (e) { if (e.code === 'AUTH' || e.code === 'FORBIDDEN') throw e; continue; } // mất mạng thoáng qua → chờ vòng sau
+      if (r.status === 'error') throw new Error(r.error === 'access_denied' ? 'Bạn đã từ chối cấp quyền.' : 'Google báo lỗi: ' + r.error);
+      if (r.status !== 'done') continue;
+      const x = await h.api('ltGExchange', { state: dev.state, redirect: dev.redirect });
+      if (x.scope && x.scope.indexOf('drive.file') < 0) { try { await h.api('ltGRevoke', { token: x.refresh || x.access }); } catch (e) { /* bỏ qua */ } throw coded('SCOPE', 'Google chưa cấp quyền Drive (ô quyền Drive chưa được tick). Đăng nhập lại và tick đủ các ô quyền.'); }
+      if (!x.refresh) throw new Error('Google không trả khóa làm mới phiên. Thử đăng nhập lại.');
+      const old = tok() || {};
+      saveTok({ email: x.email || '', refresh: x.refresh, access: x.access, exp: Date.now() + (x.expiresIn || 3000) * 1000, acc: old.email === x.email ? old.acc || '' : '', at: Date.now() });
+      return x.email || '';
     }
-    throw new Error('Mã đã hết hạn. Bấm đăng nhập lại để lấy mã mới.');
+    throw new Error('Hết thời gian chờ (5 phút). Bấm đăng nhập lại.');
   }
   async function logout() { // thu hồi (best-effort) + xóa token trên máy
     const t = tok(); lsDel(LS_TOK + userKey()); delete cache.token;
-    if (t && (t.refresh || t.access)) { try { await oauthPost('https://oauth2.googleapis.com/revoke', { token: t.refresh || t.access }); } catch (e) { /* offline vẫn coi là đã đăng xuất trên máy */ } }
+    if (t && (t.refresh || t.access)) { try { await need().api('ltGRevoke', { token: t.refresh || t.access }); } catch (e) { /* offline vẫn coi là đã đăng xuất trên máy */ } }
   }
 
   // ------------------------------------------------------------------ access token
@@ -94,14 +64,9 @@
     const t = tok(); if (!t || !t.refresh) throw coded('NOLOGIN', 'Chưa đăng nhập Gmail.');
     if (!force && t.access && t.exp > Date.now() + 60000) return t.access;
     if (cache.token) return cache.token;
-    const c = getCli(); if (!c.id) throw coded('NOCLIENT', 'Chưa nhập Client ID.');
     cache.token = (async () => {
-      let r; try { r = await oauthPost('https://oauth2.googleapis.com/token', Object.assign({ client_id: c.id, refresh_token: t.refresh, grant_type: 'refresh_token' }, c.secret ? { client_secret: c.secret } : {})); } catch (e) { throw new Error('Không kết nối được Google. Kiểm tra mạng.'); }
-      if (!r.ok || !r.json.access_token) {
-        if (r.json && r.json.error === 'invalid_grant') throw coded('RELINK', 'Phiên đăng nhập Google đã hết hạn hoặc bị thu hồi — hãy đăng xuất rồi đăng nhập lại.');
-        throw new Error('Không làm mới được phiên Google: ' + errText(r));
-      }
-      const n = Object.assign({}, tok() || t, { access: r.json.access_token, exp: Date.now() + (+r.json.expires_in || 3000) * 1000 }); saveTok(n); return n.access;
+      let r; try { r = await need().api('ltGRefresh', { refresh: t.refresh }); } catch (e) { if (e.code === 'RELINK') throw e; throw new Error(e.message || 'Không làm mới được phiên Google.'); }
+      const n = Object.assign({}, tok() || t, { access: r.access, exp: Date.now() + (r.expiresIn || 3000) * 1000 }); saveTok(n); return n.access;
     })();
     try { return await cache.token; } finally { delete cache.token; }
   }
@@ -164,8 +129,6 @@
   }
 
   window.LTG = {
-    cli: getCli, setCli,
-    configured: () => !!getCli().id,
     linked: () => { const t = tok(); return !!(t && t.refresh); },
     email: () => { const t = tok(); return t && t.email || ''; },
     account: () => { const t = tok(); return t && t.acc || ''; },

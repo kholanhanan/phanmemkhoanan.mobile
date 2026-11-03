@@ -6,7 +6,7 @@
 (function () {
   'use strict';
   const H = window.parent && window.parent !== window && window.parent.LTHost;
-  const G = window.LTG; // ĐT 1.19: đăng nhập Gmail / Drive cá nhân (lt-gdrive.js) — chỉ đọc
+  const G = window.LTG; // ĐT 1.25: đăng nhập Gmail / Drive cá nhân (lt-gdrive.js) — chỉ đọc
   const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
   const URL_RE = /\bhttps?:\/\/[^\s<>"']+/i;
   const WIRE = ['id', 'k', 'ng', 't', 'tx', 'fn', 'fs', 'mt', 'th', 'fid', 'bg', 'ts', 'up', 'dl', 'pn', 'tg', 'src'];
@@ -219,7 +219,7 @@
   setInterval(() => { if (loaded && !document.hidden && !sync.busy && sync.mode === 'lan' && lanCfg().on) runSync(); }, 3000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && loaded) runSync(); });
 
-  // ------------------------------------------------------------------ ĐT 1.19: lấy dữ liệu từ Drive CÁ NHÂN (Gmail) — chỉ đọc, trộn theo luật `up` lớn hơn thắng
+  // ------------------------------------------------------------------ ĐT 1.25: lấy dữ liệu từ Drive CÁ NHÂN (Gmail) — chỉ đọc, trộn theo luật `up` lớn hơn thắng
   // Bản ghi lấy về được đánh dấu gd=1 để khi đăng xuất có thể xóa riêng phần này (chỉ xóa bản ghi chưa bị sửa trên máy: pl = pd = 0).
   async function pullPersonal(account) {
     await load(); if (!G || !G.linked()) throw new Error('Chưa đăng nhập Gmail.');
@@ -249,7 +249,7 @@
     if (L.on && await lanUp()) {
       try { const res = await lanFetch('/lt/file/' + r.id, {}, 600000); if (res.ok) blob = await res.blob(); else lastErr = (await res.json().catch(() => ({}))).error || ''; } catch (e) { lastErr = e.message; }
     }
-    if (!blob && G && G.linked() && meta.gmap && meta.gmap[r.id]) { // ĐT 1.19: file nằm trong Drive cá nhân (Gmail)
+    if (!blob && G && G.linked() && meta.gmap && meta.gmap[r.id]) { // ĐT 1.25: file nằm trong Drive cá nhân (Gmail)
       try { blob = await G.download(meta.gmap[r.id], r.mt || mimeOf(r.fn)); } catch (e) { lastErr = e.message; }
     }
     if (!blob && r.fid && driveOk() && r.fs <= MAX_DRIVE) {
@@ -266,8 +266,9 @@
   // Khối "Drive cá nhân (Gmail)" trong hộp thoại cài đặt: đăng nhập (mã thiết bị) · lấy dữ liệu · đăng xuất.
   function gdriveBox(m, u) {
     const box = m.querySelector('#stGBox'); if (!box) return;
-    const e = u.esc, sig = { cancel: false }, st = { mode: 'home', dev: null, msg: '', bad: false, choices: null, busy: false, editCli: false };
+    const e = u.esc, sig = { cancel: false }, st = { mode: 'home', dev: null, msg: '', bad: false, choices: null, busy: false };
     const alive = () => m.isConnected;
+    const openUrl = (url) => { try { (window.parent || window).open(url, '_blank'); } catch (x) { window.location.href = url; } };
     const note = (t, bad) => '<p style="' + (bad ? 'color:var(--lt-red);' : '') + 'margin:6px 0 0;word-break:break-word">' + e(t) + '</p>';
     const btn = (id, t, pri) => '<button class="lt-btn' + (pri ? ' pri' : '') + '" id="' + id + '"' + (st.busy ? ' disabled' : '') + '>' + t + '</button>';
     function paint() {
@@ -275,10 +276,8 @@
       if (!G) { box.innerHTML = '<p>Thiếu module Drive cá nhân (lt-gdrive.js).</p>'; return; }
       let h = '';
       if (st.mode === 'code' && st.dev) {
-        h = '<p>Trên điện thoại (hoặc máy khác) mở trang bên dưới, nhập mã này rồi chọn Gmail của bạn và bấm <b>Cho phép</b> (tick đủ các ô quyền, nhất là quyền Drive):</p>' +
-          '<div style="font-size:30px;font-weight:700;letter-spacing:4px;text-align:center;margin:10px 0;user-select:all">' + e(st.dev.userCode) + '</div>' +
-          '<p style="text-align:center;margin:0 0 6px;word-break:break-all">' + e(st.dev.url) + '</p>' +
-          '<div class="lt-dlgbtn">' + btn('stGOpen', 'Mở trang Google', true) + btn('stGCopy', 'Sao chép mã') + btn('stGCancel', 'Hủy') + '</div>' + note('Đang chờ bạn cho phép… (mã có hiệu lực vài phút)');
+        h = '<p>Đã mở trang đăng nhập Google trên trình duyệt. Chọn <b>email của bạn</b>, bấm <b>Cho phép</b> (tick đủ các ô quyền, nhất là quyền Drive) rồi <b>quay lại app này</b> — app sẽ tự hoàn tất.</p>' +
+          '<div class="lt-dlgbtn">' + btn('stGOpen', 'Mở lại trang Google', true) + btn('stGCancel', 'Hủy') + '</div>' + note('Đang chờ bạn chọn email…');
       } else if (st.mode === 'confirmOut') {
         h = '<p>Đăng xuất <b>' + e(G.email() || 'email này') + '</b> khỏi Lưu trữ cá nhân?</p>' +
           '<label style="display:flex;gap:8px;align-items:flex-start;margin:8px 0"><input type="checkbox" id="stGDrop" style="margin-top:3px"><span>Đồng thời xóa khỏi điện thoại những mục đã lấy từ Drive này (mục bạn đã sửa / tự tạo trên máy được giữ lại).</span></label>' +
@@ -290,15 +289,9 @@
           (st.choices && st.choices.length ? '<p style="margin:6px 0 2px">Thư mục có trên Drive — bấm để chọn:</p><div class="lt-dlgbtn" style="flex-wrap:wrap;justify-content:flex-start">' + st.choices.map((c, i) => '<button class="lt-btn" data-gc="' + i + '">' + e(c) + '</button>').join('') + '</div>' : '') +
           '<div class="lt-dlgbtn" style="margin-top:8px">' + btn('stGPull', st.busy ? 'Đang lấy…' : 'Lấy dữ liệu từ Drive cá nhân', true) + btn('stGAsk', 'Đăng xuất email') + '</div>' +
           '<p style="margin:6px 0 0">Chỉ đọc: không ghi hay xóa gì trên Drive. File ảnh / tài liệu tải về khi bạn mở từng mục.</p>';
-      } else if (!G.configured() || st.editCli) {
-        const c = G.cli();
-        h = '<p>Nhập 1 lần. Tạo trong <b>cùng dự án Google Cloud</b> mà PC đang dùng cho Drive cá nhân: APIs &amp; Services › Credentials › Create credentials › OAuth client ID › loại <b>TVs and Limited Input devices</b>; bật Google Drive API.</p>' +
-          '<label>Client ID</label><input type="text" id="stGId" value="' + e(c.id) + '" autocapitalize="none" autocorrect="off" spellcheck="false">' +
-          '<label>Client secret</label><input type="text" id="stGSec" value="' + e(c.secret) + '" autocapitalize="none" autocorrect="off" spellcheck="false">' +
-          '<div class="lt-dlgbtn" style="margin-top:8px">' + (G.configured() ? btn('stGBack', 'Hủy') : '') + btn('stGSave', 'Lưu và đăng nhập Gmail', true) + '</div>';
       } else {
-        h = '<p>Chưa đăng nhập. Đăng nhập Gmail đã liên kết Drive cá nhân trên PC để lấy lại dữ liệu Lưu trữ cá nhân về điện thoại.</p>' +
-          '<div class="lt-dlgbtn" style="margin-top:6px">' + btn('stGCli', 'Đổi Client ID') + btn('stGIn', 'Đăng nhập Gmail', true) + '</div>';
+        h = '<p>Chưa đăng nhập. Chọn email Google đã liên kết Drive cá nhân trên PC để lấy lại dữ liệu Lưu trữ cá nhân về điện thoại.</p>' +
+          '<div class="lt-dlgbtn" style="margin-top:6px">' + btn('stGIn', 'Đăng nhập Gmail', true) + '</div>';
       }
       box.innerHTML = h + (st.msg ? note(st.msg, st.bad) : '');
     }
@@ -307,7 +300,7 @@
       st.busy = true; say('Đang xin mã từ Google…');
       try {
         st.dev = await G.startLogin(); st.mode = 'code'; st.busy = false; sig.cancel = false; say('');
-        try { (window.parent || window).open(st.dev.url, '_blank'); } catch (x) { /* người dùng tự mở */ }
+        openUrl(st.dev.url);
         const mail = await G.waitLogin(st.dev, sig); st.mode = 'home'; st.dev = null; say('✔ Đã đăng nhập ' + mail + '. Đang lấy dữ liệu…'); u.toast('Đã đăng nhập ' + mail);
         await pull();
       } catch (er) { st.mode = 'home'; st.dev = null; st.busy = false; if (er.code !== 'CANCEL') say(er.message, true); else say(''); }
@@ -330,15 +323,7 @@
       const id = t.id;
       if (t.dataset.gc !== undefined) { const a = box.querySelector('#stGAcc'); if (a) a.value = st.choices[+t.dataset.gc]; pull(); return; }
       if (id === 'stGIn') { login(); }
-      else if (id === 'stGCli') { st.editCli = true; st.msg = ''; paint(); }
-      else if (id === 'stGBack') { st.editCli = false; st.msg = ''; paint(); }
-      else if (id === 'stGSave') {
-        const i = box.querySelector('#stGId').value.trim(), s = box.querySelector('#stGSec').value.trim();
-        if (!/\.apps\.googleusercontent\.com$/i.test(i)) { say('Client ID phải có dạng …apps.googleusercontent.com', true); return; }
-        G.setCli(i, s); st.editCli = false; login();
-      }
-      else if (id === 'stGOpen') { try { (window.parent || window).open(st.dev.url, '_blank'); } catch (x) { /* bỏ qua */ } }
-      else if (id === 'stGCopy') { try { await navigator.clipboard.writeText(st.dev.userCode); u.toast('Đã sao chép mã.'); } catch (x) { u.toast('Không sao chép được — bạn gõ mã bằng tay.', true); } }
+      else if (id === 'stGOpen') { openUrl(st.dev.url); }
       else if (id === 'stGCancel') { sig.cancel = true; }
       else if (id === 'stGPull') { pull(); }
       else if (id === 'stGAsk') { st.mode = 'confirmOut'; st.msg = ''; paint(); }

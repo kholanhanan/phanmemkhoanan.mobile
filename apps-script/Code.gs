@@ -50,7 +50,7 @@ var TAB = {
   PX_LUUTRU: 'PhieuXuat_LuuTru', PXI_LUUTRU: 'PhieuXuatItems_LuuTru'
 };
 // Kho (mã giống cột "module" của phiếu) mà từng lệnh đọc dữ liệu cần — dùng để chặn token không được xem kho đó.
-var KHO_OF_ACTION = { tonKhoGui: 'M02', tonKho: 'M01', baoCaoM01: 'BC01', baoCaoM02: 'BC02', viTri: 'M01VT', viTriBot: 'M01VTB', tonKhoM03: 'M03', tonKhoM04: 'M04', m08: 'M08', ksSince: 'M08', lichXuat: 'LX', lichXuatGui: 'LX', c3dData: 'C3D', ltPull: 'LT', ltPush: 'LT', ltFilePut: 'LT', ltFileGet: 'LT' };
+var KHO_OF_ACTION = { tonKhoGui: 'M02', tonKho: 'M01', baoCaoM01: 'BC01', baoCaoM02: 'BC02', viTri: 'M01VT', viTriBot: 'M01VTB', tonKhoM03: 'M03', tonKhoM04: 'M04', m08: 'M08', ksSince: 'M08', lichXuat: 'LX', lichXuatGui: 'LX', c3dData: 'C3D', ltPull: 'LT', ltPush: 'LT', ltFilePut: 'LT', ltFileGet: 'LT', ltGInfo: 'LT', ltGPoll: 'LT', ltGExchange: 'LT', ltGRefresh: 'LT', ltGRevoke: 'LT' };
 // BC01 / BC02 = quyền xem trang "Báo cáo" trên điện thoại (file Excel Module 01 / Module 02) — KHÔNG phải kho hàng,
 // độc lập với quyền xem kho M01 / M02. Khớp PQ_KHO (main.js), KHO (cai-dat.js), REPORT_CFG + PQ_KHO (www/app.js).
 var ALL_KHO = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M08', 'BC01', 'BC02', 'LX', 'C3D', 'SCAN', 'QR', 'LT']; // LT = Lưu trữ cá nhân (PC 1.03 / ĐT 1.02: tin nhắn / ảnh / file riêng từng tài khoản, đồng bộ qua tab LT_<tên> + Drive) · QR = Tạo mã QR (PC 0.69 / ĐT 0.17) · SCAN = Scan tài liệu (PC 0.21 / ĐT 0.5) — chạy trên điện thoại, không đọc Sheet
@@ -140,7 +140,9 @@ var HUY = 'Lỗi - Đã hủy trên điện thoại';
 var DANG_SUA = 'Lỗi - Đang sửa trên điện thoại';
 var M2 = { maHang: 'Mã hàng', tenHang: 'Tên hàng', soLo: 'Số lô', size: 'Size', phieuNhap: 'Phiếu nhập/Voucher', soKien: 'Số kiện' };
 
-function doGet() {
+function doGet(e) {
+  var q = (e && e.parameter) || {};
+  if (q.state && (q.code || q.error)) return gdCallback_(q); // ĐT 1.25: Google chuyển hướng về đây sau khi người dùng chọn Gmail
   return json_({ ok: true, app: 'Kho Lạnh An An', message: 'Web App đang chạy. Ứng dụng điện thoại gọi bằng POST.' });
 }
 
@@ -232,6 +234,12 @@ function doPost(e) {
       case 'ltPush': return json_(ltPush_(ltTkOf_(user, req), req.rows));
       case 'ltFilePut': return json_(ltFilePut_(ltTkOf_(user, req), req.id, req.name, req.mime, req.b64));
       case 'ltFileGet': return json_(ltFileGet_(ltTkOf_(user, req), req.fid));
+      // ĐT 1.25 — liên kết Gmail / Drive cá nhân (Lưu trữ cá nhân): xem khối gd*_ ở cuối file.
+      case 'ltGInfo': return json_(gdInfo_());
+      case 'ltGPoll': return json_(gdPoll_(req.state));
+      case 'ltGExchange': return json_(gdExchange_(req.state, req.redirect));
+      case 'ltGRefresh': return json_(gdRefresh_(req.refresh));
+      case 'ltGRevoke': return json_(gdRevoke_(req.token));
       case 'baoCaoM01': return json_(getBaoCao_(TAB.M01_BAOCAO));
       case 'baoCaoM02': return json_(getBaoCao_(TAB.M02_BAOCAO));
       case 'phieu': return json_(getPhieu_(user));
@@ -248,6 +256,9 @@ function doPost(e) {
       case 'pc.archive': return json_(pcArchive_(req.days));
       case 'pc.ksUpsert': return json_(pcKsUpsert_(req.rows, req.dels, req.full));
       // LƯU TRỮ CÁ NHÂN (PC 1.03): PC đẩy / kéo giúp từng tài khoản (tk = tên người dùng chữ thường).
+      // PC 2.07 — Drive cá nhân: Client ID / Secret OAuth dùng chung, lưu trong Thuộc tính tập lệnh (KHÔNG nằm trong Sheet) để máy PC mới tự lấy về.
+      case 'pc.driveClientGet': return json_(pcDriveClientGet_());
+      case 'pc.driveClientSet': return json_(pcDriveClientSet_(req.clientId, req.clientSecret));
       case 'pc.ltPull': return json_(ltPull_(ltTk_(req.tk), req.since, req.limit));
       case 'pc.ltPush': return json_(ltPush_(ltTk_(req.tk), req.rows));
       case 'pc.ltFilePut': return json_(ltFilePut_(ltTk_(req.tk), req.id, req.name, req.mime, req.b64));
@@ -1235,6 +1246,23 @@ function assertPcTab_(name) {
   if (PC_ALLOWED_TABS.indexOf(name) < 0) throw new Error('Không được phép thao tác tab "' + name + '".');
 }
 
+// PC 2.07 — Drive cá nhân: Client ID / Client secret (OAuth, loại Desktop app) lưu ở Thuộc tính tập lệnh DRIVE_CLIENT_ID / DRIVE_CLIENT_SECRET.
+// Chỉ app PC có PC_TOKEN gọi được (đã kiểm ở doPost); app điện thoại không có đường tới đây. Secret để trống khi lưu = giữ secret cũ.
+function pcDriveClientGet_() {
+  var p = PropertiesService.getScriptProperties();
+  var id = String(p.getProperty('DRIVE_CLIENT_ID') || '').trim();
+  if (!id) return { ok: true, empty: true };
+  return { ok: true, clientId: id, clientSecret: String(p.getProperty('DRIVE_CLIENT_SECRET') || '') };
+}
+function pcDriveClientSet_(clientId, clientSecret) {
+  var id = String(clientId || '').trim();
+  if (!id) throw new Error('Thiếu Client ID.');
+  var p = PropertiesService.getScriptProperties();
+  p.setProperty('DRIVE_CLIENT_ID', id);
+  if (String(clientSecret || '').trim()) p.setProperty('DRIVE_CLIENT_SECRET', String(clientSecret).trim());
+  return { ok: true };
+}
+
 // tabs: { tenTab: [tiêu đề...] | null }
 function pcEnsureTabs_(tabs) {
   Object.keys(tabs || {}).forEach(function (name) {
@@ -1634,4 +1662,72 @@ function ltFileGet_(tk, fid) {
   if (f.getSize() > LT_FILE_MAX) throw new Error('File lớn hơn ' + Math.round(LT_FILE_MAX / 1048576) + ' MB — dùng mạng LAN.');
   var b = f.getBlob();
   return { ok: true, name: f.getName(), mime: b.getContentType(), b64: Utilities.base64Encode(b.getBytes()) };
+}
+
+// ============================================================================================================
+// ĐT 1.25 — LIÊN KẾT GMAIL / GOOGLE DRIVE CÁ NHÂN TRÊN ĐIỆN THOẠI (Lưu trữ cá nhân) — người dùng chỉ chọn email Google, không nhập gì.
+// Luồng: điện thoại mở trang đăng nhập Google (redirect_uri = địa chỉ /exec của Web App này) → Google chuyển về doGet (gdCallback_) kèm `code`
+// → mã được giữ 10 phút trong bộ nhớ đệm theo `state` ngẫu nhiên của điện thoại → điện thoại hỏi (ltGPoll) rồi nhờ Web App đổi mã lấy token (ltGExchange).
+// Client secret CHỈ nằm ở đây (Thuộc tính tập lệnh), không bao giờ xuống điện thoại. Quyền xin: drive.file + openid email (điện thoại chỉ ĐỌC Drive).
+// Cài đặt 1 lần (Thuộc tính tập lệnh): DRIVE_WEB_CLIENT_ID, DRIVE_WEB_CLIENT_SECRET — OAuth client loại "Web application" trong CÙNG dự án Google Cloud
+// với Drive cá nhân của PC, mục Authorized redirect URIs = địa chỉ Web App (…/exec). Sau khi dán Code.gs mới: Triển khai → Quản lý triển khai → Phiên bản mới.
+// ============================================================================================================
+function gdCfg_() {
+  var p = PropertiesService.getScriptProperties();
+  return { id: String(p.getProperty('DRIVE_WEB_CLIENT_ID') || '').trim(), secret: String(p.getProperty('DRIVE_WEB_CLIENT_SECRET') || '').trim() };
+}
+function gdState_(s) { s = String(s || ''); if (!/^[A-Za-z0-9_-]{16,80}$/.test(s)) throw new Error('Mã phiên đăng nhập không hợp lệ.'); return s; }
+function gdPost_(url, payload) {
+  var r = UrlFetchApp.fetch(url, { method: 'post', payload: payload, muteHttpExceptions: true });
+  var j = {}; try { j = JSON.parse(r.getContentText() || '{}'); } catch (e) { /* không phải JSON */ }
+  return { ok: r.getResponseCode() < 300, status: r.getResponseCode(), json: j };
+}
+function gdCallback_(q) {
+  var okState = /^[A-Za-z0-9_-]{16,80}$/.test(String(q.state || ''));
+  if (okState) CacheService.getScriptCache().put('gd_' + q.state, JSON.stringify({ code: String(q.code || ''), error: String(q.error || '') }), 600);
+  var good = okState && q.code && !q.error;
+  return HtmlService.createHtmlOutput('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="font-family:Arial,sans-serif;text-align:center;margin-top:16vh;padding:0 16px">' +
+    '<h2 style="color:' + (good ? '#0B6A3A' : '#B3261E') + '">' + (good ? 'Đã liên kết Google Drive' : 'Chưa liên kết được') + '</h2>' +
+    '<p>' + (good ? 'Quay lại ứng dụng Kho Lạnh An An để hoàn tất.' : 'Quay lại ứng dụng Kho Lạnh An An và thử lại.') + '</p></body>').setTitle('Kho Lạnh An An');
+}
+function gdInfo_() {
+  var c = gdCfg_();
+  if (!c.id || !c.secret) return { ok: true, ready: false, hint: 'Web App chưa có DRIVE_WEB_CLIENT_ID / DRIVE_WEB_CLIENT_SECRET (Thuộc tính tập lệnh). Nhờ người quản lý cài đặt rồi thử lại.' };
+  return { ok: true, ready: true, clientId: c.id };
+}
+function gdPoll_(state) {
+  var v = CacheService.getScriptCache().get('gd_' + gdState_(state));
+  if (!v) return { ok: true, status: 'wait' };
+  var o = {}; try { o = JSON.parse(v); } catch (e) { /* bỏ qua */ }
+  if (o.error || !o.code) return { ok: true, status: 'error', error: o.error || 'khong_co_ma' };
+  return { ok: true, status: 'done' };
+}
+function gdExchange_(state, redirect) {
+  state = gdState_(state);
+  if (!/^https:\/\/script\.google\.com\/[A-Za-z0-9_\/.-]*\/exec$/.test(String(redirect || ''))) throw new Error('Địa chỉ chuyển hướng không hợp lệ.');
+  var cache = CacheService.getScriptCache(), v = cache.get('gd_' + state);
+  if (!v) throw new Error('Chưa nhận được phản hồi từ Google (hết hạn?). Bấm đăng nhập lại.');
+  cache.remove('gd_' + state);
+  var o = {}; try { o = JSON.parse(v); } catch (e) { /* bỏ qua */ }
+  if (!o.code) throw new Error('Google báo lỗi: ' + (o.error || 'khong_co_ma'));
+  var c = gdCfg_(); if (!c.id || !c.secret) throw new Error('Web App chưa có DRIVE_WEB_CLIENT_ID / DRIVE_WEB_CLIENT_SECRET.');
+  var r = gdPost_('https://oauth2.googleapis.com/token', { code: o.code, client_id: c.id, client_secret: c.secret, redirect_uri: String(redirect), grant_type: 'authorization_code' });
+  if (!r.ok || !r.json.access_token) throw new Error('Google từ chối đổi mã: ' + (r.json.error_description || r.json.error || r.status));
+  var email = '';
+  try { var seg = String(r.json.id_token).split('.')[1]; while (seg.length % 4) seg += '='; email = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(seg)).getDataAsString()).email || ''; } catch (e) { /* không có email */ }
+  return { ok: true, refresh: r.json.refresh_token || '', access: r.json.access_token, expiresIn: Number(r.json.expires_in) || 3000, scope: String(r.json.scope || ''), email: email };
+}
+function gdRefresh_(refresh) {
+  var c = gdCfg_(); if (!c.id || !c.secret) throw new Error('Web App chưa có DRIVE_WEB_CLIENT_ID / DRIVE_WEB_CLIENT_SECRET.');
+  if (!refresh) throw new Error('Thiếu khóa làm mới.');
+  var r = gdPost_('https://oauth2.googleapis.com/token', { client_id: c.id, client_secret: c.secret, refresh_token: String(refresh), grant_type: 'refresh_token' });
+  if (!r.ok || !r.json.access_token) {
+    if (r.json.error === 'invalid_grant') return { ok: false, code: 'RELINK', error: 'Phiên đăng nhập Google đã hết hạn hoặc bị thu hồi — hãy đăng xuất rồi đăng nhập lại.' };
+    throw new Error('Không làm mới được phiên Google: ' + (r.json.error_description || r.json.error || r.status));
+  }
+  return { ok: true, access: r.json.access_token, expiresIn: Number(r.json.expires_in) || 3000 };
+}
+function gdRevoke_(token) {
+  if (token) { try { gdPost_('https://oauth2.googleapis.com/revoke', { token: String(token) }); } catch (e) { /* bỏ qua */ } }
+  return { ok: true };
 }

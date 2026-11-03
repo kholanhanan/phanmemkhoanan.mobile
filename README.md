@@ -248,6 +248,17 @@ Mặc định **Sáng** (xanh da trời). Đổi sang **Tối** (đỡ chói khi
 ## Lưu trữ cá nhân (ĐT 1.02)
 Cần dán lại `apps-script/Code.gs`, chạy 1 lần hàm `ltCapQuyen` (cấp quyền Drive), rồi Triển khai → Quản lý triển khai → Phiên bản mới. Quyền điện thoại: mã kho `LT`. Dùng LAN cần build lại APK / IPA (native-level 4).
 
+### Đăng nhập Gmail / lấy dữ liệu từ Drive cá nhân (ĐT 1.19)
+
+Bản PC sao lưu "M19 · Lưu trữ cá nhân" lên **Drive cá nhân** (`KhoLanh_AnAn/<tài khoản>/LuuTruCaNhan/`). Trên điện thoại: **Lưu trữ cá nhân → ⚙ → Drive cá nhân (Gmail)**:
+
+1. **Lần đầu**: nhập Client ID + Client secret loại **TVs and Limited Input devices**, tạo trong **cùng dự án Google Cloud** mà PC dùng cho Drive cá nhân (quyền `drive.file` chỉ thấy file do chính dự án đó tạo), và đã bật Google Drive API.
+2. **Đăng nhập Gmail**: app hiện một mã → mở trang Google, nhập mã, chọn Gmail, bấm Cho phép (tick đủ ô quyền Drive).
+3. **Lấy dữ liệu từ Drive cá nhân**: chỉ ĐỌC; tin nhắn / ngăn được trộn vào kho trên máy (mục nào sửa sau cùng thì thắng), file đính kèm tải khi mở. Nếu tên tài khoản trên PC khác tên đăng nhập app, sửa ô "Tên tài khoản trên PC" (app liệt kê sẵn các thư mục có trên Drive).
+4. **Đăng xuất email**: thu hồi + xóa khóa đăng nhập trên máy; có thể tick xóa luôn các mục đã lấy về từ Drive đó.
+
+File: `www/lt-gdrive.js` (OAuth + Drive, chỉ đọc) · `www/lt-backend.js` (trộn dữ liệu, giao diện cài đặt).
+
 ## Phân loại (ĐT 1.12 / PC 1.56)
 Tab **Báo cáo** có thêm mục **Phân loại**: tổng NET (kg) từng loại của Tồn kho An An (8 loại) và Tồn kho gửi (6 loại), chi tiết từng Size, bấm Size để xem các mã hàng. Thành Phẩm Chính có bộ lọc "Sắp hết" theo ngưỡng đặt trên PC. Dữ liệu do PC dựng sẵn và đẩy lên cùng file báo cáo (cần PC bản 1.56 trở lên; mở Module 01 / 02 rồi bấm "Đồng bộ ngay"). Dùng chung quyền Báo cáo, không cần cập nhật Code.gs.
 

@@ -143,6 +143,14 @@ là tab **Kho**, **Kho**, **Phiếu**, **Tra cứu**):
 PC nhận phiếu theo chu kỳ đặt ở Cài Đặt → Điện Thoại (mặc định 5 phút) **khi app PC đang mở**.
 Cần ngay thì bấm **"⬇ Lấy phiếu xuất mới"** trên PC.
 
+### Phiếu xuất ĐỒNG BỘ 2 CHIỀU (PC 4.58 / ĐT 1.31)
+- **Điện thoại → PC**: như trên. PC xem toàn bộ (kể cả phiếu chờ / đã hủy) ở **Phiếu xuất toàn hệ thống**.
+- **PC → điện thoại**: phiếu tạo trên PC (M01 Xuất hàng / Tồn theo vị trí / Vị trí Bột, M02, M03, M04) được PC ghi lên 2 tab mới
+  **PhieuXuat_PC / PhieuXuatItems_PC** mỗi lần đẩy kho; điện thoại xem ở **Phiếu › Từ PC** (chỉ xem + xuất file, không sửa / xóa; mỗi người chỉ
+  thấy phiếu của các kho được cấp). Phiếu xóa / hủy trên PC tự biến mất sau lần đồng bộ kế tiếp.
+- **Phải dán lại `apps-script/Code.gs` mới** vào Apps Script và **triển khai lại phiên bản** (Quản lý bản triển khai → Chỉnh sửa → Phiên bản mới).
+  Chưa cập nhật thì PC vẫn đồng bộ bình thường, chỉ là nhóm "Từ PC" trên điện thoại trống.
+
 ## Tổng hợp (Module 08) — chỉ xem, tra cứu
 
 Tab **Tổng hợp** ở thanh dưới, 4 menu con giống PC:

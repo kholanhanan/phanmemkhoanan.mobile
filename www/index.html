@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <title>Kho Lạnh An An</title>
 <link rel="stylesheet" href="fonts.css?v=1.18-20261030"><!-- font trong máy (offline) -->
-  <link rel="stylesheet" href="app.css?v=1.18-20261030">
+  <link rel="stylesheet" href="app.css?v=1.31-20261104">
   <link rel="stylesheet" href="kl-progress.css?v=1.18-20261030"><!-- ĐT 1.17: popup tiến trình chờ (dùng chung với PC) -->
   <link rel="stylesheet" href="c3d-phone.css?v=1.18-20261030">
   <link rel="stylesheet" href="scan.css?v=1.18-20261030"><!-- ĐT 0.5: Scan tài liệu (dùng chung với PC) -->
@@ -60,6 +60,7 @@
           <button type="button" role="tab" data-pseg="cho">Chờ PC <b id="pc-cho"></b></button>
           <button type="button" role="tab" data-pseg="nhan">Đã nhận <b id="pc-nhan"></b></button>
           <button type="button" role="tab" data-pseg="huy">Đã hủy <b id="pc-huy"></b></button>
+          <button type="button" role="tab" data-pseg="pc" title="Phiếu xuất tạo trên máy tính — chỉ xem">Từ PC <b id="pc-pc"></b></button><!-- ĐT 1.31 -->
         </div>
         <div id="phieuDraft"></div>
         <label class="toggle">
@@ -259,6 +260,6 @@
   <script src="lt-phone.js?v=1.25-20261103"></script><!-- Lưu trữ cá nhân (ĐT 1.02) -->
   <script src="scan-phone.js?v=1.18-20261030"></script><!-- Scan tài liệu: phần nối nhỏ; lõi + giao diện nạp khi mở tab --><!-- Xếp cont 3D: chỉ là phần giao diện nhỏ; three.js nạp khi mở tab -->
   <script src="kl-quet-core.js?v=1.30"></script><script src="kl-quet.js?v=1.30"></script><!-- ĐT 1.30: quét mã QR / mã vạch thông minh (ô tìm kiếm Tổng quan + công cụ Mã QR) -->
-  <script src="app.js?v=1.22-20261101"></script>
+  <script src="app.js?v=1.31-20261104"></script>
 </body>
 </html>

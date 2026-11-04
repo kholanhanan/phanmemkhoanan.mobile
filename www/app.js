@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '1.30 (04/11/2026)';
+  const APP_VERSION = '1.31 (04/11/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -181,7 +181,7 @@
     cfg: load(LS_CFG, { url: '', token: '', name: '' }),
     cart: load(LS_CART, null),           // { id, ghiChu, items: [{key, maHang, tenHang, soLo, size, phieuNhap, soKien, qty}] }
     tab: 'home',
-    phieuSeg: 'cho',                    // nhóm đang xem ở tab Phiếu: soan | cho | nhan | huy
+    phieuSeg: 'cho',                    // nhóm đang xem ở tab Phiếu: soan | cho | nhan | huy | pc (ĐT 1.31: phiếu do PC tạo — chỉ xem)
     pcf: {},                            // (bản 1.07) lọc nhiều cột danh sách phiếu: { cột: [giá trị] }
     phieuMonth: '',                     // (bản 1.4) lọc phiếu Đã nhận / Đã hủy theo tháng 'YYYY-MM' — rỗng = tất cả
     // Tab Kho MỞ APP vào kho mặc định "Tồn vị trí An An" (yêu cầu 30/10/2026; trước đó là "Tổng — tất cả kho", nay đã bỏ). Đổi kho trong lúc dùng
@@ -1947,7 +1947,9 @@
   }
 
   // ------------------------------------------------------------------ màn hình Phiếu đã gửi
-  const isHuy = (p) => String(p.trangThai || '').trim().startsWith('Lỗi - Đã hủy');
+  // ĐT 1.31: phiếu do PC tạo (Code.gs getPhieuPc_ → nguon = 'PC') — hiện ở nhóm "Từ PC", CHỈ XEM + xuất file, không sửa / xóa, không giữ hàng.
+  const isPc = (p) => String(p && p.nguon || '') === 'PC';
+  const isHuy = (p) => !isPc(p) && String(p.trangThai || '').trim().startsWith('Lỗi - Đã hủy');
   // Chỉ sửa / xóa được khi PC CHƯA nhận (trạng thái trống hoặc "Chưa xử lý"; "Đang sửa" = lần sửa trước bị dở).
   const phieuEditable = (p) => { const tt = String(p.trangThai || '').trim(); return tt === '' || tt === 'Chưa xử lý' || tt.startsWith('Lỗi - Đang sửa'); };
   // Mốc PC đẩy tồn của ĐÚNG kho chứa phiếu (Meta.lastPushAt_<M01|M01VT|M01VTB|M02|M03|M04>); thiếu thì dùng mốc chung.
@@ -1960,6 +1962,7 @@
   }
   function phieuStatus(p, lastPushAt) {
     const tt = String(p.trangThai || '').trim();
+    if (isPc(p)) return /Đã hủy/.test(tt) ? { cls: 'err', text: 'PC đã hủy trừ tồn' } : { cls: 'done', text: 'Tạo trên PC' };
     if (tt.startsWith('Lỗi - Đang sửa')) return { cls: 'wait', text: 'Đang sửa…' };
     if (tt.startsWith('Lỗi')) return { cls: 'err', text: tt };
     if (tt === 'Đã xử lý') {
@@ -2020,11 +2023,11 @@
     // ---- 4 nhóm: Đang soạn (trên máy) / Chờ PC / Đã nhận / Đã hủy ----
     const g = phieuGroups();
     const soanN = state.cart && state.cart.items.length ? 1 : 0;
-    const cnt = { soan: soanN, cho: g.cho.length, nhan: g.nhan.length, huy: g.huy.length };
+    const cnt = { soan: soanN, cho: g.cho.length, nhan: g.nhan.length, huy: g.huy.length, pc: g.pc.length };
     Object.keys(cnt).forEach((k) => { const el = $('pc-' + k); if (el) el.textContent = cnt[k] ? String(cnt[k]) : ''; });
     document.querySelectorAll('#phieuSeg [data-pseg]').forEach((b) => b.classList.toggle('is-on', b.dataset.pseg === state.phieuSeg));
     const seg = state.phieuSeg;
-    $('onlyMine').closest('.toggle').hidden = seg === 'soan';
+    $('onlyMine').closest('.toggle').hidden = seg === 'soan' || seg === 'pc';
     if (seg === 'soan') {
       list.innerHTML = '';
       if (!soanN) {
@@ -2055,7 +2058,7 @@
     // Phiếu quá 90 ngày PC tự chuyển sang tab lưu trữ trên Sheet nên không còn trong danh sách này.
     const monthOf = (p) => { const d = new Date(p.xuLyLuc || p.ngayTao); return isNaN(d) ? '' : d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
     let monthSel = '';
-    if (seg === 'nhan' || seg === 'huy') {
+    if (seg === 'nhan' || seg === 'huy' || seg === 'pc') {
       const months = Array.from(new Set(rows.map(monthOf).filter(Boolean))).sort().reverse();
       if (state.phieuMonth && months.indexOf(state.phieuMonth) < 0) state.phieuMonth = '';
       if (months.length > 1 || state.phieuMonth) {
@@ -2076,8 +2079,8 @@
       list.innerHTML = '';
       if (phieuBase.length) { meta.innerHTML += emptyHtml('Không có phiếu nào khớp bộ lọc cột', 'Chạm nút Lọc để bỏ bớt điều kiện.'); return; }
       if (anN) return;
-      meta.innerHTML = emptyHtml({ cho: 'Không có phiếu chờ PC', nhan: 'Chưa có phiếu PC đã nhận', huy: 'Không có phiếu đã hủy' }[seg],
-        { cho: 'Phiếu vừa gửi sẽ nằm ở đây cho tới khi PC bấm đồng bộ và nhận phiếu.', nhan: 'Phiếu PC đã nhận (đã trừ tồn) sẽ hiện ở đây.', huy: 'Phiếu bạn xóa trên điện thoại hoặc bị lỗi sẽ hiện ở đây.' }[seg]);
+      meta.innerHTML = emptyHtml({ cho: 'Không có phiếu chờ PC', nhan: 'Chưa có phiếu PC đã nhận', huy: 'Không có phiếu đã hủy', pc: 'Chưa có phiếu nào tạo trên PC' }[seg],
+        { cho: 'Phiếu vừa gửi sẽ nằm ở đây cho tới khi PC bấm đồng bộ và nhận phiếu.', nhan: 'Phiếu PC đã nhận (đã trừ tồn) sẽ hiện ở đây.', huy: 'Phiếu bạn xóa trên điện thoại hoặc bị lỗi sẽ hiện ở đây.', pc: 'Phiếu xuất tạo trên máy tính sẽ hiện ở đây sau khi PC bấm đồng bộ (các kho bạn được xem).' }[seg]);
       return;
     }
     list.innerHTML = rows.map((p) => {
@@ -2101,7 +2104,9 @@
         ${open ? `<dl class="details">
           ${p.ghiChu ? `<dt>Ghi chú</dt><dd>${esc(p.ghiChu)}</dd>` : ''}
           <dt></dt><dd><button type="button" class="btn btn-ghost" data-export="${esc(p.id)}" style="min-height:44px;font-size: calc(15px * var(--fs, 1));margin:4px 0">📄 Xuất file (PDF / Excel / Ảnh)</button></dd>
-          ${phieuEditable(p) && canEditPhieu(p)
+          ${isPc(p)
+            ? `<dt></dt><dd style="color:var(--muted);font-size: calc(13.5px * var(--fs, 1))">Phiếu do PC tạo — điện thoại chỉ xem và xuất file. Sửa / hủy phiếu: làm trên PC (${esc(SRC_DEST[modOf(String(p.module || '').trim())] || 'module tương ứng')}).</dd>`
+            : phieuEditable(p) && canEditPhieu(p)
             ? `<dt></dt><dd><button type="button" class="btn btn-ghost" data-edit="${esc(p.id)}" style="min-height:44px;font-size: calc(15px * var(--fs, 1));margin:4px 0">✏️ Sửa phiếu</button><button type="button" class="btn btn-danger" data-huy="${esc(p.id)}" style="min-height:44px;font-size: calc(15px * var(--fs, 1));margin:2px 0 4px">🗑 Xóa phiếu</button></dd>`
             : phieuEditable(p) ? `<dt></dt><dd style="color:var(--muted);font-size: calc(13.5px * var(--fs, 1))">${canCreate() ? 'Phiếu của người khác — chỉ người tạo hoặc quản lý mới sửa / xóa được.' : 'Phiếu đang chờ PC nhận. Cần sửa / xóa: báo người quản lý.'}</dd>`
             : (seg === 'huy'
@@ -2346,9 +2351,11 @@
     const list = (state.phieu && state.phieu.data && state.phieu.data.list) || [];
     const myId = String(state.cfg.user || '').trim().toLowerCase();
     const isMine = (p) => (p.nguoiDung && myId) ? String(p.nguoiDung).trim().toLowerCase() === myId : String(p.nguoiTao || '') === state.cfg.name;
-    const mine = state.cfg.name && $('onlyMine') && $('onlyMine').checked ? list.filter(isMine) : list;
+    const fromPc = list.filter(isPc); // ĐT 1.31: phiếu PC tạo — không thuộc "của tôi", không có Chờ / Đã nhận / Hủy
+    const own = list.filter((p) => !isPc(p));
+    const mine = state.cfg.name && $('onlyMine') && $('onlyMine').checked ? own.filter(isMine) : own;
     const lastPush = state.m02 && state.m02.data && state.m02.data.meta && state.m02.data.meta.lastPushAt;
-    const g = { cho: [], nhan: [], huy: [], anNhan: 0, anHuy: 0, cuNhan: 0 };
+    const g = { cho: [], nhan: [], huy: [], pc: fromPc, anNhan: 0, anHuy: 0, cuNhan: 0 };
     const meta = anyMeta();
     mine.forEach((p) => {
       const grp = isHuy(p) ? 'huy' : (() => { const st = phieuStatus(p, lastPushOfPhieu(p)); return st.cls === 'done' ? 'nhan' : st.cls === 'err' ? 'huy' : 'cho'; })();

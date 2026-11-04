@@ -28,6 +28,7 @@
  *
  * Quy ước dữ liệu PHẢI khớp với app PC (main.js + sheets-webapp-client.js):
  *   - Tab TonKho_M02 / TonKho_M01 / TonKho_M01_ViTri / TonKho_M01_ViTriBot / Meta: PC ghi đè, file này chỉ ĐỌC.
+ *   - Tab PhieuXuat_PC / PhieuXuatItems_PC (PC 4.58): phiếu xuất do chính PC tạo — PC ghi đè, file này chỉ ĐỌC (getPhieuPc_) để điện thoại XEM.
  *   - Tab PhieuXuat / PhieuXuatItems: file này THÊM dòng (trangThai = "Chưa xử lý"), PC đổi
  *     trangThai thành "Đã xử lý" + ghi xuLyLuc sau khi đã nhập phiếu vào Module 02.
  *   - Ghi dòng hàng (PhieuXuatItems) TRƯỚC, đầu phiếu (PhieuXuat) SAU — PC không bao giờ thấy
@@ -47,7 +48,8 @@ var TAB = {
   LX_YC: 'LichXuat_YeuCau', // (PC 7.63) hộp thư yêu cầu THÊM / CHUYỂN lịch từ điện thoại của Quản lý trở lên — PC kéo về xử lý (xem lxGui_)
   M02_BAOCAO: 'BaoCao_M02', // file Excel "Bảng Tổng Hợp" của Module 02 (cùng cách lưu)
   // LƯU TRỮ (pcArchive_): phiếu ĐÃ XONG quá N ngày chuyển khỏi 2 tab chính để tab không phình mãi
-  PX_LUUTRU: 'PhieuXuat_LuuTru', PXI_LUUTRU: 'PhieuXuatItems_LuuTru'
+  PX_LUUTRU: 'PhieuXuat_LuuTru', PXI_LUUTRU: 'PhieuXuatItems_LuuTru',
+  PXPC: 'PhieuXuat_PC', PXPCI: 'PhieuXuatItems_PC' // (PC 4.58) phiếu xuất TẠO TRÊN PC — PC ghi đè, điện thoại chỉ XEM (getPhieu_ gộp vào danh sách, nguon = 'PC')
 };
 // Kho (mã giống cột "module" của phiếu) mà từng lệnh đọc dữ liệu cần — dùng để chặn token không được xem kho đó.
 var KHO_OF_ACTION = { tonKhoGui: 'M02', tonKho: 'M01', baoCaoM01: 'BC01', baoCaoM02: 'BC02', viTri: 'M01VT', viTriBot: 'M01VTB', tonKhoM03: 'M03', tonKhoM04: 'M04', m08: 'M08', ksSince: 'M08', lichXuat: 'LX', lichXuatGui: 'LX', c3dData: 'C3D', ltPull: 'LT', ltPush: 'LT', ltFilePut: 'LT', ltFileGet: 'LT', ltGInfo: 'LT', ltGPoll: 'LT', ltGExchange: 'LT', ltGRefresh: 'LT', ltGRevoke: 'LT' };
@@ -852,7 +854,39 @@ function getPhieu_(user) {
     ih.forEach(function (name, j) { it[name] = r[j]; });
     p.items.push(it);
   });
+  // (PC 4.58) Phiếu xuất TẠO TRÊN PC (tab PhieuXuat_PC / PhieuXuatItems_PC do PC ghi đè mỗi lần đồng bộ) — gộp vào danh sách để điện thoại XEM.
+  // Chỉ đọc: nguon = 'PC', trạng thái "Tạo trên PC" (điện thoại không sửa / xóa được). Ai có quyền xem kho nào thì thấy phiếu PC của kho đó.
+  try { list = list.concat(getPhieuPc_(user)); } catch (e) { /* Code.gs mới nhưng PC chưa đẩy lần nào / tab chưa có: bỏ qua */ }
   return { ok: true, list: list };
+}
+// Phiếu tạo trên PC → cùng dạng với phiếu điện thoại + nguon: 'PC'. Mới nhất lên đầu, tối đa 150 phiếu (như phiếu điện thoại).
+function getPhieuPc_(user) {
+  var px = readTab_(TAB.PXPC);
+  if (!px.headers.length) return [];
+  var list = [];
+  for (var i = px.rows.length - 1; i >= 0 && list.length < 150; i--) {
+    var o = {};
+    var r = px.rows[i];
+    px.headers.forEach(function (name, j) { o[name] = r[j] instanceof Date ? r[j].toISOString() : r[j]; });
+    if (!String(o.id || '').trim()) continue;
+    var m = MODULES.indexOf(String(o.module || '').trim()) >= 0 ? String(o.module).trim() : '';
+    if (!m) continue;
+    if (user && !user.admin && user.kho.indexOf(m) < 0) continue;
+    o.nguon = 'PC';
+    list.push(o);
+  }
+  var want = {};
+  list.forEach(function (p) { p.items = []; want[String(p.id).trim()] = p; });
+  var pxi = readTab_(TAB.PXPCI);
+  var ih = pxi.headers, pidCol = ih.indexOf('phieuId');
+  pxi.rows.forEach(function (r) {
+    var p = want[String(pidCol >= 0 ? r[pidCol] : '').trim()];
+    if (!p) return;
+    var it = {};
+    ih.forEach(function (name, j) { it[name] = r[j]; });
+    p.items.push(it);
+  });
+  return list;
 }
 
 // Lấy tab theo tên, chưa có thì tạo; đảm bảo dòng tiêu đề có đủ các cột cần dùng.
@@ -1244,7 +1278,7 @@ function buildItemsVTB_(id, reqItems, pending) {
 // CÁC LỆNH DÀNH RIÊNG CHO APP PC (PC_TOKEN) — xem app/sheets-webapp-client.js
 // ============================================================================================
 var PC_ALLOWED_TABS = [TAB.PQ, TAB.M01, TAB.VITRI, TAB.VITRIBOT, TAB.M02, TAB.M03, TAB.M03_LSX, TAB.M04, TAB.META, TAB.PX, TAB.PXI,
-  TAB.M08_MAHOA, TAB.M08_MADATAO, TAB.M08_TONGHOP, TAB.M08_RADONG, TAB.M08_SIZE, TAB.M08_ANHXA, TAB.M08_KS, TAB.M08_KSXOA, TAB.M01_BAOCAO, TAB.M02_BAOCAO, TAB.LX, TAB.LX_THANG, TAB.LX_YC, TAB.LX_EM, TAB.C3D, TAB.PX_LUUTRU, TAB.PXI_LUUTRU];
+  TAB.M08_MAHOA, TAB.M08_MADATAO, TAB.M08_TONGHOP, TAB.M08_RADONG, TAB.M08_SIZE, TAB.M08_ANHXA, TAB.M08_KS, TAB.M08_KSXOA, TAB.M01_BAOCAO, TAB.M02_BAOCAO, TAB.LX, TAB.LX_THANG, TAB.LX_YC, TAB.LX_EM, TAB.C3D, TAB.PX_LUUTRU, TAB.PXI_LUUTRU, TAB.PXPC, TAB.PXPCI];
 function assertPcTab_(name) {
   if (PC_ALLOWED_TABS.indexOf(name) < 0) throw new Error('Không được phép thao tác tab "' + name + '".');
 }

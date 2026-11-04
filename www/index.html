@@ -43,6 +43,7 @@
         <label class="home-search">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
           <input type="search" id="homeSearch" placeholder="Tìm mã hàng trong tất cả kho" autocomplete="off" aria-label="Tìm mã hàng trong tất cả kho">
+          <button type="button" class="home-scan" id="homeScan" aria-label="Quét mã QR / mã vạch" title="Quét mã QR / mã vạch"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><path d="M7 12h10"/></svg></button>
         </label>
       </div>
       <div id="homeResults"></div>
@@ -257,6 +258,7 @@
   <script src="qr-phone.js?v=1.18-20261030"></script><!-- Tạo mã QR (ĐT 0.17) -->
   <script src="lt-phone.js?v=1.25-20261103"></script><!-- Lưu trữ cá nhân (ĐT 1.02) -->
   <script src="scan-phone.js?v=1.18-20261030"></script><!-- Scan tài liệu: phần nối nhỏ; lõi + giao diện nạp khi mở tab --><!-- Xếp cont 3D: chỉ là phần giao diện nhỏ; three.js nạp khi mở tab -->
+  <script src="kl-quet-core.js?v=1.30"></script><script src="kl-quet.js?v=1.30"></script><!-- ĐT 1.30: quét mã QR / mã vạch thông minh (ô tìm kiếm Tổng quan + công cụ Mã QR) -->
   <script src="app.js?v=1.22-20261101"></script>
 </body>
 </html>

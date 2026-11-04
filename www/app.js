@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '1.22 (01/11/2026)';
+  const APP_VERSION = '1.30 (04/11/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -4221,6 +4221,14 @@
   $('homeSearch').addEventListener('input', (e) => {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => { state.q.home = e.target.value; renderHomeSearch(); }, 150);
+  });
+  // ĐT 1.30: nút quét mã QR / mã vạch trong ô tìm kiếm Tổng quan — quét xong HIỆN thẻ kết quả (loại · nội dung · ô sửa) để xác nhận rồi mới tìm.
+  $('homeScan').addEventListener('click', () => {
+    if (!window.KlQuet) { toast('Chưa nạp được bộ quét mã — thử lại sau.'); return; }
+    KlQuet.config({ zx: new URL('lib/zxing-library.js', location.href).href });
+    KlQuet.open({ title: 'Quét mã hàng', mode: 'confirm', actionLabel: 'Tìm trong kho', onPick: (v) => {
+      const i = $('homeSearch'); i.value = v; state.q.home = v; renderHomeSearch(); try { i.scrollIntoView({ block: 'nearest' }); } catch (e) { /* bỏ qua */ }
+    } });
   });
   $('xuatFilterBtn').addEventListener('click', () => openColFilterSheet('xuat'));
 

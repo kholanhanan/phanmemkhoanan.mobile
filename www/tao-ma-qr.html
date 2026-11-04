@@ -193,7 +193,7 @@ body.ph .tabs button{padding:9px 12px}
     <div class="grid2">
       <div>
         <div class="card">
-          <h2>Nội dung mã QR</h2>
+          <h2>Nội dung mã QR <button type="button" class="btn small" id="btnScanQr" style="float:right" title="Quét mã QR / mã vạch bằng camera hoặc từ ảnh rồi điền vào ô nội dung">Quét mã</button></h2>
           <div class="chips" id="typeChips"></div>
           <div id="typeFields"></div>
           <div class="hint" id="typeHint"></div>
@@ -2652,6 +2652,27 @@ renderTab1();
 renderBatch();
 (function(){const h=(location.hash||'').slice(1);if(['p1','p2','p3','p4'].indexOf(h)>=0)showTab(h);})();
 window.addEventListener('beforeprint',()=>{if($('#p3').classList.contains('active'))applyScale();});
+</script>
+
+<!-- PC 4.51 / ĐT 1.30: QUÉT MÃ THÔNG MINH — nút "Quét mã" ở thẻ Nội dung mã QR: quét QR / mã vạch (camera hoặc ảnh) rồi ĐIỀN vào ô nội dung; loại nội dung tự chọn đúng chip (liên kết, điện thoại, email, mã sản phẩm, văn bản) -->
+<script src="kl-quet-core.js?v=1.30"></script>
+<script src="kl-quet.js?v=1.30"></script>
+<script>
+(function(){
+  if(!window.KlQuet||!window.KlQuetCore)return;
+  KlQuet.config({zx:new URL('lib/zxing-library.js',location.href).href});
+  function applyScanned(text,info){
+    info=info||KlQuetCore.classify(text);const f=info.fields||{};let type='text';
+    if(info.kind==='url'){type='url';vals.url=f.url||text;}
+    else if(info.kind==='tel'){type='phone';vals.phone=f.tel||text;}
+    else if(info.kind==='email'){type='email';vals.to=f.to||'';vals.subject=f.subject||'';vals.body=f.body||'';}
+    else if(info.kind==='ean'||info.kind==='code'){type='product';vals.product=text.trim();}
+    else{type='text';vals.text=text;}
+    curType=type;persist();buildTypeUI();renderTab1();showTab('p1');
+    toast('Đã điền từ mã quét ('+info.label+(info.fmt&&info.fmt!==info.label?' · '+info.fmt:'')+')');
+  }
+  const b=$('#btnScanQr');if(b)b.onclick=()=>KlQuet.open({title:'Quét mã để điền vào ô tạo mã',mode:'fill',actionLabel:'Điền vào ô tạo mã',onPick:(v,info,raw)=>applyScanned(raw,info)});
+})();
 </script>
 </body>
 </html>

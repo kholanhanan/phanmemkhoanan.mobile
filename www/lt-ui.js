@@ -207,7 +207,7 @@
   function renderStatus() {
     var st = S.status; if (!st) return;
     var txt = 'Đồng bộ…';
-    if (PHONE) txt = st.busy ? 'Đang đồng bộ…' : st.err ? 'Chưa đồng bộ được' : st.mode === 'lan' ? 'Đã đồng bộ qua mạng LAN' : st.mode === 'drive' ? 'Đã đồng bộ qua Drive' : st.pend ? st.pend + ' chờ đồng bộ' : 'Sẵn sàng';
+    if (PHONE) txt = st.busy ? 'Đang đồng bộ…' : st.err ? 'Chưa đồng bộ được' : st.mode === 'lan' ? 'Đã đồng bộ qua mạng LAN' : st.mode === 'gdrive' ? 'Đã đồng bộ qua Drive cá nhân' : st.mode === 'drive' ? 'Đã đồng bộ qua Drive' : st.pend ? st.pend + ' chờ đồng bộ' : 'Sẵn sàng';
     else {
       var d = st.drive || {}, l = st.lan || {}, a = [];
       a.push(d.busy ? 'Drive: đang đồng bộ…' : !d.on ? 'Drive: tắt' : !d.ready ? 'Drive: chưa cài' : d.ok === false ? 'Drive: lỗi' : d.last ? 'Drive: ' + fmtT(d.last) : 'Drive: chưa chạy');

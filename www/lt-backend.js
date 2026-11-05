@@ -1,6 +1,7 @@
 /* LƯU TRỮ CÁ NHÂN — phần nối ĐIỆN THOẠI (ĐT 1.02): giao diện (lt-ui.js, dùng chung với PC) gọi window.LTB.
    Dữ liệu lưu TRÊN MÁY bằng IndexedDB (kl_luutru_<tài khoản>): bảng recs (tin / ngăn), blobs (file đã có trên máy), meta (mốc đồng bộ).
-   Đồng bộ — phương án C: ưu tiên LAN (PC bật "máy chủ LAN" trong Lưu trữ cá nhân), không tới được PC thì dùng Google Drive qua Web App (lệnh ltPull / ltPush / ltFilePut / ltFileGet).
+   Đồng bộ (ĐT 1.32): ưu tiên LAN (PC bật "máy chủ LAN"); không tới được PC thì đồng bộ 2 CHIỀU qua Drive CÁ NHÂN (Gmail, cùng tài khoản với PC): kéo data.json + files/ do PC sao lưu,
+   đẩy các mục điện thoại đã thêm / sửa / xóa vào LuuTruCaNhan/phone/ (PC tự đọc về). Đường Google Sheet / Apps Script cũ (ltPull / ltPush) KHÔNG còn dùng vì PC không đọc nữa.
    Quy tắc bản ghi GIỐNG HỆT PC (core/luu-tru.js): bản ghi có `up` lớn hơn thắng; dl 0 bình thường · 1 thùng rác · 2 xóa hẳn; kéo theo số thứ tự `sq` do nơi lưu cấp.
    Cờ riêng của điện thoại trên mỗi bản ghi: pl = còn phải đẩy cho PC qua LAN · pd = còn phải đẩy lên Drive · lb = file đã có trên máy · lu = file đã gửi PC. */
 (function () {
@@ -10,7 +11,7 @@
   const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
   const URL_RE = /\bhttps?:\/\/[^\s<>"']+/i;
   const WIRE = ['id', 'k', 'ng', 't', 'tx', 'fn', 'fs', 'mt', 'th', 'fid', 'bg', 'ts', 'up', 'dl', 'pn', 'tg', 'src'];
-  const MAX_DRIVE = 15 * 1048576, MAX_LOCAL = 500 * 1048576;
+  const MAX_DRIVE = 15 * 1048576, MAX_GD = 100 * 1048576, MAX_LOCAL = 500 * 1048576;   // MAX_GD (ĐT 1.32): file lớn nhất đẩy lên Drive cá nhân
   const MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', pdf: 'application/pdf', xls: 'application/vnd.ms-excel',
     xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', txt: 'text/plain', csv: 'text/csv', zip: 'application/zip' };
   const noAcc = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
@@ -172,30 +173,40 @@
       if (!j.more) break;
     }
   }
-  async function syncDrive() {
-    const api = (a, x) => need().api(a, x);
-    for (let guard = 0; guard < 100; guard++) {
-      const pend = Array.from(R.values()).filter((r) => r.pd && r.id !== 'mydocs').sort((a, b) => a.up - b.up).slice(0, 30);
-      if (!pend.length) break;
+  // ĐT 1.32 — đồng bộ 2 chiều qua Drive cá nhân (Gmail). Thứ tự: đẩy trước (file → outbox.json) rồi kéo bản PC.
+  async function syncGdrive() {
+    const acc = G.account() || G.defaultAccount();
+    const pend = Array.from(R.values()).filter((r) => r.pd && r.id !== 'mydocs').sort((a, b) => a.up - b.up);
+    if (pend.length) {
       const snap = pend.map((r) => r.up);
       for (const r of pend) {
-        if (r.k === 'm' && r.t !== 'text' && r.dl === 0 && !r.fid && !r.bg && r.lb) {
-          if (r.fs > MAX_DRIVE) { r.bg = 1; continue; }
+        if (r.k === 'm' && r.t !== 'text' && r.dl === 0 && r.lb && !r.gu) {
+          if (r.fs > MAX_GD) { r.bg = 1; continue; }                       // quá lớn cho Drive: chỉ chuyển được qua LAN
           const b = await blobGet(r.id); if (!b) continue;
-          const up = await api('ltFilePut', { id: r.id, name: r.fn, mime: r.mt, b64: await blobToB64(b) }); r.fid = up.fid;
+          await G.putFile(acc, r.id, r.fn, b, r.mt); r.gu = 1;
         }
       }
-      await api('ltPush', { rows: pend.map(wire) });
-      pend.forEach((r, i) => { if (r.up === snap[i]) r.pd = 0; }); // pl giữ nguyên: khi tới được PC qua LAN vẫn đẩy để PC có file
-      await dbPutMany(pend);
+      meta.outbox = meta.outbox || {};
+      pend.forEach((r) => { meta.outbox[r.id] = wire(r); });
+      await G.putOutbox(acc, { v: 1, at: Date.now(), recs: meta.outbox });
+      pend.forEach((r, i) => { if (r.up === snap[i]) r.pd = 0; });          // pl giữ nguyên: về tới LAN vẫn đẩy để PC có file lớn
+      await dbPutMany(pend); await saveMeta();
     }
-    for (let loops = 0; loops < 100; loops++) {
-      const j = await api('ltPull', { since: meta.drvSince, limit: 300, readOnly: true }), ch = [];
-      (j.rows || []).forEach((w) => { const r = merge(w, 'drv'); if (r) ch.push(r); });
-      if (ch.length) { await dbPutMany(ch); bump(); }
-      meta.drvSince = +j.seq || meta.drvSince; await saveMeta();
-      if (!j.more) break;
-    }
+    const d = await G.fetchData(acc, { sinceMod: meta.gMod });
+    const res = d.unchanged ? { account: acc, total: 0, added: 0, files: 0 } : await applyPc(d);
+    res.pushed = pend.length; return res;
+  }
+  // Trộn bản PC (data.json) vào kho trên máy + dọn outbox những mục PC đã nhận.
+  async function applyPc(d) {
+    const ch = []; let total = 0; meta.outbox = meta.outbox || {};
+    Object.keys(d.obj.recs).forEach((id) => {
+      const w = d.obj.recs[id]; if (!w || id === 'mydocs') return; total++;
+      const o = meta.outbox[id]; if (o && ((+w.up || 0) > o.up || ((+w.up || 0) === o.up && (+w.dl || 0) >= (+o.dl || 0)))) delete meta.outbox[id];   // PC đã có bản này (hoặc mới hơn)
+      const r = merge(Object.assign({}, w, { id: w.id || id }), 'gd'); if (r) { r.gd = 1; ch.push(r); }
+    });
+    if (ch.length) { await dbPutMany(ch); bump(); }
+    meta.gmap = Object.assign(meta.gmap || {}, d.fileMap); meta.gAt = Date.now(); meta.gMod = d.mod || ''; await saveMeta();
+    return { account: d.account, total, added: ch.length, files: Object.keys(d.fileMap).length };
   }
   async function runSync() {
     if (sync.busy) return { ok: false, error: 'Đang đồng bộ, chờ một lát.' };
@@ -204,10 +215,10 @@
       const L = lanCfg(); let lanErr = '';
       if (L.on && await lanUp()) {
         try { await syncLan(); sync.mode = 'lan'; sync.last = Date.now(); return { ok: true, mode: 'lan' }; }
-        catch (e) { if (e.code === 'AUTH' || e.code === 'FORBIDDEN') throw e; lanErr = e.message; } // lỗi giữa chừng → thử Drive
+        catch (e) { if (e.code === 'AUTH' || e.code === 'FORBIDDEN') throw e; lanErr = e.message; } // lỗi giữa chừng → thử Drive cá nhân
       }
-      if (driveOk()) { await syncDrive(); sync.mode = 'drive'; sync.last = Date.now(); return { ok: true, mode: 'drive' }; }
-      throw new Error(lanErr || (L.on ? 'Không tới được PC qua LAN và chưa cài kết nối Drive.' : 'Chưa cài đặt kết nối (LAN hoặc Drive).'));
+      if (G && G.linked()) { await syncGdrive(); sync.mode = 'gdrive'; sync.last = Date.now(); return { ok: true, mode: 'gdrive' }; }
+      throw new Error(lanErr || (L.on ? 'Không tới được PC qua LAN. Ra ngoài wifi thì đăng nhập Gmail (Drive cá nhân) trong ⚙ để đồng bộ.' : 'Chưa cài đặt kết nối: nhập địa chỉ PC (LAN) hoặc đăng nhập Gmail (Drive cá nhân) trong ⚙.'));
     } catch (e) {
       sync.err = /Failed to fetch|NetworkError|Load failed/i.test(e.message) ? 'Không kết nối được mạng.' : e.message; return { ok: false, error: sync.err };
     } finally { sync.busy = false; bump(); }
@@ -217,20 +228,20 @@
   setInterval(() => { if (loaded && !document.hidden && !sync.busy) runSync(); }, 60000); // Drive / thử lại: 60 giây, hoặc bấm tay
   // ĐT 1.04 — đang nối được PC qua LAN thì hỏi PC mỗi 3 giây (nhẹ: không có gì mới thì PC trả rỗng) → tin mới tới gần như tức thì. Mất LAN thì tự về 60 giây.
   setInterval(() => { if (loaded && !document.hidden && !sync.busy && sync.mode === 'lan' && lanCfg().on) runSync(); }, 3000);
+  // ĐT 1.32 — đang đồng bộ qua Drive cá nhân thì hỏi mỗi 20 giây (1 lần gọi nhẹ: so giờ sửa data.json); không có gì mới thì không tải gì
+  setInterval(() => { if (loaded && !document.hidden && !sync.busy && sync.mode === 'gdrive') runSync(); }, 20000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && loaded) runSync(); });
 
   // ------------------------------------------------------------------ ĐT 1.25: lấy dữ liệu từ Drive CÁ NHÂN (Gmail) — chỉ đọc, trộn theo luật `up` lớn hơn thắng
   // Bản ghi lấy về được đánh dấu gd=1 để khi đăng xuất có thể xóa riêng phần này (chỉ xóa bản ghi chưa bị sửa trên máy: pl = pd = 0).
-  async function pullPersonal(account) {
+  async function pullPersonal(account) { // nút "Đồng bộ ngay qua Drive cá nhân" trong ⚙: ép chạy đường Drive (kéo lại toàn bộ data.json) dù đang ở cùng wifi với PC
     await load(); if (!G || !G.linked()) throw new Error('Chưa đăng nhập Gmail.');
-    const d = await G.fetchData(account), ch = []; let total = 0;
-    Object.keys(d.obj.recs).forEach((id) => {
-      const w = d.obj.recs[id]; if (!w || id === 'mydocs') return; total++;
-      const r = merge(Object.assign({}, w, { id: w.id || id }), 'gd'); if (r) { r.gd = 1; ch.push(r); }
-    });
-    if (ch.length) { await dbPutMany(ch); bump(); }
-    meta.gmap = Object.assign(meta.gmap || {}, d.fileMap); meta.gAt = Date.now(); await saveMeta();
-    return { account: d.account, total, added: ch.length, files: Object.keys(d.fileMap).length };
+    if (sync.busy) throw new Error('Đang đồng bộ, chờ một lát.');
+    sync.busy = true; sync.err = '';
+    try {
+      if (account) G.setAccount(account);
+      meta.gMod = ''; const r = await syncGdrive(); sync.mode = 'gdrive'; sync.last = Date.now(); return r;
+    } catch (e) { sync.err = e.message; throw e; } finally { sync.busy = false; bump(); }
   }
   async function dropPersonal() { // gỡ dữ liệu đã lấy từ Drive cá nhân (giữ lại mục đã sửa / mới tạo trên máy)
     await load(); let n = 0;
@@ -287,10 +298,10 @@
         h = '<p>Đã đăng nhập: <b>' + e(G.email() || '(không rõ email)') + '</b></p>' +
           '<label>Tên tài khoản trên PC (thư mục ' + 'KhoLanh_AnAn/…' + ')</label><input type="text" id="stGAcc" value="' + e(t) + '" autocapitalize="none" autocorrect="off" spellcheck="false">' +
           (st.choices && st.choices.length ? '<p style="margin:6px 0 2px">Thư mục có trên Drive — bấm để chọn:</p><div class="lt-dlgbtn" style="flex-wrap:wrap;justify-content:flex-start">' + st.choices.map((c, i) => '<button class="lt-btn" data-gc="' + i + '">' + e(c) + '</button>').join('') + '</div>' : '') +
-          '<div class="lt-dlgbtn" style="margin-top:8px">' + btn('stGPull', st.busy ? 'Đang lấy…' : 'Lấy dữ liệu từ Drive cá nhân', true) + btn('stGAsk', 'Đăng xuất email') + '</div>' +
-          '<p style="margin:6px 0 0">Chỉ đọc: không ghi hay xóa gì trên Drive. File ảnh / tài liệu tải về khi bạn mở từng mục.</p>';
+          '<div class="lt-dlgbtn" style="margin-top:8px">' + btn('stGPull', st.busy ? 'Đang đồng bộ…' : 'Đồng bộ ngay qua Drive cá nhân', true) + btn('stGAsk', 'Đăng xuất email') + '</div>' +
+          '<p style="margin:6px 0 0">Đồng bộ 2 chiều: app nhận dữ liệu PC đã sao lưu và gửi mục mới / sửa của điện thoại vào thư mục <b>LuuTruCaNhan/phone</b> để PC tự lấy về (không sửa hay xóa dữ liệu sao lưu của PC). File ảnh / tài liệu tải về khi bạn mở từng mục.</p>';
       } else {
-        h = '<p>Chưa đăng nhập. Chọn email Google đã liên kết Drive cá nhân trên PC để lấy lại dữ liệu Lưu trữ cá nhân về điện thoại.</p>' +
+        h = '<p>Chưa đăng nhập. Chọn email Google đã liên kết Drive cá nhân trên PC để đồng bộ 2 chiều Lưu trữ cá nhân giữa PC và điện thoại khi không cùng wifi.</p>' +
           '<div class="lt-dlgbtn" style="margin-top:6px">' + btn('stGIn', 'Đăng nhập Gmail', true) + '</div>';
       }
       box.innerHTML = h + (st.msg ? note(st.msg, st.bad) : '');
@@ -302,7 +313,7 @@
         st.dev = await G.startLogin(); st.mode = 'code'; st.busy = false; sig.cancel = false; say('');
         openUrl(st.dev.url);
         const mail = await G.waitLogin(st.dev, sig); st.mode = 'home'; st.dev = null; say('✔ Đã đăng nhập ' + mail + '. Đang lấy dữ liệu…'); u.toast('Đã đăng nhập ' + mail);
-        await pull();
+        await pull(); schedule();
       } catch (er) { st.mode = 'home'; st.dev = null; st.busy = false; if (er.code !== 'CANCEL') say(er.message, true); else say(''); }
     }
     async function pull() {
@@ -310,8 +321,8 @@
       const a = box.querySelector('#stGAcc'); st.busy = true; st.choices = null; paint();
       try {
         const r = await pullPersonal(a ? a.value.trim() : ''); st.busy = false;
-        say('✔ Thư mục “' + r.account + '”: ' + r.total + ' mục trên Drive, ' + (r.added ? 'lấy về ' + r.added + ' mục mới / cập nhật' : 'không có gì mới') + ' · ' + r.files + ' file đính kèm (tải khi mở).');
-        u.toast(r.added ? 'Đã lấy ' + r.added + ' mục từ Drive cá nhân.' : 'Không có mục mới.'); u.reload();
+        say('✔ Thư mục “' + r.account + '”: ' + (r.pushed ? 'đã gửi ' + r.pushed + ' mục của điện thoại cho PC · ' : '') + (r.added ? 'nhận ' + r.added + ' mục mới / cập nhật từ PC' : 'PC không có gì mới') + ' · ' + r.files + ' file đính kèm (tải khi mở).');
+        u.toast(r.added || r.pushed ? 'Đã đồng bộ qua Drive cá nhân.' : 'Không có mục mới.'); u.reload();
       } catch (er) {
         st.busy = false; if (er.code === 'ACCOUNT') st.choices = er.choices || [];
         if (er.code === 'RELINK' || er.code === 'NOLOGIN') { say(er.message, true); return; }
@@ -396,13 +407,14 @@
     // Hộp thoại cài đặt đồng bộ của điện thoại (lt-ui.js gọi khi bấm bánh răng)
     settingsDialog: function (u) {
       const L = lanCfg(), c = cfg(), est = pendCount();
-      u.dialog('<h3>Đồng bộ Lưu trữ cá nhân</h3><p class="sub">Dữ liệu luôn lưu trên điện thoại. Khi cùng wifi với PC, app đồng bộ thẳng với PC (nhanh, không giới hạn dung lượng); ra ngoài thì đồng bộ qua Google Drive.</p>' +
+      u.dialog('<h3>Đồng bộ Lưu trữ cá nhân</h3><p class="sub">Dữ liệu luôn lưu trên điện thoại. Khi cùng wifi với PC, app đồng bộ thẳng với PC (nhanh, không giới hạn dung lượng); ra ngoài thì đồng bộ 2 chiều qua Drive cá nhân (Gmail).</p>' +
         '<div class="lt-sec"><h4>' + u.svg('share') + ' Kết nối PC qua mạng LAN</h4><label>Địa chỉ PC (xem trong Lưu trữ cá nhân trên PC › Cài đặt)</label>' +
         '<input type="text" id="stLan" placeholder="http://192.168.1.50:47821" value="' + u.esc(L.url) + '" autocapitalize="none" autocorrect="off" spellcheck="false">' +
         '<p id="stLanMsg">Để trống nếu không dùng LAN. PC phải bật “máy chủ LAN” và tài khoản này cần quyền Lưu trữ cá nhân.</p>' +
         '<div class="lt-dlgbtn" style="margin-top:6px"><button class="lt-btn" id="stTest">Kiểm tra kết nối</button></div></div>' +
-        '<div class="lt-sec"><h4>' + u.svg('cloud') + ' Google Drive</h4><p>' + (driveOk() ? 'Dùng chung kết nối Web App của app (đã đăng nhập). File lớn hơn <b>15 MB</b> không đi qua Drive — chỉ tải được qua LAN.' : 'Chưa có kết nối Web App — vào Cài đặt của app để nhập.') + '</p>' +
-        '<p>Trạng thái: ' + (sync.busy ? 'đang đồng bộ…' : sync.err ? 'lỗi — ' + u.esc(sync.err) : sync.last ? 'lần gần nhất ' + u.fmtDT(sync.last) + ' (' + (sync.mode === 'lan' ? 'LAN' : 'Drive') + ')' : 'chưa đồng bộ') + ' · ' + est + ' mục chờ gửi</p></div>' +
+        '<div class="lt-sec"><h4>' + u.svg('cloud') + ' Trạng thái đồng bộ</h4>' +
+        '<p>' + (sync.busy ? 'đang đồng bộ…' : sync.err ? 'lỗi — ' + u.esc(sync.err) : sync.last ? 'lần gần nhất ' + u.fmtDT(sync.last) + ' (' + (sync.mode === 'lan' ? 'mạng LAN' : 'Drive cá nhân') + ')' : 'chưa đồng bộ') + ' · ' + est + ' mục chờ gửi</p>' +
+        '<p>Khi không cùng wifi với PC: đăng nhập Gmail ở mục bên dưới (cùng email đã liên kết Drive cá nhân trên PC). File lớn hơn <b>100 MB</b> chỉ chuyển được qua LAN.</p></div>' +
         '<div class="lt-sec"><h4>' + u.svg('cloudok') + ' Drive cá nhân (Gmail)</h4><div id="stGBox"></div></div>' +
         '<div class="lt-sec"><h4>' + u.svg('trash') + ' Bộ nhớ trên máy</h4><p>Giải phóng chỗ: xóa file đã tải về máy nhưng vẫn còn trên PC / Drive (tin nhắn và ảnh thu nhỏ giữ nguyên, mở lại sẽ tải lại).</p>' +
         '<div class="lt-dlgbtn" style="margin-top:6px"><button class="lt-btn" id="stFree">Giải phóng file đã đồng bộ</button></div></div>' +
@@ -412,7 +424,7 @@
         const save = () => { const v = norm(); if (v === null) { msg(m.querySelector('#stLan').dataset.bad, true); return null; } localStorage.setItem('kl_lt_lan', JSON.stringify({ on: !!v, url: v })); return v; };
         m.querySelector('#stNo').onclick = close;
         m.querySelector('#stOk').onclick = () => { if (save() === null) return; close(); u.toast('Đã lưu.'); runSync().then(u.reload); };
-        m.querySelector('#stNow').onclick = () => { if (save() === null) return; close(); u.toast('Đang đồng bộ…'); runSync().then((r) => { if (r.ok) u.toast('Đã đồng bộ qua ' + (r.mode === 'lan' ? 'mạng LAN' : 'Drive') + '.'); else u.toast(r.error, true); u.reload(); }); };
+        m.querySelector('#stNow').onclick = () => { if (save() === null) return; close(); u.toast('Đang đồng bộ…'); runSync().then((r) => { if (r.ok) u.toast('Đã đồng bộ qua ' + (r.mode === 'lan' ? 'mạng LAN' : 'Drive cá nhân') + '.'); else u.toast(r.error, true); u.reload(); }); };
         m.querySelector('#stTest').onclick = async () => {
           const v = save(); if (v === null) return; if (!v) { msg('Nhập địa chỉ PC trước.', true); return; } msg('Đang kiểm tra…');
           if (!(await lanUp())) { msg('Không tới được PC. Kiểm tra: cùng wifi, PC đang bật Lưu trữ cá nhân › Cài đặt › máy chủ LAN, địa chỉ + cổng đúng, tường lửa cho phép.', true); return; }

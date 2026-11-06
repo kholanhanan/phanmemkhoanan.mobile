@@ -6,6 +6,8 @@
 //   Bước 2 — KHỬ BÓNG + LÀM TRẮNG NỀN (backgroundMap → enhance): ước lượng độ sáng nền giấy bằng phép "đóng" hình thái học
 //            (xóa nét chữ / ô li mảnh nhưng GIỮ nguyên mép bóng đổ) rồi chia ra → nền giấy xám / vùng bóng về trắng, nét chữ còn nguyên.
 //   Bước 3 — BẢN IN: đưa nền về trắng, chữ về đen, tăng tương phản; có thể xóa ô li / dòng kẻ (giữ nét chữ cắt ngang); xuất ảnh / PDF.
+// PC 4.91 / ĐT 1.33: LÀM NHẠT DÒNG KẺ (fadeMask, thông số nhat) — bản in không còn chữ lẫn với viền: dòng kẻ / ô li (cả dòng mảnh đứt đoạn, lưới chấm) thành xám nhạt, nét chữ
+//   dày đè lên / dính vào dòng vẫn đen đậm. Mặc định bật (65) ở Trắng đen + Màu mực; Chữ tay đã xóa hẳn ô li nên để 0. nhat = 0 → y hệt bản cũ.
 // 4 chế độ: Màu · Trắng đen (ưu tiên, để photo) · Chữ tay · Tùy chỉnh (Gốc / Màu / Xám / Đen trắng + các thanh trượt).
 (function (global) {
   'use strict';
@@ -15,18 +17,18 @@
   var PDF_MAX_PAGES = 60;   // PDF dài hơn: chỉ lấy 60 trang đầu (máy yếu / điện thoại)
 
   // Thông số xử lý (mỗi trang có bản riêng): kieu = mau | xam | bw | goc · bong 0–100 (khử bóng) · trang 0–100 (độ trắng nền)
-  // · dam 0–100 (độ đậm chữ) · li = xóa ô li / dòng kẻ · gam = độ đậm vùng chữ mờ (<1 đậm hơn).
+  // · dam 0–100 (độ đậm chữ) · li = xóa ô li / dòng kẻ · nhat 0–100 (làm NHẠT dòng kẻ, chữ đè lên dòng vẫn đen) · gam = độ đậm vùng chữ mờ (<1 đậm hơn).
   var MODES = {
     mau: { ten: 'Màu', full: 'Chế độ tài liệu màu', tip: 'Tài liệu màu: khử bóng, làm trắng nền, giữ màu con dấu đỏ / bút xanh / hình ảnh.',
-           p: { kieu: 'mau', bong: 100, trang: 50, dam: 35, li: false, gam: 1 } },
-    bw:  { ten: 'Trắng đen', full: 'Chế độ trắng đen để photo (ưu tiên)', tip: 'Ưu tiên để in / photo: nền trắng tuyệt đối, chữ đen đậm, tiết kiệm mực, file PDF nhỏ.',
-           p: { kieu: 'bw', bong: 100, trang: 55, dam: 50, li: false, gam: 1 } },
-    muc: { ten: 'Màu mực', full: 'Chế độ giữ màu mực', tip: 'Nền trắng tuyệt đối, chữ giữ ĐÚNG MÀU bút (đen / xanh / đỏ) và đậm, rõ nét — hợp phiếu viết nhiều màu mực.',
-           p: { kieu: 'muc', bong: 100, trang: 55, dam: 50, li: false, gam: 1 } },
+           p: { kieu: 'mau', bong: 100, trang: 50, dam: 35, li: false, gam: 1, nhat: 0 } },
+    bw:  { ten: 'Trắng đen', full: 'Chế độ trắng đen để photo (ưu tiên)', tip: 'Ưu tiên để in / photo: nền trắng tuyệt đối, chữ đen đậm, dòng kẻ / ô li làm nhạt để chữ không lẫn với viền, tiết kiệm mực, file PDF nhỏ.',
+           p: { kieu: 'bw', bong: 100, trang: 55, dam: 50, li: false, gam: 1, nhat: 65 } },
+    muc: { ten: 'Màu mực', full: 'Chế độ giữ màu mực', tip: 'Nền trắng tuyệt đối, chữ giữ ĐÚNG MÀU bút (đen / xanh / đỏ) và đậm, rõ nét, dòng kẻ làm nhạt — hợp phiếu viết nhiều màu mực.',
+           p: { kieu: 'muc', bong: 100, trang: 55, dam: 50, li: false, gam: 1, nhat: 65 } },
     tay: { ten: 'Chữ tay', full: 'Chế độ giữ nét chữ viết tay', tip: 'Vở / giấy ghi tay: giữ nét bút (cả nét mờ, bút chì), nền trắng, tự xóa ô li để chữ nổi rõ.',
-           p: { kieu: 'xam', bong: 100, trang: 60, dam: 60, li: true, gam: 0.8 } },
+           p: { kieu: 'xam', bong: 100, trang: 60, dam: 60, li: true, gam: 0.8, nhat: 0 } },
     tuy: { ten: 'Tùy chỉnh', full: 'Chế độ tùy chỉnh', tip: 'Tự chọn kiểu (Gốc / Màu / Xám / Đen trắng) và chỉnh từng thanh trượt.',
-           p: { kieu: 'xam', bong: 80, trang: 50, dam: 50, li: false, gam: 1 } }
+           p: { kieu: 'xam', bong: 80, trang: 50, dam: 50, li: false, gam: 1, nhat: 0 } }
   };
   var KIEU = { goc: 'Gốc', mau: 'Màu', muc: 'Màu mực', xam: 'Xám', bw: 'Đen trắng' };
   var DEFAULT_MODE = 'bw';
@@ -39,7 +41,7 @@
     for (k in b) o[k] = (p && p[k] != null) ? p[k] : b[k];
     o.kieu = KIEU[o.kieu] ? o.kieu : b.kieu;
     o.bong = clampN(o.bong, 0, 100); o.trang = clampN(o.trang, 0, 100); o.dam = clampN(o.dam, 0, 100);
-    o.gam = clampN(o.gam, 0.4, 1.6); o.li = !!o.li;
+    o.gam = clampN(o.gam, 0.4, 1.6); o.li = !!o.li; o.nhat = clampN(o.nhat, 0, 100);
     return o;
   }
 
@@ -406,8 +408,8 @@
 
   // Mặt nạ Ô LI / DÒNG KẺ: đoạn thẳng ngang / dọc dài ≥ 5% cạnh ảnh và MẢNH (không phải mảng đen lớn) → bị xóa; điểm ảnh của đoạn
   // đó nằm sát nét chữ (chữ cắt ngang dòng kẻ) thì GIỮ LẠI để nét chữ không bị đứt. nv = độ sáng đã chuẩn hóa; thr = dưới mức này là "có mực".
-  function lineMask(nv, W, H, thr) {
-    var n = W * H, ink = new Uint8Array(n), lm = new Uint8Array(n), i, x, y;
+  function lineMask(nv, W, H, thr, sep) {
+    var n = W * H, ink = new Uint8Array(n), lm = new Uint8Array(n), i, x, y, lh = sep ? new Uint8Array(n) : null, lv = sep ? new Uint8Array(n) : null;
     for (i = 0; i < n; i++) ink[i] = nv[i] < thr ? 1 : 0;
     var T = Math.max(3, Math.round(Math.max(W, H) * 0.004)), Lh = Math.max(40, Math.round(W * 0.05)), Lv = Math.max(40, Math.round(H * 0.05));
     var run = function (get, len, stride, lineLen, nbA, nbB, set) {
@@ -428,14 +430,15 @@
       var row = yy * W, ya = yy - (T + 1), yb = yy + (T + 1);
       run(function (k) { return ink[row + k]; }, W, 1, Lh,
         function (k) { return ya >= 0 && ink[ya * W + k]; }, function (k) { return yb < H && ink[yb * W + k]; },
-        function (k) { lm[row + k] = 1; });
+        function (k) { lm[row + k] = 1; if (lh) lh[row + k] = 1; });
     })(y);
     for (x = 0; x < W; x++) (function (xx) {
       var xa = xx - (T + 1), xb = xx + (T + 1);
       run(function (k) { return ink[k * W + xx]; }, H, W, Lv,
         function (k) { return xa >= 0 && ink[k * W + xa]; }, function (k) { return xb < W && ink[k * W + xb]; },
-        function (k) { lm[k * W + xx] = 1; });
+        function (k) { lm[k * W + xx] = 1; if (lv) lv[k * W + xx] = 1; });
     })(x);
+    if (sep) return { h: lh, v: lv };
     // khôi phục điểm đường kẻ nằm sát nét chữ thật (mực không thuộc đường kẻ)
     var rm = new Uint8Array(lm);
     for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
@@ -443,6 +446,118 @@
       if ((x > 0 && ink[i - 1] && !lm[i - 1]) || (x < W - 1 && ink[i + 1] && !lm[i + 1]) || (y > 0 && ink[i - W] && !lm[i - W]) || (y < H - 1 && ink[i + W] && !lm[i + W])) rm[i] = 0;
     }
     return rm;
+  }
+
+  // Nở nhị phân: bán kính rx theo chiều ngang, ry theo chiều dọc (ry bỏ trống = rx). Cửa sổ trượt → tốc độ không phụ thuộc bán kính.
+  function dilateBin(a, W, H, rx, ry) {
+    if (ry == null) ry = rx;
+    var t = new Uint8Array(a.length), o = new Uint8Array(a.length), x, y, c, lo, hi;
+    for (y = 0; y < H; y++) {
+      var row = y * W; c = 0;
+      for (x = 0; x <= rx && x < W; x++) c += a[row + x];
+      for (x = 0; x < W; x++) {
+        t[row + x] = c > 0 ? 1 : 0;
+        hi = x + rx + 1; lo = x - rx;
+        if (hi < W) c += a[row + hi];
+        if (lo >= 0) c -= a[row + lo];
+      }
+    }
+    for (x = 0; x < W; x++) {
+      c = 0;
+      for (y = 0; y <= ry && y < H; y++) c += t[y * W + x];
+      for (y = 0; y < H; y++) {
+        o[y * W + x] = c > 0 ? 1 : 0;
+        hi = y + ry + 1; lo = y - ry;
+        if (hi < H) c += t[hi * W + x];
+        if (lo >= 0) c -= t[lo * W + x];
+      }
+    }
+    return o;
+  }
+  // Dòng kẻ MẢNH, đứt đoạn, có thể hơi nghiêng: gộp các mẩu mảnh (thin) thành vùng liền (bắc cầu khe ≤ ~2·rx theo chiều dòng, ±1 điểm theo
+  // chiều vuông góc), giữ vùng nào DÀI (≥ minLen) mà HẸP so với chiều dài (bề ngang ≤ 12% chiều dài, tối thiểu 6 điểm) → đó là dòng kẻ.
+  // horiz: true = dòng ngang (quét theo x), false = dòng dọc. Trả mặt nạ gồm chính các điểm mảnh thuộc vùng được giữ.
+  function thinLines(thin, W, H, horiz, minLen, rr) {
+    var n = W * H, br = horiz ? dilateBin(thin, W, H, rr, 1) : dilateBin(thin, W, H, 1, rr), lab = new Int32Array(n), stack = new Int32Array(n), i, q, sp, cur = 0, cx, cy, d, nx, ny;
+    var good = [0], out = new Uint8Array(n), x0, x1, y0, y1, len, wid;
+    for (i = 0; i < n; i++) {
+      if (!br[i] || lab[i]) continue;
+      cur++; sp = 0; stack[sp++] = i; lab[i] = cur; x0 = x1 = i % W; y0 = y1 = (i / W) | 0;
+      while (sp) {
+        q = stack[--sp]; cx = q % W; cy = (q / W) | 0;
+        if (cx < x0) x0 = cx; if (cx > x1) x1 = cx; if (cy < y0) y0 = cy; if (cy > y1) y1 = cy;
+        for (d = 0; d < 8; d++) {
+          nx = cx + (d === 0 || d === 3 || d === 5 ? -1 : d === 2 || d === 4 || d === 7 ? 1 : 0); ny = cy + (d < 3 ? -1 : d > 4 ? 1 : 0);
+          if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+          if (br[ny * W + nx] && !lab[ny * W + nx]) { lab[ny * W + nx] = cur; stack[sp++] = ny * W + nx; }
+        }
+      }
+      len = horiz ? x1 - x0 + 1 : y1 - y0 + 1; wid = horiz ? y1 - y0 + 1 : x1 - x0 + 1;
+      good[cur] = (len >= minLen && wid <= Math.max(6, len * 0.12)) ? 1 : 0;
+    }
+    for (i = 0; i < n; i++) if (thin[i] && good[lab[i]]) out[i] = 1;
+    return out;
+  }
+  // Mặt nạ DÒNG KẺ CẦN LÀM NHẠT (không xóa, chỉ đánh dấu để nhạt đi). Hai nguồn:
+  //  (1) dòng kẻ dài liền (lineMask): đánh dấu mọi điểm TRỪ chỗ nét chữ CẮT QUA (có mực chữ ở cả 2 phía) → nét cắt ngang giữ nguyên đen;
+  //  (2) dòng kẻ MẢNH nhưng đứt đoạn / chấm chấm (ô li photo, lưới chấm): điểm mực mà bề dày theo phương vuông góc ≤ ~0,35 mm, nằm thành hàng
+  //      thẳng dài (bắc cầu qua khe ngắn). Nét chữ dày hơn nhiều và cong → không bị đánh dấu; chỗ chữ đè lên dòng cột mực dày ra → được giữ đen.
+  // Kết quả: dòng kẻ thành xám nhạt, chữ đè / dính vào dòng vẫn đen đậm → in ra không còn lẫn với viền. tt = dưới mức này là mực chữ thật.
+  function fadeMask(nv, W, H, thr, tt) {
+    var n = W * H, ms = lineMask(nv, W, H, thr, true), lh = ms.h, lv = ms.v, fm = new Uint8Array(n), un = new Uint8Array(n), tx = new Uint8Array(n), i, x, y, k;
+    var M = Math.max(W, H), T = Math.max(3, Math.round(M * 0.004)), maxT = T * 2 + 6, R = Math.max(5, Math.round(T * 0.7));
+    // ---- (2) dòng mảnh đứt đoạn
+    var tmax = Math.max(1, Math.round(M / 1300)), ink = new Uint8Array(n), vt = new Uint8Array(n), ht = new Uint8Array(n), st;
+    var thrT = Math.min(thr, tt + 40);
+    for (i = 0; i < n; i++) ink[i] = nv[i] < thrT ? 1 : 0;
+    for (x = 0; x < W; x++) { // bề dày theo cột: đoạn mực dọc ngắn ≤ tmax → "mảnh theo chiều dọc"
+      y = 0; while (y < H) { if (!ink[y * W + x]) { y++; continue; } st = y; while (y < H && ink[y * W + x]) y++; if (y - st <= tmax) for (k = st; k < y; k++) vt[k * W + x] = 1; }
+    }
+    for (y = 0; y < H; y++) { // bề dày theo hàng
+      x = 0; while (x < W) { if (!ink[y * W + x]) { x++; continue; } st = x; while (x < W && ink[y * W + x]) x++; if (x - st <= tmax) for (k = st; k < x; k++) ht[y * W + k] = 1; }
+    }
+    var rr = Math.max(5, Math.round(M * 0.003)), Lh = Math.max(48, Math.round(W * 0.02)), Lv = Math.max(48, Math.round(H * 0.02));
+    var lhT = thinLines(vt, W, H, true, Lh, rr), lvT = thinLines(ht, W, H, false, Lv, rr);
+    // ---- bảo vệ nét chữ: lõi nét bút (mực dày ≥ 3 điểm, không thuộc dòng dày) → điểm dòng mảnh sát lõi (≤ ~0,25 mm) giữ nguyên, không làm nhạt
+    var z0 = new Uint8Array(n); for (i = 0; i < n; i++) z0[i] = (lh[i] | lv[i]);
+    z0 = dilateBin(z0, W, H, 1);
+    var core = new Uint8Array(n);
+    for (y = 1; y < H - 1; y++) for (x = 1; x < W - 1; x++) {
+      i = y * W + x;
+      if (ink[i] && !z0[i] && ink[i - 1] && ink[i + 1] && ink[i - W] && ink[i + W] && ink[i - W - 1] && ink[i - W + 1] && ink[i + W - 1] && ink[i + W + 1]) core[i] = 1;
+    }
+    var prot = dilateBin(core, W, H, Math.max(2, Math.round(M * 0.0008)));
+    for (i = 0; i < n; i++) if (prot[i]) { lhT[i] = 0; lvT[i] = 0; }
+    // ---- vùng loại trừ + mực chữ thật
+    for (i = 0; i < n; i++) un[i] = (lh[i] | lv[i] | lhT[i] | lvT[i]);
+    var zone = dilateBin(un, W, H, 2); // quầng 2 điểm quanh dòng kẻ (mép mờ của dòng) không tính là chữ
+    for (i = 0; i < n; i++) tx[i] = (nv[i] < tt && !zone[i] && !(vt[i] && ht[i])) ? 1 : 0; // bỏ cả hạt chấm lẻ (mảnh cả 2 chiều)
+    var hit = function (x0, x1, y0, y1) { // có mực chữ trong ô [x0..x1] × [y0..y1] ?
+      var xx, yy;
+      if (x0 < 0) x0 = 0; if (y0 < 0) y0 = 0; if (x1 > W - 1) x1 = W - 1; if (y1 > H - 1) y1 = H - 1;
+      for (yy = y0; yy <= y1; yy++) for (xx = x0; xx <= x1; xx++) if (tx[yy * W + xx]) return true;
+      return false;
+    };
+    for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
+      i = y * W + x;
+      if (lhT[i] | lvT[i]) { fm[i] = 1; continue; }
+      if (!(lh[i] | lv[i])) continue;
+      var fade = false, cross, a, b;
+      if (lh[i]) { // dòng ngang: nét chữ cắt qua = có mực ngay phía trên VÀ ngay phía dưới đoạn dòng
+        a = y; while (a > 0 && y - a < maxT && lh[(a - 1) * W + x]) a--;
+        b = y; while (b < H - 1 && b - y < maxT && lh[(b + 1) * W + x]) b++;
+        cross = hit(x - 1, x + 1, a - 1 - R, a - 1) && hit(x - 1, x + 1, b + 1, b + 1 + R);
+        if (!cross) fade = true;
+      }
+      if (!fade && lv[i]) {
+        a = x; while (a > 0 && x - a < maxT && lv[y * W + a - 1]) a--;
+        b = x; while (b < W - 1 && b - x < maxT && lv[y * W + b + 1]) b++;
+        cross = hit(a - 1 - R, a - 1, y - 1, y + 1) && hit(b + 1, b + 1 + R, y - 1, y + 1);
+        if (!cross) fade = true;
+      }
+      if (fade) fm[i] = 1;
+    }
+    return dilateBin(fm, W, H, 1); // nở 1 điểm: nhạt cả quầng mép dòng
   }
 
   // ================================================================== BƯỚC 3 — bản in (làm trắng nền, chữ đen, tăng tương phản)
@@ -481,6 +596,8 @@
       t = (v - loC) / (hi - loC); t = t < 0 ? 0 : t > 1 ? 1 : t; lutc[v] = Math.round(255 * t);
     }
     var rm = p.li ? lineMask(nv, W, H, Math.min(250, hi + 22)) : null;
+    // LÀM NHẠT dòng kẻ (không xóa): dòng thành xám nhạt, nét chữ đè lên / dính dòng vẫn đen đậm → in ra chữ không lẫn với viền
+    var fm = (!p.li && p.nhat > 0) ? fadeMask(nv, W, H, Math.min(250, hi + 22), Math.min(200, lo + 0.45 * (hi - lo))) : null, fl = Math.round(90 + 165 * p.nhat / 100);
     var wbal = [1, 1, 1];
     if (color) { // CÂN MÀU GIẤY: chia riêng từng kênh theo màu phần sáng nhất (giấy ngả vàng / đèn vàng → trắng; con dấu đỏ, bút xanh giữ màu)
       var hst = new Uint32Array(256); for (i = 0; i < n; i += 3) hst[nv[i]]++;
@@ -502,6 +619,7 @@
       } else if (color) {
         for (ch = 0; ch < 3; ch++) { v = d[o4 + ch] * kk[i] / wbal[ch]; v = v > 255 ? 255 : v < 0 ? 0 : v; d[o4 + ch] = lutc[v | 0]; }
       } else { v = lut[nv[i]]; d[o4] = d[o4 + 1] = d[o4 + 2] = v; }
+      if (fm && fm[i]) { if (d[o4] < fl) d[o4] = fl; if (d[o4 + 1] < fl) d[o4 + 1] = fl; if (d[o4 + 2] < fl) d[o4 + 2] = fl; }
     }
     ctx.putImageData(id, 0, 0);
     return c;
@@ -558,6 +676,6 @@
     isPdf: isPdf, decodeImage: decodeImage, pdfToCanvases: pdfToCanvases,
     detectQuad: detectQuad, defaultQuad: defaultQuad, warp: warp,
     process: process, rotate: rotate, scale: scale, toBlob: toBlob, buildPdf: buildPdf, canvasOf: canvasOf,
-    _t: { backgroundMap: backgroundMap, lineMask: lineMask, enhance: enhance } // dùng cho kiểm thử
+    _t: { backgroundMap: backgroundMap, lineMask: lineMask, fadeMask: fadeMask, enhance: enhance } // dùng cho kiểm thử
   };
 })(window);

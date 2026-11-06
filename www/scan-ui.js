@@ -135,6 +135,7 @@
             '<label class="sc-rg"><span>Độ trắng nền <b id="scBVal"></b></span><input type="range" id="scB" min="0" max="100" step="1"></label>' +
             '<label class="sc-rg"><span>Độ đậm chữ <b id="scCVal"></b></span><input type="range" id="scC" min="0" max="100" step="1"></label>' +
             '<label class="sc-chk"><input type="checkbox" id="scLi"><span>Xóa ô li / dòng kẻ <small>(giữ nét chữ cắt ngang)</small></span></label>' +
+            '<label class="sc-rg" id="scNRow" title="Dòng kẻ / ô li thành xám nhạt, chữ viết đè lên hoặc dính vào dòng vẫn đen đậm → in ra chữ không bị lẫn với viền"><span>Làm nhạt dòng kẻ <b id="scNVal"></b></span><input type="range" id="scN" min="0" max="100" step="1"></label>' +
             '<div class="sc-row"><button type="button" class="sc-link" data-act="apply-all">Áp dụng cho mọi trang</button><button type="button" class="sc-link" data-act="reset">' + svg('reset') + 'Mặc định</button></div>' +
           '</div>' +
           '<div class="sc-sec"><div class="sc-lb">Cắt trang giấy</div>' +
@@ -306,6 +307,7 @@
       root.querySelectorAll('#scKieu button').forEach(function (b) { b.classList.toggle('is-on', b.dataset.kieu === p.kieu); });
       $('scSliders').classList.toggle('is-off', p.kieu === 'goc');
       $('scS').value = p.bong; $('scB').value = p.trang; $('scC').value = p.dam; $('scLi').checked = !!p.li;
+      $('scN').value = p.nhat || 0; $('scNVal').textContent = p.nhat > 0 ? Math.round(p.nhat) + '%' : 'tắt'; $('scNRow').classList.toggle('is-off', !!p.li); // đã xóa hẳn dòng kẻ thì không cần làm nhạt
       $('scSVal').textContent = Math.round(p.bong) + '%'; $('scBVal').textContent = Math.round(p.trang) + '%'; $('scCVal').textContent = Math.round(p.dam) + '%';
       $('scCrop').checked = !!pg.cropOn;
       $('scCropTip').textContent = pg.quad ? (pg.cropOn ? '— đã cắt theo 4 cạnh' : '— đang tắt') : '— chưa có khung cắt: bấm "Chỉnh 4 góc"';
@@ -879,7 +881,7 @@
     cmp.addEventListener('pointerdown', cmpOn); ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) { cmp.addEventListener(ev, cmpOff); });
 
     function slider(id, key) { $(id).addEventListener('input', function () { setParam(key, +this.value); }); }
-    slider('scS', 'bong'); slider('scB', 'trang'); slider('scC', 'dam');
+    slider('scS', 'bong'); slider('scB', 'trang'); slider('scC', 'dam'); slider('scN', 'nhat');
     $('scLi').addEventListener('change', function () { setParam('li', this.checked); });
     $('scCrop').addEventListener('change', function () {
       var pg = curPage(); if (!pg) return;

@@ -7,7 +7,9 @@
 //            (xóa nét chữ / ô li mảnh nhưng GIỮ nguyên mép bóng đổ) rồi chia ra → nền giấy xám / vùng bóng về trắng, nét chữ còn nguyên.
 //   Bước 3 — BẢN IN: đưa nền về trắng, chữ về đen, tăng tương phản; có thể xóa ô li / dòng kẻ (giữ nét chữ cắt ngang); xuất ảnh / PDF.
 // PC 4.91 / ĐT 1.33: LÀM NHẠT DÒNG KẺ (fadeMask, thông số nhat) — bản in không còn chữ lẫn với viền: dòng kẻ / ô li (cả dòng mảnh đứt đoạn, lưới chấm) thành xám nhạt, nét chữ
-//   dày đè lên / dính vào dòng vẫn đen đậm. Mặc định bật (65) ở Trắng đen + Màu mực; Chữ tay đã xóa hẳn ô li nên để 0. nhat = 0 → y hệt bản cũ.
+//   dày đè lên / dính vào dòng vẫn đen đậm. Mặc định bật (80) ở Trắng đen + Màu mực; Chữ tay đã xóa hẳn ô li nên để 0. nhat = 0 → y hệt bản cũ.
+// PC 4.94 / ĐT 1.33: SỬA dòng kẻ đè số — (1) nét số thẳng đứng/ngắn ("1", "4", "7") không còn bị nhầm là dòng kẻ (ngưỡng dòng dài 5% → 12% cạnh ảnh);
+//   (2) nét bút ĐẬM HƠN HẲN mức xám của dòng kẻ (số nằm dọc theo / dính sát dòng) không bị nâng lên xám; mặc định làm nhạt 65 → 80.
 // 4 chế độ: Màu · Trắng đen (ưu tiên, để photo) · Chữ tay · Tùy chỉnh (Gốc / Màu / Xám / Đen trắng + các thanh trượt).
 (function (global) {
   'use strict';
@@ -22,9 +24,9 @@
     mau: { ten: 'Màu', full: 'Chế độ tài liệu màu', tip: 'Tài liệu màu: khử bóng, làm trắng nền, giữ màu con dấu đỏ / bút xanh / hình ảnh.',
            p: { kieu: 'mau', bong: 100, trang: 50, dam: 35, li: false, gam: 1, nhat: 0 } },
     bw:  { ten: 'Trắng đen', full: 'Chế độ trắng đen để photo (ưu tiên)', tip: 'Ưu tiên để in / photo: nền trắng tuyệt đối, chữ đen đậm, dòng kẻ / ô li làm nhạt để chữ không lẫn với viền, tiết kiệm mực, file PDF nhỏ.',
-           p: { kieu: 'bw', bong: 100, trang: 55, dam: 50, li: false, gam: 1, nhat: 65 } },
+           p: { kieu: 'bw', bong: 100, trang: 55, dam: 50, li: false, gam: 1, nhat: 80 } },
     muc: { ten: 'Màu mực', full: 'Chế độ giữ màu mực', tip: 'Nền trắng tuyệt đối, chữ giữ ĐÚNG MÀU bút (đen / xanh / đỏ) và đậm, rõ nét, dòng kẻ làm nhạt — hợp phiếu viết nhiều màu mực.',
-           p: { kieu: 'muc', bong: 100, trang: 55, dam: 50, li: false, gam: 1, nhat: 65 } },
+           p: { kieu: 'muc', bong: 100, trang: 55, dam: 50, li: false, gam: 1, nhat: 80 } },
     tay: { ten: 'Chữ tay', full: 'Chế độ giữ nét chữ viết tay', tip: 'Vở / giấy ghi tay: giữ nét bút (cả nét mờ, bút chì), nền trắng, tự xóa ô li để chữ nổi rõ.',
            p: { kieu: 'xam', bong: 100, trang: 60, dam: 60, li: true, gam: 0.8, nhat: 0 } },
     tuy: { ten: 'Tùy chỉnh', full: 'Chế độ tùy chỉnh', tip: 'Tự chọn kiểu (Gốc / Màu / Xám / Đen trắng) và chỉnh từng thanh trượt.',
@@ -411,7 +413,7 @@
   function lineMask(nv, W, H, thr, sep) {
     var n = W * H, ink = new Uint8Array(n), lm = new Uint8Array(n), i, x, y, lh = sep ? new Uint8Array(n) : null, lv = sep ? new Uint8Array(n) : null;
     for (i = 0; i < n; i++) ink[i] = nv[i] < thr ? 1 : 0;
-    var T = Math.max(3, Math.round(Math.max(W, H) * 0.004)), Lh = Math.max(40, Math.round(W * 0.05)), Lv = Math.max(40, Math.round(H * 0.05));
+    var T = Math.max(3, Math.round(Math.max(W, H) * 0.004)), Lh = Math.max(60, Math.round(W * 0.12)), Lv = Math.max(60, Math.round(H * 0.12)); // ≥ 12% cạnh ảnh: nét số thẳng ("1", "4", "7"), gạch chân ngắn không bị nhầm là dòng kẻ
     var run = function (get, len, stride, lineLen, nbA, nbB, set) {
       // quét 1 hàng / cột: get(k) = có mực; chỉ ghi những đoạn dài ≥ lineLen và không nằm trong mảng dày
       var k = 0, st, en, gap, thick, j;
@@ -557,7 +559,15 @@
       }
       if (fade) fm[i] = 1;
     }
-    return dilateBin(fm, W, H, 1); // nở 1 điểm: nhạt cả quầng mép dòng
+    // ---- mức xám THẬT của dòng kẻ (trung vị độ sáng các điểm dòng) → điểm ĐẬM HƠN HẲN dòng kẻ là nét bút (số / chữ), không bao giờ làm nhạt.
+    //      (nét số nằm DỌC THEO dòng kẻ, hoặc dính sát dòng, trước đây bị nâng lên xám cùng dòng → số bị mờ / đứt)
+    var hs = new Uint32Array(256), cnt = 0;
+    for (i = 0; i < n; i++) if (fm[i]) { hs[nv[i]]++; cnt++; }
+    var darkCut = 0;
+    if (cnt > 50) { var acc = 0, half = cnt / 2, med = 0; for (; med < 255; med++) { acc += hs[med]; if (acc >= half) break; } darkCut = Math.round(med * 0.72); if (darkCut > tt) darkCut = tt; }
+    var out = dilateBin(fm, W, H, 1); // nở 1 điểm: nhạt cả quầng mép dòng
+    if (darkCut > 0) for (i = 0; i < n; i++) if (out[i] && nv[i] < darkCut) out[i] = 0;
+    return out;
   }
 
   // ================================================================== BƯỚC 3 — bản in (làm trắng nền, chữ đen, tăng tương phản)

@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '1.33 (07/11/2026)';
+  const APP_VERSION = '1.35 (09/11/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -697,7 +697,7 @@
             item,
             s: norm([item.maHang, item.viTri, item.vtMoi, item.nsx, item.hsd, item.nhap, item.ghiChu].join(' '))
           };
-        }).filter((l) => l.soKien > 0); // 30/09/2026: lược bỏ dòng SL = 0 (hết hàng) — khoá dòng (_key) vẫn do PC tính trên cả danh sách
+        }); // 08/11/2026 (ĐT 1.34): GIỮ dòng SL = 0 như PC — phiếu xuất chỉ trừ tồn, không xóa mã hàng
       }
     }
     // ---- Module 03 (NXT Bột/Sốt): theo LÔ (cột "_key" = mã lô), tồn = "Tổng (kg)". Lô có
@@ -2012,6 +2012,56 @@
     if (k === 'ma') return String(p.maPhieu || '');
     return '';
   }
+  // ---- ĐT 1.35: chi tiết dòng phiếu Vị trí (M01VT) đầy đủ như PC + nút đổi hiển thị mã ----
+  // maMode: 'full' = mã 21 ký tự · 'label' = nhãn Size có tiền tố (NL 120, BTP 60…). Chỉ đổi cách HIỂN THỊ / xuất file — KHÔNG gộp dòng,
+  // mỗi dòng giữ nguyên Vị trí · Đặc tính · Hợp đồng · Net (khác nút "Gộp theo Size" trên PC).
+  const LS_MAMODE = 'klanan.phieuMaMode';
+  let maMode = (() => { try { return localStorage.getItem(LS_MAMODE) === 'label' ? 'label' : 'full'; } catch (e) { return 'full'; } })();
+  function setMaMode(m) { maMode = m === 'label' ? 'label' : 'full'; try { localStorage.setItem(LS_MAMODE, maMode); } catch (e) { /* bỏ qua */ } }
+  // Thông tin 1 dòng phiếu Vị trí: p = phiếu (dòng thô trên Sheet), it = dòng hàng.
+  function vtLineInfo(p, it) {
+    const split = String(it.tenHang || '').split(' - ');
+    const old = split.length >= 3 ? [split[split.length - 2].trim(), split[split.length - 1].trim()] : ['', ''];   // phiếu tạo trên điện thoại: "tên - đặc tính - hợp đồng"
+    const raw = String(it.maHang || '').trim();
+    const codes = raw.split(/\s*,\s*/).map(noTpc).filter(Boolean);
+    const stored = isPc(p) ? String(it.size || '').trim() : '';   // phiếu PC đã gộp theo Size: cột size = nhãn "NL 120" (PC 5.32)
+    const tag = sizeTagger();
+    const label = stored || (codes.length === 1 ? tag(codes[0], '') : '');
+    // kg / đơn vị: ưu tiên cột tl PC đẩy lên; không có thì tra bản chụp lúc gửi / tồn vị trí (giống phieuKg)
+    let per = num(it.tl);
+    if (!(per > 0)) {
+      const key = 'VT|' + String(it.itemKey || '').trim();
+      const sn = ((sentDocs[p.id] && sentDocs[p.id].items) || []).find((x) => x.key === key);
+      const lot = (state.lots[SRC_OF.M01VT] || []).find((l) => l.key === key);
+      per = sn ? kgPerOf('M01VT', sn) : (lot ? kgPerOf('M01VT', lot.item) : 0);
+    }
+    const qty = num(it.soLuongXuat);
+    return { codes, code: codes.join(', ') || noTpc(raw), label, vt: shortPlace(it.viTri || ''), dt: String(it.soLo || old[0] || '').trim(), hd: String(it.hopDong || old[1] || '').trim(), qty, net: per > 0 ? qty * per : 0, per };
+  }
+  function vtLinesHtml(p) {
+    const lines = sortVt(p.items || []).map((it) => vtLineInfo(p, it));
+    let sq = 0, sk = 0, miss = 0;
+    lines.forEach((l) => { sq += l.qty; if (l.net > 0) sk += l.net; else if (l.qty > 0) miss++; });
+    const bar = `<div class="ma-mode" role="group" aria-label="Cách hiển thị mã hàng"><span>Mã hàng:</span><div class="segmented"><button type="button" class="seg${maMode === 'full' ? ' is-on' : ''}" data-mamode="full">Mã 21 ký tự</button><button type="button" class="seg${maMode === 'label' ? ' is-on' : ''}" data-mamode="label">Nhãn Size (NL 120…)</button></div></div>`;
+    const cards = lines.map((l, i) => {
+      const main = maMode === 'label' && l.label ? l.label : l.code;
+      const sub = maMode === 'label' ? (l.label ? l.code : '') : (l.label ? l.label : '');
+      const kv = [['Vị trí', l.vt], ['Đặc tính', l.dt], ['Hợp đồng', l.hd], ['Net xuất', l.net > 0 ? fmtKg(l.net) + ' kg' : '']].filter((x) => x[1]);
+      return `<div class="vtl"><div class="vtl-top"><span class="vtl-n">${i + 1}</span><div class="vtl-code"><b>${esc(main)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</div><div class="vtl-qty"><b>${esc(fmt(l.qty))}</b><small>SL xuất</small></div></div>${kv.length ? `<div class="vtl-kv">${kv.map(([k, v]) => `<span><i>${esc(k)}</i>${esc(v)}</span>`).join('')}</div>` : ''}</div>`;
+    }).join('');
+    const tot = `<div class="vtl-tot">Tổng ${esc(fmt(lines.length))} dòng · SL <b>${esc(fmt(sq))}</b>${sk > 0 ? ` · Net ${miss ? '≥ ' : ''}<b>${esc(fmtKg(sk))} kg</b>` : ''}</div>`;
+    return `<div class="vtl-wrap">${bar}${cards}${tot}</div>`;
+  }
+  // Đổi mã các dòng của phiếu M01VT trong file xuất theo maMode (không gộp dòng).
+  function applyMaMode(doc) {
+    if (!doc || doc.module !== 'M01VT' || maMode !== 'label') return doc;
+    const tag = sizeTagger();
+    return Object.assign({}, doc, { items: (doc.items || []).map((it) => {
+      const codes = String(it.maHang || '').split(/\s*,\s*/).map(noTpc).filter(Boolean);
+      const lb = it.maLabel || (codes.length === 1 ? tag(codes[0], '') : '');
+      return lb ? Object.assign({}, it, { maHang: lb }) : it;
+    }) });
+  }
   let phieuBase = [];
   function renderPhieu() {
     const pfBar = $('phieuFBar');
@@ -2115,8 +2165,8 @@
               + `<dt></dt><dd>${hiddenPhieu[p.id]
                 ? `<button type="button" class="btn btn-ghost" data-unhide="${esc(p.id)}" style="min-height:44px;font-size: calc(15px * var(--fs, 1));margin:2px 0 4px">👁 Bỏ ẩn phiếu này</button>`
                 : `<button type="button" class="btn btn-ghost" data-an="${esc(p.id)}" style="min-height:44px;font-size: calc(15px * var(--fs, 1));margin:2px 0 4px">🙈 Ẩn khỏi danh sách (chỉ trên máy này)</button>`}</dd>`}
-          ${sortVt(p.items || []).map((it) => `<dt>${esc(fmt(num(it.soLuongXuat)))}</dt><dd>${it.viTri ? '[' + esc(shortPlace(it.viTri)) + '] ' : ''}${esc(noTpc(['M01VT', 'M01VTB'].includes(modOf(String(p.module || '').trim())) ? (it.maHang || it.tenHang) : (it.tenHang || it.maHang)))}${it.soLo && modOf(String(p.module || '').trim()) !== 'M01VT' ? (modOf(String(p.module || '').trim()) === 'M03' ? ' — LSX ' : modOf(String(p.module || '').trim()) === 'M04' ? ' — ' : modOf(String(p.module || '').trim()) === 'M01VTB' ? ' — NSX ' : ' — lô ') + esc(it.soLo) : ''}${it.hopDong ? ' — HĐ ' + esc(it.hopDong) : ''}${it.size !== '' && it.size !== undefined ? ', size ' + esc(it.size) : ''}</dd>`).join('')}
-        </dl>` : ''}
+          ${modOf(String(p.module || '').trim()) === 'M01VT' ? '' : sortVt(p.items || []).map((it) => `<dt>${esc(fmt(num(it.soLuongXuat)))}</dt><dd>${it.viTri ? '[' + esc(shortPlace(it.viTri)) + '] ' : ''}${esc(noTpc(['M01VT', 'M01VTB'].includes(modOf(String(p.module || '').trim())) ? (it.maHang || it.tenHang) : (it.tenHang || it.maHang)))}${it.soLo && modOf(String(p.module || '').trim()) !== 'M01VT' ? (modOf(String(p.module || '').trim()) === 'M03' ? ' — LSX ' : modOf(String(p.module || '').trim()) === 'M04' ? ' — ' : modOf(String(p.module || '').trim()) === 'M01VTB' ? ' — NSX ' : ' — lô ') + esc(it.soLo) : ''}${it.hopDong ? ' — HĐ ' + esc(it.hopDong) : ''}${it.size !== '' && it.size !== undefined ? ', size ' + esc(it.size) : ''}</dd>`).join('')}
+        </dl>${modOf(String(p.module || '').trim()) === 'M01VT' ? vtLinesHtml(p) : ''}` : ''}
       </li>`;
     }).join('');
   }
@@ -2367,6 +2417,15 @@
     });
     const today = new Date().toDateString();
     g.nhanHomNay = g.nhan.filter((p) => new Date(p.xuLyLuc || p.ngayTao).toDateString() === today).length;
+    // ĐT 1.34: phiếu MỚI NHẤT nằm trên cùng (cả phiếu tạo trên PC lẫn trên điện thoại, mọi nhóm).
+    // ĐT 1.35: đọc được cả "dd/mm/yyyy hh:mm"; cùng thời điểm (hoặc không đọc được ngày) thì số phiếu LỚN HƠN (VT-0025 > VT-0024) lên trên.
+    const tOf = (p) => {
+      let t = new Date(p.ngayTao).getTime();
+      if (isNaN(t)) { const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ T,]+(\d{1,2}):(\d{2}))?/.exec(String(p.ngayTao || '').trim()); t = m ? new Date(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0)).getTime() : 0; }
+      return isNaN(t) ? 0 : t;
+    };
+    const seqOf = (p) => { const m = String(p.maPhieu || '').match(/(\d+)\s*$/); return m ? parseInt(m[1], 10) : 0; };
+    ['cho', 'nhan', 'huy', 'pc'].forEach((k) => { g[k] = g[k].map((p, i) => ({ p, i })).sort((a, b) => tOf(b.p) - tOf(a.p) || seqOf(b.p) - seqOf(a.p) || a.i - b.i).map((x) => x.p); });
     return g;
   }
   function renderNavBadge() {
@@ -2681,7 +2740,7 @@
       id: p.id, maPhieu: p.maPhieu, module, ngayTao: p.ngayTao, nguoiTao: p.nguoiTao, ghiChu: p.ghiChu,
       lsxXuatLabel: lsxObj ? lsxObj.code : (p.lsxXuat || ''),
       items: (p.items || []).map((it) => ({
-        qty: num(it.soLuongXuat), maHang: it.maHang, tenHang: it.tenHang, phieuNhap: it.phieuNhap, soLo: it.soLo, size: it.size,
+        qty: num(it.soLuongXuat), maHang: it.maHang, tenHang: (module === 'M01VT' && isPc(p)) ? [it.tenHang || it.maHang, it.soLo || '', it.hopDong || ''].join(' - ') : it.tenHang, phieuNhap: it.phieuNhap, soLo: it.soLo, size: it.size, maLabel: (module === 'M01VT' && isPc(p)) ? String(it.size || '').trim() : '',
         viTri: it.viTri, hopDong: it.hopDong, loaiHang: it.tenHang, lsx: it.soLo, type: it.tenHang,
         nsx: module === 'M01VTB' ? it.soLo : '', ghiChu: module === 'M01VTB' ? it.tenHang : ''
       }))
@@ -4394,9 +4453,11 @@
     const ex = e.target.closest('[data-export]');
     if (ex) {
       const p = ((state.phieu && state.phieu.data && state.phieu.data.list) || []).find((x) => String(x.id) === ex.dataset.export);
-      if (p) openExportSheet(docFromSheet(p));
+      if (p) openExportSheet(applyMaMode(docFromSheet(p)));
       return;
     }
+    const mm = e.target.closest('[data-mamode]');
+    if (mm) { setMaMode(mm.dataset.mamode); renderPhieu(); return; }
     const b = e.target.closest('[data-open]');
     if (!b) return;
     state.open[b.dataset.open] = !state.open[b.dataset.open];

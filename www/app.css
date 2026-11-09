@@ -213,6 +213,25 @@ main { padding: 12px 12px calc(var(--tabbar-h) + var(--safe-bottom) + 88px); max
 .details { margin: 0; padding: 0 16px 14px; display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: calc(14px * var(--fs, 1)); }
 .details dt { color: var(--muted); }
 .details dd { margin: 0; word-break: break-word; }
+/* ĐT 1.35 — chi tiết dòng phiếu Vị trí (M01VT): thẻ từng dòng đủ Mã · Vị trí · Đặc tính · Hợp đồng · SL · Net + nút đổi hiển thị mã */
+.vtl-wrap { padding: 0 16px 14px; }
+.ma-mode { display: flex; align-items: center; gap: 10px; margin: 4px 0 8px; font-size: calc(13.5px * var(--fs, 1)); color: var(--muted); }
+.ma-mode .segmented { flex: 1; margin: 0; }
+.ma-mode .seg { height: 38px; font-size: calc(13.5px * var(--fs, 1)); padding: 0 6px; }
+.vtl { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; background: var(--paper); }
+.vtl-top { display: flex; align-items: flex-start; gap: 10px; }
+.vtl-n { flex: 0 0 auto; min-width: 22px; height: 22px; border-radius: 11px; background: var(--muted-bg); color: var(--muted); font-size: calc(12px * var(--fs, 1)); font-weight: 700; display: grid; place-items: center; margin-top: 1px; }
+.vtl-code { flex: 1; min-width: 0; }
+.vtl-code b { display: block; font-size: calc(15.5px * var(--fs, 1)); word-break: break-all; line-height: 1.3; }
+.vtl-code small { display: block; margin-top: 2px; font-size: calc(12.5px * var(--fs, 1)); color: var(--muted); word-break: break-all; }
+.vtl-qty { flex: 0 0 auto; text-align: right; }
+.vtl-qty b { display: block; font-size: calc(20px * var(--fs, 1)); line-height: 1.1; }
+.vtl-qty small { font-size: calc(11.5px * var(--fs, 1)); color: var(--muted); }
+.vtl-kv { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); font-size: calc(13.5px * var(--fs, 1)); }
+.vtl-kv span { word-break: break-word; }
+.vtl-kv i { font-style: normal; color: var(--muted); margin-right: 5px; }
+.vtl-tot { text-align: right; font-size: calc(14px * var(--fs, 1)); color: var(--muted); padding: 2px 2px 0; }
+.vtl-tot b { color: var(--ink); }
 
 .more-btn { display: block; width: 100%; height: 52px; margin-top: 12px; border: 1.5px solid var(--line); border-radius: 14px; background: var(--paper); font-weight: 600; color: var(--cobalt); }
 

@@ -864,7 +864,7 @@ function getPhieuPc_(user) {
   var px = readTab_(TAB.PXPC);
   if (!px.headers.length) return [];
   var list = [];
-  for (var i = px.rows.length - 1; i >= 0 && list.length < 150; i--) {
+  for (var i = 0; i < px.rows.length; i++) {
     var o = {};
     var r = px.rows[i];
     px.headers.forEach(function (name, j) { o[name] = r[j] instanceof Date ? r[j].toISOString() : r[j]; });
@@ -875,6 +875,9 @@ function getPhieuPc_(user) {
     o.nguon = 'PC';
     list.push(o);
   }
+  // ĐT 1.35: sắp MỚI NHẤT lên đầu rồi mới cắt 150 (PC ghi đè cả tab nên thứ tự dòng không đáng tin).
+  list.sort(function (a, b) { return String(b.ngayTao || '') < String(a.ngayTao || '') ? -1 : String(b.ngayTao || '') > String(a.ngayTao || '') ? 1 : 0; });
+  if (list.length > 150) list = list.slice(0, 150);
   var want = {};
   list.forEach(function (p) { p.items = []; want[String(p.id).trim()] = p; });
   var pxi = readTab_(TAB.PXPCI);

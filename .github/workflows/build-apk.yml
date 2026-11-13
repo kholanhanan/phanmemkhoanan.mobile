@@ -53,12 +53,12 @@ jobs:
           npx cap sync android
 
       # Tên phiên bản APK (Cài đặt Android › Ứng dụng) = "version" trong package.json (VD 1.1.0 → 1.1);
-      # mã phiên bản = số lần chạy build (luôn tăng → APK mới cài đè được APK cũ).
+      # mã phiên bản = số lần chạy build + 1000 (luôn tăng; cộng 1000 vì kho GitHub mới đếm lại từ 1, thấp hơn APK cũ đang cài → không cài đè được).
       - name: Đặt số phiên bản APK
         run: |
           VN=$(jq -r '.version' package.json | sed 's/\.0$//')
           G=android/app/build.gradle
-          sed -i "s/versionName \"[^\"]*\"/versionName \"$VN\"/; s/versionCode [0-9]*/versionCode ${GITHUB_RUN_NUMBER}/" $G
+          sed -i "s/versionName \"[^\"]*\"/versionName \"$VN\"/; s/versionCode [0-9]*/versionCode $((GITHUB_RUN_NUMBER + 1000))/" $G
           grep -n "versionName\|versionCode" $G
 
       # Lưu file phiếu vào thư mục Documents: Android 10 trở xuống cần quyền ghi bộ nhớ.

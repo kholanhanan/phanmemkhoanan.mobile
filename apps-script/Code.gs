@@ -264,6 +264,9 @@ function doPost(e) {
       // PC 2.07 — Drive cá nhân: Client ID / Secret OAuth dùng chung, lưu trong Thuộc tính tập lệnh (KHÔNG nằm trong Sheet) để máy PC mới tự lấy về.
       case 'pc.driveClientGet': return json_(pcDriveClientGet_());
       case 'pc.driveClientSet': return json_(pcDriveClientSet_(req.clientId, req.clientSecret));
+      // PC 1.61 — Mã truy cập GitHub (kho riêng tư) dùng chung: lưu ở Thuộc tính tập lệnh GITHUB_TOKEN (KHÔNG nằm trong Sheet) để máy mới tự lấy về
+      case 'pc.ghTokenGet': return json_(pcGhTokenGet_());
+      case 'pc.ghTokenSet': return json_(pcGhTokenSet_(req.token));
       case 'pc.ltPull': return json_(ltPull_(ltTk_(req.tk), req.since, req.limit));
       case 'pc.ltPush': return json_(ltPush_(ltTk_(req.tk), req.rows));
       case 'pc.ltFilePut': return json_(ltFilePut_(ltTk_(req.tk), req.id, req.name, req.mime, req.b64));
@@ -1301,6 +1304,18 @@ function pcDriveClientSet_(clientId, clientSecret) {
   p.setProperty('DRIVE_CLIENT_ID', id);
   if (String(clientSecret || '').trim()) p.setProperty('DRIVE_CLIENT_SECRET', String(clientSecret).trim());
   return { ok: true };
+}
+
+// PC 1.61 — Mã truy cập GitHub (token chỉ-đọc 1 kho) lưu ở Thuộc tính tập lệnh GITHUB_TOKEN. Chỉ app PC có PC_TOKEN gọi được (đã kiểm ở doPost).
+// token rỗng khi lưu = XÓA mã đang chia sẻ.
+function pcGhTokenGet_() {
+  var t = String(PropertiesService.getScriptProperties().getProperty('GITHUB_TOKEN') || '').trim();
+  return t ? { ok: true, token: t } : { ok: true, empty: true };
+}
+function pcGhTokenSet_(token) {
+  var p = PropertiesService.getScriptProperties(), t = String(token || '').trim();
+  if (t) p.setProperty('GITHUB_TOKEN', t); else p.deleteProperty('GITHUB_TOKEN');
+  return { ok: true, cleared: !t };
 }
 
 // tabs: { tenTab: [tiêu đề...] | null }

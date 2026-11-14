@@ -84,3 +84,11 @@ Sửa code trong `www/` → đưa lên GitHub → Actions tự đăng bản mớ
 hiện thanh **"Có bản mới"**: bấm **Cập nhật ngay**, hoặc để tự áp dụng ở lần mở app sau.
 Kiểm tra tay: ⚙ Cài đặt → **⟳ Kiểm tra cập nhật app** (dòng "Phiên bản app" có thêm "gói <mã>" = mã commit).
 Bản mới lỗi tới mức app không mở được → app tự quay về bản trước.
+
+## Bảo mật mạng của bản Android (ĐT 1.16)
+
+`capacitor.config.json` bật `server.cleartext` và `android.allowMixedContent`. Hai tùy chọn này **cần thiết** cho tính năng "Lưu trữ cá nhân" kết nối **máy chủ LAN của PC** theo dạng `http://192.168.x.x:47821` (app chạy ở nguồn https nên gọi http là "mixed content"). Mọi kết nối còn lại — Google Apps Script, GitHub Pages (cập nhật giao diện) — đều là **https**.
+
+Android không cho giới hạn cleartext theo dải IP, nên bản 1.16 giới hạn ở mức mã (`www/lan-guard.js`): ô địa chỉ LAN chỉ nhận mạng nội bộ (10.x, 172.16–31.x, 192.168.x, 169.254.x, 127.x, localhost, `*.local`, tên máy 1 nhãn); địa chỉ Internet bị từ chối cả lúc lưu lẫn lúc gọi (cấu hình cũ đã lưu cũng bị chặn).
+
+Nếu sau này **không dùng** kết nối LAN, có thể tắt hẳn: đổi `cleartext` / `allowMixedContent` về `false` trong `capacitor.config.json` và bỏ dòng thêm `usesCleartextTraffic` ở `.github/workflows/build-apk.yml`, rồi build lại APK và thử lại đồng bộ trước khi phát hành.

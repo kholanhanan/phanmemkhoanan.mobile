@@ -130,7 +130,7 @@
     nx.tries = (nx.tries || 0) + 1;
     if (nx.tries > 2) { // đã thử 2 lần mà bản mới không chốt được → bản hỏng, bỏ
       lsSet(LS_BAD, nx.version); lsSet(LS_NEXT, null); await rmBundle(nx.version);
-      banner('Bản cập nhật ' + nx.version + ' không chạy được trên máy này — vẫn dùng bản cũ.', [['Đóng', hideBanner]]);
+      // ĐT 1.19: im lặng — vẫn dùng bản cũ, không báo gì
       return false;
     }
     lsSet(LS_NEXT, nx);
@@ -165,7 +165,7 @@
       if (!manual && lsGet(LS_BAD) === R.version) return null;
       if (Number(R.nativeLevel || 1) > L.nativeLevel) {
         const msg = 'Có bản mới nhưng cần cài APK mới (bản này đổi phần gốc Android).';
-        if (manual || state.lastMsg !== msg) banner(msg, [['Đóng', hideBanner]]);
+        if (manual) banner(msg, [['Đóng', hideBanner]]); // ĐT 1.19: tự động thì không báo (trước đây báo lại mỗi lần mở app)
         state.lastMsg = msg;
         return { ok: false, needApk: true, msg };
       }
@@ -183,17 +183,15 @@
         lsSet(LS_BAD, null);
         await cleanup([L.version, R.version]);
       }
-      // Vừa mở app (≤ 25 giây) và người dùng CHƯA chạm gì → áp dụng luôn (app tải lại vài giây, không mất gì: phiếu
-      // đang soạn lưu trên máy). Còn lại: hiện thông báo; bản mới tự áp dụng khi rời app (chuyển sang app khác / tắt
-      // màn hình) hoặc lần mở sau.
-      if (!manual && Date.now() - state.bootAt < 25000 && !state.touched && !document.hidden) {
-        banner('Đang cập nhật bản mới…', []);
-        if (await applyNext().catch(() => false)) return { ok: true, downloaded: true, applied: true, msg: 'Đang áp dụng bản mới.' };
+      // ĐT 1.19: TẢI NGẦM, KHÔNG THÔNG BÁO, KHÔNG TỰ TẢI LẠI GIỮA LÚC ĐANG DÙNG.
+      // Bản đã tải được áp dụng khi: (1) mở app lần sau (khối khởi động bên dưới), hoặc (2) người dùng rời app
+      // (visibilitychange → hidden). Chỉ khi bấm tay "Kiểm tra cập nhật app" trong Cài đặt mới hiện nút áp ngay.
+      if (manual) {
+        banner('Đã tải xong bản mới' + (R.message ? ': ' + firstLine(R.message) : '') + '. Tự dùng khi bạn mở lại app.', [
+          ['Để sau', hideBanner],
+          ['Dùng ngay', () => { banner('Đang áp dụng bản mới…', []); applyNext().catch((e) => banner('Không áp dụng được: ' + (e.message || e), [['Đóng', hideBanner]])); }, true]
+        ]);
       }
-      banner('Có bản mới' + (R.message ? ': ' + firstLine(R.message) : '') + '. Tự áp dụng khi bạn rời app hoặc mở lại.', [
-        ['Để sau', hideBanner],
-        ['Cập nhật ngay', () => { banner('Đang áp dụng bản mới…', []); applyNext().catch((e) => banner('Không áp dụng được: ' + (e.message || e), [['Đóng', hideBanner]])); }, true]
-      ]);
       return { ok: true, downloaded: true, msg: 'Đã tải bản mới ' + R.version + '.' };
     } catch (e) {
       if (manual) hideBanner();

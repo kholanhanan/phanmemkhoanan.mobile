@@ -884,7 +884,7 @@ body.has-totalbar .multibar { bottom: calc(var(--tabbar-h) + var(--safe-bottom) 
 /* ===================== 5.0 — GIAO DIỆN MỚI (11/10/2026) ===================== */
 /* Thanh trên: logo công ty (icon-192.png) */
 .topbar { box-shadow: 0 1px 0 var(--top-line); }
-.brand-mark { width: 34px; height: 34px; border-radius: 9px; background: #fff url("icon-192.png") center / cover no-repeat; box-shadow: 0 0 0 1px var(--top-line); }
+.brand-mark { width: 36px; height: 36px; border-radius: 9px; object-fit: cover; background: #fff; display: block; }
 .brand-name { font-size: calc(17px * var(--fs, 1)); }
 .icon-btn { width: 44px; height: 44px; background: var(--frost); }
 /* Thanh tab dưới: chữ 11,5px, mục đang chọn có vạch trên */

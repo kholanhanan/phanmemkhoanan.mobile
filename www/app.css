@@ -1021,3 +1021,9 @@ body.has-totalbar .multibar { bottom: calc(var(--tabbar-h) + var(--safe-bottom) 
 .me-card .role-badge { height: 34px; }
 .ua-item .role-badge { float: left; height: 36px; margin: 0 10px 0 0; }
 .ua-item small { overflow: hidden; }
+
+/* ĐT 1.40: lọc phiếu Vị trí theo Size / mặt hàng */
+.vtf { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.vtf-chip { border: 1px solid var(--line); background: var(--paper); color: inherit; border-radius: 16px; padding: 6px 12px; min-height: 36px; font-size: calc(13.5px * var(--fs, 1)); line-height: 1.2; }
+.vtf-chip b { margin-left: 4px; }
+.vtf-chip.is-on { background: var(--primary, #1d6fd0); border-color: transparent; color: #fff; }

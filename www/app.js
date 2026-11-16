@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '1.39 (14/11/2026)';
+  const APP_VERSION = '1.40 (16/11/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -2015,8 +2015,19 @@
   // ---- ĐT 1.35: chi tiết dòng phiếu Vị trí (M01VT) đầy đủ như PC + nút đổi hiển thị mã ----
   // maMode: 'full' = mã 21 ký tự · 'label' = nhãn Size có tiền tố (NL 120, BTP 60…). Chỉ đổi cách HIỂN THỊ / xuất file — KHÔNG gộp dòng,
   // mỗi dòng giữ nguyên Vị trí · Đặc tính · Hợp đồng · Net (khác nút "Gộp theo Size" trên PC).
-  const LS_MAMODE = 'klanan.phieuMaMode';
-  let maMode = (() => { try { return localStorage.getItem(LS_MAMODE) === 'label' ? 'label' : 'full'; } catch (e) { return 'full'; } })();
+  // ĐT 1.40: mặc định GỌN = nhãn Size + quy cách ("BTP 50 (1.8KG)"), chỉ hiện mã 21 ký tự khi dòng không quy ra được nhãn Size (khóa lưu mới để áp mặc định mới cho mọi máy).
+  const LS_MAMODE = 'klanan.phieuMaMode2';
+  let maMode = (() => { try { return localStorage.getItem(LS_MAMODE) === 'full' ? 'full' : 'label'; } catch (e) { return 'label'; } })();
+  const vtFil = {};   // ĐT 1.40: nhóm Size đang lọc của từng phiếu (id phiếu → khóa nhóm; '' = tất cả)
+  // Quy cách đóng gói ngắn từ Tên hàng: "…(1.8 kg x 6 gói)…" → "1.8KG". Không có → ''.
+  function vtQc(ten) {
+    const head = String(ten ?? '').split(' - ')[0], groups = head.match(/\(([^()]*)\)/g) || [];
+    for (let i = groups.length - 1; i >= 0; i--) {
+      const m = groups[i].slice(1, -1).match(/(\d+(?:[.,]\d+)?)\s*(kg|gr|gram|g|lbs|lb)\b/i);
+      if (m) return m[1].replace(',', '.') + ({ gr: 'G', gram: 'G' }[m[2].toLowerCase()] || m[2].toUpperCase());
+    }
+    return '';
+  }
   function setMaMode(m) { maMode = m === 'label' ? 'label' : 'full'; try { localStorage.setItem(LS_MAMODE, maMode); } catch (e) { /* bỏ qua */ } }
   // Thông tin 1 dòng phiếu Vị trí: p = phiếu (dòng thô trên Sheet), it = dòng hàng.
   function vtLineInfo(p, it) {
@@ -2036,21 +2047,31 @@
       per = sn ? kgPerOf('M01VT', sn) : (lot ? kgPerOf('M01VT', lot.item) : 0);
     }
     const qty = num(it.soLuongXuat);
-    return { codes, code: codes.join(', ') || noTpc(raw), label, vt: shortPlace(it.viTri || ''), dt: String(it.soLo || old[0] || '').trim(), hd: String(it.hopDong || old[1] || '').trim(), qty, net: per > 0 ? qty * per : 0, per };
+    const code0 = codes.join(', ') || noTpc(raw), qc = vtQc(it.tenHang), name = label ? label + (qc ? ' (' + qc + ')' : '') : code0;
+    return { codes, code: code0, label, qc, name, gkey: label ? label + '|' + qc : code0, vt: shortPlace(it.viTri || ''), dt: String(it.soLo || old[0] || '').trim(), hd: String(it.hopDong || old[1] || '').trim(), qty, net: per > 0 ? qty * per : 0, per };
   }
   function vtLinesHtml(p) {
     const lines = sortVt(p.items || []).map((it) => vtLineInfo(p, it));
+    // ĐT 1.40: gom theo nhóm (nhãn Size + quy cách; không có nhãn thì theo mã) để LỌC và xem tổng SL từng nhóm.
+    const gm = new Map();
+    lines.forEach((l) => { const g = gm.get(l.gkey) || { key: l.gkey, name: l.name, qty: 0, n: 0 }; g.qty += l.qty; g.n++; gm.set(l.gkey, g); });
+    const groups = Array.from(gm.values()).sort((a, b) => a.name.localeCompare(b.name, 'vi', { numeric: true }));
+    const fk = vtFil[p.id] && gm.has(vtFil[p.id]) ? vtFil[p.id] : '';
     let sq = 0, sk = 0, miss = 0;
-    lines.forEach((l) => { sq += l.qty; if (l.net > 0) sk += l.net; else if (l.qty > 0) miss++; });
-    const bar = `<div class="ma-mode" role="group" aria-label="Cách hiển thị mã hàng"><span>Mã hàng:</span><div class="segmented"><button type="button" class="seg${maMode === 'full' ? ' is-on' : ''}" data-mamode="full">Mã 21 ký tự</button><button type="button" class="seg${maMode === 'label' ? ' is-on' : ''}" data-mamode="label">Nhãn Size (NL 120…)</button></div></div>`;
-    const cards = lines.map((l, i) => {
-      const main = maMode === 'label' && l.label ? l.label : l.code;
-      const sub = maMode === 'label' ? (l.label ? l.code : '') : (l.label ? l.label : '');
+    const shown = lines.map((l, i) => ({ l, i })).filter((x) => !fk || x.l.gkey === fk);
+    shown.forEach(({ l }) => { sq += l.qty; if (l.net > 0) sk += l.net; else if (l.qty > 0) miss++; });
+    const allQty = lines.reduce((a, l) => a + l.qty, 0), pid = esc(p.id);
+    const chips = groups.length > 1 ? `<div class="vtf" role="group" aria-label="Lọc theo Size / mặt hàng"><button type="button" class="vtf-chip${fk ? '' : ' is-on'}" data-vtf="" data-vtfp="${pid}">Tất cả <b>${esc(fmt(allQty))}</b></button>${groups.map((g) => `<button type="button" class="vtf-chip${g.key === fk ? ' is-on' : ''}" data-vtf="${esc(g.key)}" data-vtfp="${pid}">${esc(g.name)} <b>${esc(fmt(g.qty))}</b></button>`).join('')}</div>` : '';
+        const bar = `<div class="ma-mode" role="group" aria-label="Cách hiển thị mã hàng"><span>Hiển thị:</span><div class="segmented"><button type="button" class="seg${maMode === 'full' ? ' is-on' : ''}" data-mamode="full">Mã 21 ký tự</button><button type="button" class="seg${maMode === 'label' ? ' is-on' : ''}" data-mamode="label">Gọn: Size + quy cách</button></div></div>`;
+    const cards = shown.map(({ l, i }) => {
+      const main = maMode === 'label' ? l.name : l.code;
+      const sub = maMode === 'label' ? '' : (l.label ? l.name : '');
       const kv = [['Vị trí', l.vt], ['Đặc tính', l.dt], ['Hợp đồng', l.hd], ['Net xuất', l.net > 0 ? fmtKg(l.net) + ' kg' : '']].filter((x) => x[1]);
       return `<div class="vtl"><div class="vtl-top"><span class="vtl-n">${i + 1}</span><div class="vtl-code"><b>${esc(main)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</div><div class="vtl-qty"><b>${esc(fmt(l.qty))}</b><small>SL xuất</small></div></div>${kv.length ? `<div class="vtl-kv">${kv.map(([k, v]) => `<span><i>${esc(k)}</i>${esc(v)}</span>`).join('')}</div>` : ''}</div>`;
     }).join('');
-    const tot = `<div class="vtl-tot">Tổng ${esc(fmt(lines.length))} dòng · SL <b>${esc(fmt(sq))}</b>${sk > 0 ? ` · Net ${miss ? '≥ ' : ''}<b>${esc(fmtKg(sk))} kg</b>` : ''}</div>`;
-    return `<div class="vtl-wrap">${bar}${cards}${tot}</div>`;
+    const fg = fk ? gm.get(fk) : null;
+    const tot = `<div class="vtl-tot">${fg ? esc(fg.name) + ': ' : 'Tổng '}${esc(fmt(shown.length))} dòng · SL <b>${esc(fmt(sq))}</b>${sk > 0 ? ` · Net ${miss ? '≥ ' : ''}<b>${esc(fmtKg(sk))} kg</b>` : ''}${fg ? ` <small>(cả phiếu: ${esc(fmt(lines.length))} dòng · SL ${esc(fmt(allQty))})</small>` : ''}</div>`;
+    return `<div class="vtl-wrap">${bar}${chips}${cards}${tot}</div>`;
   }
   // Đổi mã các dòng của phiếu M01VT trong file xuất theo maMode (không gộp dòng).
   function applyMaMode(doc) {
@@ -2058,7 +2079,7 @@
     const tag = sizeTagger();
     return Object.assign({}, doc, { items: (doc.items || []).map((it) => {
       const codes = String(it.maHang || '').split(/\s*,\s*/).map(noTpc).filter(Boolean);
-      const lb = it.maLabel || (codes.length === 1 ? tag(codes[0], '') : '');
+      const lb0 = it.maLabel || (codes.length === 1 ? tag(codes[0], '') : ''), qc = lb0 && !it.maLabel ? vtQc(it.tenHang) : '', lb = lb0 ? lb0 + (qc ? ' (' + qc + ')' : '') : '';
       return lb ? Object.assign({}, it, { maHang: lb }) : it;
     }) });
   }
@@ -4456,6 +4477,8 @@
       if (p) openExportSheet(applyMaMode(docFromSheet(p)));
       return;
     }
+    const vf = e.target.closest('[data-vtf]');
+    if (vf) { vtFil[vf.dataset.vtfp] = vf.dataset.vtf; renderPhieu(); return; }
     const mm = e.target.closest('[data-mamode]');
     if (mm) { setMaMode(mm.dataset.mamode); renderPhieu(); return; }
     const b = e.target.closest('[data-open]');

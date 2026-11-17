@@ -2,7 +2,7 @@
 
 Ứng dụng điện thoại để **xem tồn kho** (Module 01, Module 02, Vị trí, Vị trí Bột) và **gửi phiếu xuất**
 (từ 4 nguồn đang bật: Tồn kho gửi M02, Tồn kho An An M01, Tồn theo vị trí M01, Vị trí Bột M01 — NXT Bột/Sốt M03
-và NXT TNK/TGC M04 **đang ẩn** trên điện thoại, xem `HIDDEN_SOURCES` trong `www/app.js`) về app PC, và **xuất file phiếu (PDF / Excel / ảnh PNG) ngay trên điện thoại**. Điện thoại không nói chuyện trực tiếp với PC — cả hai cùng đọc/ghi 1 Google Sheet:
+**đang ẩn** trên điện thoại, xem `HIDDEN_SOURCES` trong `www/app.js`; NXT TNK/TGC M04 và Lưu trữ cá nhân đã XÓA hẳn từ ĐT 1.42) về app PC, và **xuất file phiếu (PDF / Excel / ảnh PNG) ngay trên điện thoại**. Điện thoại không nói chuyện trực tiếp với PC — cả hai cùng đọc/ghi 1 Google Sheet:
 
 ```
  App PC (Electron)                 Google Sheet                  Điện thoại
@@ -122,7 +122,6 @@ là tab **Kho**, **Kho**, **Phiếu**, **Tra cứu**):
   | **Vị trí** | Module 01 → Tồn theo vị trí | Module 01 → Tồn theo vị trí → "📱 Phiếu xuất từ điện thoại" | SL Tồn |
   | **Vị trí Bột** | Module 01 → Load Data → "Tải dữ liệu vị trí Bột" | Module 01 → Vị Trí Bột → "📱 Phiếu xuất từ điện thoại" | SL |
   | **Bột/Sốt** | Module 03 (theo lô) | Module 03 → Xuất sử dụng (mã PX_…, Lịch sử) | Tổng (kg) — nhập theo **kiện** nếu lô có kg/kiện; **bắt buộc chọn LSX xuất** |
-  | **TNK/TGC** | Module 04 (lô nhập × vị trí) | Module 04 → Xuất hàng (+ Lịch sử) | SL tồn tại đúng vị trí |
 
   Phiếu nào cũng về PC ở trạng thái "Đã trừ tồn"; trên PC vẫn hủy trừ / trừ lại được. Phiếu
   Vị trí có nút **Xem & xuất** để in/xuất Excel·PDF·PNG giống nút "Tạo phiếu xuất" trên PC.
@@ -136,7 +135,7 @@ là tab **Kho**, **Kho**, **Phiếu**, **Tra cứu**):
   PC; điện thoại sẽ báo và không cho sửa. Phiếu xóa không hiện nữa nhưng vẫn còn 1 dòng trên Sheet
   (trạng thái *Lỗi - Đã hủy trên điện thoại*) để đối chiếu. **Cần dán lại `Code.gs` mới và triển khai
   phiên bản mới** (xem Bước 1) thì 2 nút này mới hoạt động.
-- **Tồn kho**: xem cả 5 bảng (Tồn kho gửi, Tồn kho An An, Vị trí, Bột/Sốt, TNK/TGC) — dùng chung số liệu đã
+- **Tồn kho**: xem cả 4 bảng (Tồn kho gửi, Tồn kho An An, Vị trí, Bột/Sốt) — dùng chung số liệu đã
   lưu với tab Xuất kho; chạm 1 dòng để xem đủ các cột.
 - **Phiếu đã gửi**: *Đang chờ PC nhận* → *PC đã nhận* (đã nằm trong Module 02 và đã trừ tồn).
 
@@ -186,7 +185,7 @@ Gửi phiếu xong, app hỏi **Xuất file**: chọn **PDF**, **Excel** hoặc 
 Xuất lại phiếu cũ: tab **Phiếu đã gửi** → chạm vào phiếu → **📄 Xuất file**.
 
 Mẫu file theo đúng bảng dữ liệu: Kho gửi = "Phiếu yêu cầu xuất hàng" của Module 02 (có logo);
-Vị trí = "Phiếu xuất" của menu Tồn theo vị trí. Tồn kho An An, Bột/Sốt, TNK/TGC trên PC chưa có mẫu
+Vị trí = "Phiếu xuất" của menu Tồn theo vị trí. Tồn kho An An, Bột/Sốt trên PC chưa có mẫu
 phiếu riêng nên dùng kiểu Excel sẵn có của đúng module đó. Xuất file KHÔNG trừ tồn — tồn chỉ bị
 trừ khi PC nhận phiếu (tự động, như trước).
 
@@ -252,24 +251,6 @@ phiếu của chính mình; tài khoản **Tạo phiếu** tự sửa / xóa đ�
 
 Mặc định **Sáng** (xanh da trời). Đổi sang **Tối** (đỡ chói khi làm trong kho thiếu sáng) ở
 **Cài đặt → Giao diện**, có hiệu lực ngay, app nhớ lựa chọn cho lần mở sau.
-
-## Lưu trữ cá nhân (ĐT 1.02)
-Cần dán lại `apps-script/Code.gs`, chạy 1 lần hàm `ltCapQuyen` (cấp quyền Drive), rồi Triển khai → Quản lý triển khai → Phiên bản mới. Quyền điện thoại: mã kho `LT`. Dùng LAN cần build lại APK / IPA (native-level 4).
-
-### Đăng nhập Gmail / lấy dữ liệu từ Drive cá nhân (ĐT 1.25)
-
-Bản PC sao lưu "M19 · Lưu trữ cá nhân" lên **Drive cá nhân** (`KhoLanh_AnAn/<tài khoản>/LuuTruCaNhan/`). Trên điện thoại: **Lưu trữ cá nhân → ⚙ → Drive cá nhân (Gmail)**:
-
-1. **Đăng nhập Gmail**: trình duyệt mở trang Google → chọn email → Cho phép (tick đủ ô quyền Drive) → quay lại app, app tự hoàn tất. Người dùng không nhập Client ID, không gõ mã.
-2. **Lấy dữ liệu từ Drive cá nhân**: chỉ ĐỌC; tin nhắn / ngăn được trộn vào kho trên máy (mục nào sửa sau cùng thì thắng), file đính kèm tải khi mở. Nếu tên tài khoản trên PC khác tên đăng nhập app, sửa ô "Tên tài khoản trên PC" (app liệt kê sẵn các thư mục có trên Drive).
-3. **Đăng xuất email**: thu hồi + xóa khóa đăng nhập trên máy; có thể tick xóa luôn các mục đã lấy về từ Drive đó.
-
-**Cài đặt 1 lần cho Web App (người quản lý làm, giống bước Drive cá nhân của PC):**
-1. Google Cloud (CÙNG dự án mà PC dùng cho Drive cá nhân; quyền `drive.file` chỉ thấy file do chính dự án đó tạo): APIs & Services › Credentials › Create credentials › OAuth client ID › loại **Web application**. Ở **Authorized redirect URIs** dán đúng địa chỉ Web App (`https://script.google.com/macros/s/…/exec`). Màn hình OAuth consent nên để **Publish app** (nếu để Testing thì liên kết hết hạn sau 7 ngày). Đã bật Google Drive API.
-2. Apps Script › Cài đặt dự án › Thuộc tính tập lệnh: thêm `DRIVE_WEB_CLIENT_ID` và `DRIVE_WEB_CLIENT_SECRET` (secret chỉ nằm ở đây, không xuống điện thoại).
-3. Dán lại `apps-script/Code.gs` mới → **Triển khai › Quản lý triển khai › Phiên bản mới** (Google sẽ hỏi cấp thêm quyền "kết nối dịch vụ bên ngoài" — đồng ý).
-
-File: `www/lt-gdrive.js` (đăng nhập qua Web App + đọc Drive) · `www/lt-backend.js` (trộn dữ liệu, giao diện cài đặt) · `apps-script/Code.gs` (khối `gd*_`: nhận chuyển hướng của Google, đổi mã / làm mới token).
 
 ## Phân loại (ĐT 1.12 / PC 1.56)
 Tab **Báo cáo** có thêm mục **Phân loại**: tổng NET (kg) từng loại của Tồn kho An An (8 loại) và Tồn kho gửi (6 loại), chi tiết từng Size, bấm Size để xem các mã hàng. Thành Phẩm Chính có bộ lọc "Sắp hết" theo ngưỡng đặt trên PC. Dữ liệu do PC dựng sẵn và đẩy lên cùng file báo cáo (cần PC bản 1.56 trở lên; mở Module 01 / 02 rồi bấm "Đồng bộ ngay"). Dùng chung quyền Báo cáo, không cần cập nhật Code.gs.

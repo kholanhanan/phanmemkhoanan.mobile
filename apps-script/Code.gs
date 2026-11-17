@@ -37,7 +37,7 @@
 
 var TAB = {
   M01: 'TonKho_M01', VITRI: 'TonKho_M01_ViTri', VITRIBOT: 'TonKho_M01_ViTriBot', M02: 'TonKho_M02',
-  M03: 'TonKho_M03', M03_LSX: 'DanhMuc_M03_LSX', M04: 'TonKho_M04',
+  M03: 'TonKho_M03', M03_LSX: 'DanhMuc_M03_LSX',
   M08_MAHOA: 'M08_MaHoa', M08_MADATAO: 'M08_MaDaTao', M08_TONGHOP: 'M08_TongHop',
   M08_RADONG: 'M08_RaDong', M08_SIZE: 'M08_SizeLabel', M08_KS: 'M08_KhangSinh', M08_KSXOA: 'M08_KhangSinhXoa', M08_ANHXA: 'M08_AnhXa',
   META: 'Meta', PX: 'PhieuXuat', PXI: 'PhieuXuatItems', PQ: 'PhanQuyen',
@@ -52,15 +52,15 @@ var TAB = {
   PXPC: 'PhieuXuat_PC', PXPCI: 'PhieuXuatItems_PC' // (PC 4.58) phiếu xuất TẠO TRÊN PC — PC ghi đè, điện thoại chỉ XEM (getPhieu_ gộp vào danh sách, nguon = 'PC')
 };
 // Kho (mã giống cột "module" của phiếu) mà từng lệnh đọc dữ liệu cần — dùng để chặn token không được xem kho đó.
-var KHO_OF_ACTION = { tonKhoGui: 'M02', tonKho: 'M01', baoCaoM01: 'BC01', baoCaoM02: 'BC02', viTri: 'M01VT', viTriBot: 'M01VTB', tonKhoM03: 'M03', tonKhoM04: 'M04', m08: 'M08', ksSince: 'M08', lichXuat: 'LX', lichXuatGui: 'LX', c3dData: 'C3D', ltPull: 'LT', ltPush: 'LT', ltFilePut: 'LT', ltFileGet: 'LT', ltGInfo: 'LT', ltGPoll: 'LT', ltGExchange: 'LT', ltGRefresh: 'LT', ltGRevoke: 'LT' };
+var KHO_OF_ACTION = { tonKhoGui: 'M02', tonKho: 'M01', baoCaoM01: 'BC01', baoCaoM02: 'BC02', viTri: 'M01VT', viTriBot: 'M01VTB', tonKhoM03: 'M03', m08: 'M08', ksSince: 'M08', lichXuat: 'LX', lichXuatGui: 'LX', c3dData: 'C3D' };
 // BC01 / BC02 = quyền xem trang "Báo cáo" trên điện thoại (file Excel Module 01 / Module 02) — KHÔNG phải kho hàng,
 // độc lập với quyền xem kho M01 / M02. Khớp PQ_KHO (main.js), KHO (cai-dat.js), REPORT_CFG + PQ_KHO (www/app.js).
-var ALL_KHO = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M08', 'BC01', 'BC02', 'LX', 'C3D', 'SCAN', 'QR', 'LT']; // LT = Lưu trữ cá nhân (PC 1.03 / ĐT 1.02: tin nhắn / ảnh / file riêng từng tài khoản, đồng bộ qua tab LT_<tên> + Drive) · QR = Tạo mã QR (PC 0.69 / ĐT 0.17) · SCAN = Scan tài liệu (PC 0.21 / ĐT 0.5) — chạy trên điện thoại, không đọc Sheet
+var ALL_KHO = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M08', 'BC01', 'BC02', 'LX', 'C3D', 'SCAN', 'QR']; // QR = Tạo mã QR (PC 0.69 / ĐT 0.17) · SCAN = Scan tài liệu (PC 0.21 / ĐT 0.5) — chạy trên điện thoại, không đọc Sheet
 // PHÂN QUYỀN GIỐNG APP PC (main.js › PQ_PC / limitPcByRole / effectivePc) — sửa 1 bên thì sửa bên kia.
 // Module mở được trên PC + quyền riêng từng mục Cài đặt. Cấp 1 / 2: không có CD_* và TAIKHOAN; Quản lý: có CD_*, TAIKHOAN chỉ khi Quản trị / admin cấp;
 // Quản trị: luôn có CD_* + TAIKHOAN, chỉ module M* là bỏ tick được (danh sách trống = bản cũ → đủ).
 var PQ_CD_ = ['CD_SAOLUU', 'CD_KHOIPHUC', 'CD_DONGBO'];
-var PQ_PC_ = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04', 'M05', 'M06', 'M07', 'M08', 'M09', 'M13', 'M14', 'M15', 'M17', 'M18', 'M19', 'M16', 'LX_EMAIL'].concat(PQ_CD_, ['TAIKHOAN']); // M18 = Quản lý file (PC 1.02) · M19 = Lưu trữ cá nhân (PC 1.03) // M15 = Scan tài liệu (PC 0.21) // M16 = Đối chiếu hàng ngày (PC 0.63, trước là M12) // PC 8.34: LX_EMAIL = duyệt email Lịch xuất
+var PQ_PC_ = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M05', 'M06', 'M07', 'M08', 'M09', 'M13', 'M14', 'M15', 'M17', 'M16', 'LX_EMAIL'].concat(PQ_CD_, ['TAIKHOAN']); // M15 = Scan tài liệu (PC 0.21) // M16 = Đối chiếu hàng ngày (PC 0.63, trước là M12) // PC 8.34: LX_EMAIL = duyệt email Lịch xuất
 var PQ_FIXED_PC_ = ['TAIKHOAN', 'LX_EMAIL'].concat(PQ_CD_);
 function pcClean_(v) { // chuỗi "M01,M02" hoặc mảng → mảng mã hợp lệ, không trùng
   var a = Array.isArray(v) ? v.slice() : String(v || '').split(',');
@@ -125,8 +125,8 @@ function forbid_(msg) { return json_({ ok: false, code: 'FORBIDDEN', error: msg 
 // module: 'M02' (Tồn Kho Gửi — mặc định, phiếu cũ để trống), 'M01' (Tồn Kho An An) hoặc
 // 'M01VT' (Module 01 › Tồn theo vị trí).
 // 'M01VTB' (Module 01 › Vị Trí Bột — dòng xác định bằng cột "_key", tồn = cột "SL").
-// 'M03' (NXT Bột/Sốt — theo lô, cần lsxXuat), 'M04' (NXT TNK/TGC — theo lô nhập × vị trí).
-var MODULES = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03', 'M04'];
+// 'M03' (NXT Bột/Sốt — theo lô, cần lsxXuat).
+var MODULES = ['M01', 'M01VT', 'M01VTB', 'M02', 'M03'];
 var PX_HEADERS = ['id', 'maPhieu', 'ngayTao', 'trangThai', 'nguoiTao', 'ghiChu', 'xuLyLuc', 'module', 'lsxXuat', 'nguoiDung'];
 // itemKey/rowIndex/hopDong chỉ dùng cho phiếu Module 01 (dòng Load Data được xác định bằng cột
 // "_key" mà app PC đẩy kèm lên tab TonKho_M01).
@@ -144,19 +144,27 @@ var M2 = { maHang: 'Mã hàng', tenHang: 'Tên hàng', soLo: 'Số lô', size: '
 
 function doGet(e) {
   var q = (e && e.parameter) || {};
-  if (q.state && (q.code || q.error)) return gdCallback_(q); // ĐT 1.25: Google chuyển hướng về đây sau khi người dùng chọn Gmail
   return json_({ ok: true, app: 'Kho Lạnh An An', message: 'Web App đang chạy. Ứng dụng điện thoại gọi bằng POST.' });
 }
 
+// PC 1.65 — CHẶN DÒ MÃ PC_TOKEN: link Web App công khai (GitHub Pages) nên ai cũng gửi thử mã được. Sai quá PC_FAIL_MAX lần trong
+// PC_FAIL_WINDOW_MIN phút (đếm chung, Apps Script không biết địa chỉ người gửi) → khóa MỌI lệnh pc.* PC_FAIL_LOCK_MIN phút (kể cả mã đúng),
+// để không thể dò mã. Điện thoại (APP_TOKEN / mã từng tài khoản) không bị ảnh hưởng. Nên đặt PC_TOKEN ngẫu nhiên ≥ 32 ký tự.
+var PC_FAIL_MAX = 30, PC_FAIL_WINDOW_MIN = 10, PC_FAIL_LOCK_MIN = 10;
+function pcLocked_() { try { return !!CacheService.getScriptCache().get('pcFailLock'); } catch (e) { return false; } }
+function pcFail_() {
+  try {
+    var c = CacheService.getScriptCache(), n = Number(c.get('pcFailCount') || 0) + 1;
+    c.put('pcFailCount', String(n), PC_FAIL_WINDOW_MIN * 60);
+    if (n >= PC_FAIL_MAX) { c.put('pcFailLock', '1', PC_FAIL_LOCK_MIN * 60); c.remove('pcFailCount'); }
+  } catch (e) { /* bộ đệm lỗi: không chặn */ }
+}
 function doPost(e) {
   var req;
   try {
     req = JSON.parse(e.postData.contents);
   } catch (err) {
     return json_({ ok: false, error: 'Yêu cầu không đúng định dạng.' });
-  }
-  if (String(req.action || '') === 'gdCallback') { // ĐT 1.27: trang tĩnh dang-nhap-xong.html (GitHub Pages) chuyển mã Google về đây — không cần token, chỉ cần `state` ngẫu nhiên
-    try { return json_(gdStore_(req)); } catch (err) { return json_({ ok: false, error: String(err && err.message || err) }); }
   }
   var props = PropertiesService.getScriptProperties();
   var appToken = props.getProperty('APP_TOKEN');
@@ -166,7 +174,8 @@ function doPost(e) {
   var user = null;
   if (isPc) {
     if (!pcToken) return json_({ ok: false, error: 'Web App chưa đặt PC_TOKEN (Cài đặt dự án → Thuộc tính tập lệnh).' });
-    if (String(req.token || '') !== pcToken) return json_({ ok: false, code: 'AUTH', error: 'Mã truy cập không đúng.' });
+    if (pcLocked_()) return json_({ ok: false, code: 'AUTH', error: 'Tạm khóa lệnh của app PC do có quá nhiều lần nhập sai mã truy cập — thử lại sau ' + PC_FAIL_LOCK_MIN + ' phút.' });
+    if (String(req.token || '') !== pcToken) { pcFail_(); return json_({ ok: false, code: 'AUTH', error: 'Mã truy cập không đúng.' }); }
   } else {
     user = resolveUser_(req.token, appToken, req.nguoiDung);
     if (!user) return json_({ ok: false, code: 'AUTH', error: 'Tên người dùng hoặc mã truy cập không đúng, hoặc tài khoản đã bị khóa. Liên hệ người quản lý app PC.' });
@@ -215,7 +224,6 @@ function doPost(e) {
         r3.lsx = lsx.rows.map(function (x) { return { id: String(x[0]), code: String(x[1]), name: String(x[2] || ''), khachHang: String(x[3] || '') }; });
         return json_(r3);
       }
-      case 'tonKhoM04': return json_(getTableWithPending_(TAB.M04));
       // Module 08 (Tổng Hợp) — chỉ xem: trả về trọn các tab nhỏ, điện thoại tự tính bảng gộp.
       case 'm08': {
         var pick = function (name) { var t = readTab_(name); return { headers: t.headers, rows: t.rows }; };
@@ -234,17 +242,6 @@ function doPost(e) {
       case 'lichXuatGui': return json_(lxGui_(user, req.ops));
       // (PC 8.61) Container Loading 3D: cont + phương án PC đã đẩy (tab C3D_Data) — cần mã kho 'C3D' (phân quyền điện thoại riêng).
       case 'c3dData': { var cd = readTab_(TAB.C3D); return json_({ ok: true, meta: getMeta_(), headers: cd.headers, rows: cd.rows }); }
-      // LƯU TRỮ CÁ NHÂN (ĐT 1.02) — điện thoại kéo / đẩy tin + file của CHÍNH tài khoản mình (tab LT_<tên>, thư mục Drive KhoLanh_LuuTru/<tên>).
-      case 'ltPull': return json_(ltPull_(ltTkOf_(user, req), req.since, req.limit));
-      case 'ltPush': return json_(ltPush_(ltTkOf_(user, req), req.rows));
-      case 'ltFilePut': return json_(ltFilePut_(ltTkOf_(user, req), req.id, req.name, req.mime, req.b64));
-      case 'ltFileGet': return json_(ltFileGet_(ltTkOf_(user, req), req.fid));
-      // ĐT 1.25 — liên kết Gmail / Drive cá nhân (Lưu trữ cá nhân): xem khối gd*_ ở cuối file.
-      case 'ltGInfo': return json_(gdInfo_());
-      case 'ltGPoll': return json_(gdPoll_(req.state));
-      case 'ltGExchange': return json_(gdExchange_(req.state, req.redirect));
-      case 'ltGRefresh': return json_(gdRefresh_(req.refresh));
-      case 'ltGRevoke': return json_(gdRevoke_(req.token));
       case 'baoCaoM01': return json_(getBaoCao_(TAB.M01_BAOCAO));
       case 'baoCaoM02': return json_(getBaoCao_(TAB.M02_BAOCAO));
       case 'phieu': return json_(getPhieu_(user));
@@ -260,17 +257,12 @@ function doPost(e) {
       case 'pc.emailQuet': return json_(emailQuet_());
       case 'pc.archive': return json_(pcArchive_(req.days));
       case 'pc.ksUpsert': return json_(pcKsUpsert_(req.rows, req.dels, req.full));
-      // LƯU TRỮ CÁ NHÂN (PC 1.03): PC đẩy / kéo giúp từng tài khoản (tk = tên người dùng chữ thường).
       // PC 2.07 — Drive cá nhân: Client ID / Secret OAuth dùng chung, lưu trong Thuộc tính tập lệnh (KHÔNG nằm trong Sheet) để máy PC mới tự lấy về.
       case 'pc.driveClientGet': return json_(pcDriveClientGet_());
       case 'pc.driveClientSet': return json_(pcDriveClientSet_(req.clientId, req.clientSecret));
       // PC 1.61 — Mã truy cập GitHub (kho riêng tư) dùng chung: lưu ở Thuộc tính tập lệnh GITHUB_TOKEN (KHÔNG nằm trong Sheet) để máy mới tự lấy về
       case 'pc.ghTokenGet': return json_(pcGhTokenGet_());
       case 'pc.ghTokenSet': return json_(pcGhTokenSet_(req.token));
-      case 'pc.ltPull': return json_(ltPull_(ltTk_(req.tk), req.since, req.limit));
-      case 'pc.ltPush': return json_(ltPush_(ltTk_(req.tk), req.rows));
-      case 'pc.ltFilePut': return json_(ltFilePut_(ltTk_(req.tk), req.id, req.name, req.mime, req.b64));
-      case 'pc.ltFileGet': return json_(ltFileGet_(ltTk_(req.tk), req.fid));
       default: return json_({ ok: false, error: 'Không có chức năng "' + action + '".' });
     }
   } catch (err) {
@@ -750,7 +742,7 @@ function col_(headers, name) { return headers.indexOf(name); }
 // Số lượng ĐANG CHỜ trên từng lô: phiếu điện thoại PC chưa nhận, CỘNG phiếu PC đã nhận nhưng
 // chưa có trong lần đẩy tồn kho gần nhất (xuLyLuc sau Meta.lastPushAt).
 // Khóa: Module 02 = matchKey_(...); Module 01 = 'M01|' + itemKey; Vị trí = 'VT|' + itemKey;
-// Vị Trí Bột = 'M01VTB|' + itemKey; M03/M04 = 'M03|' / 'M04|' + itemKey.
+// Vị Trí Bột = 'M01VTB|' + itemKey; M03 = 'M03|' + itemKey.
 function pendingByKey_() {
   var meta = getMeta_();
   // Moc day ton RIENG tung bang (PC cho phep dong bo tung bang) — thieu thi dung moc chung.
@@ -962,7 +954,6 @@ function createPhieu_(p) {
       : module === 'M01VT' ? buildItemsVT_(id, p.items, pending)
       : module === 'M01VTB' ? buildItemsVTB_(id, p.items, pending)
       : module === 'M03' ? buildItemsKey_(id, p.items, pending, TAB.M03, 'M03', 'Tổng (kg)', ['Mã Hàng', 'Loại Hàng'], ['Vị trí', 'LSX / Hợp đồng'])
-      : module === 'M04' ? buildItemsKey_(id, p.items, pending, TAB.M04, 'M04', 'SL tồn', ['Mã hàng', 'Loại hàng'], ['Vị trí', 'Size'])
       : buildItemsM02_(id, p.items, pending);
     if (built.error) return built.error;
 
@@ -1058,7 +1049,6 @@ function buildItemsFor_(module, id, items, pending) {
     : module === 'M01VT' ? buildItemsVT_(id, items, pending)
     : module === 'M01VTB' ? buildItemsVTB_(id, items, pending)
     : module === 'M03' ? buildItemsKey_(id, items, pending, TAB.M03, 'M03', 'Tổng (kg)', ['Mã Hàng', 'Loại Hàng'], ['Vị trí', 'LSX / Hợp đồng'])
-    : module === 'M04' ? buildItemsKey_(id, items, pending, TAB.M04, 'M04', 'SL tồn', ['Mã hàng', 'Loại hàng'], ['Vị trí', 'Size'])
     : buildItemsM02_(id, items, pending);
 }
 
@@ -1238,8 +1228,8 @@ function buildItemsVT_(id, reqItems, pending) {
   return { items: items };
 }
 
-// Phiếu Module 03 / 04: dòng xác định bằng cột "_key" (M03: mã lô; M04: "<id lô nhập>::<vị trí>")
-// do app PC đẩy lên; số lượng tồn ở cột qtyCol trừ phiếu đang chờ ('M03|key' / 'M04|key').
+// Phiếu Module 03: dòng xác định bằng cột "_key" (mã lô)
+// do app PC đẩy lên; số lượng tồn ở cột qtyCol trừ phiếu đang chờ ('M03|key').
 // nameCols: cột dùng làm Mã hàng / Tên hàng; extraCols: 2 cột ghi vào soLo / viTri để dễ đọc.
 function buildItemsKey_(id, reqItems, pending, tab, mod, qtyCol, nameCols, extraCols) {
   var ton = readTab_(tab);
@@ -1283,7 +1273,7 @@ function buildItemsVTB_(id, reqItems, pending) {
 // ============================================================================================
 // CÁC LỆNH DÀNH RIÊNG CHO APP PC (PC_TOKEN) — xem app/sheets-webapp-client.js
 // ============================================================================================
-var PC_ALLOWED_TABS = [TAB.PQ, TAB.M01, TAB.VITRI, TAB.VITRIBOT, TAB.M02, TAB.M03, TAB.M03_LSX, TAB.M04, TAB.META, TAB.PX, TAB.PXI,
+var PC_ALLOWED_TABS = [TAB.PQ, TAB.M01, TAB.VITRI, TAB.VITRIBOT, TAB.M02, TAB.M03, TAB.M03_LSX, TAB.META, TAB.PX, TAB.PXI,
   TAB.M08_MAHOA, TAB.M08_MADATAO, TAB.M08_TONGHOP, TAB.M08_RADONG, TAB.M08_SIZE, TAB.M08_ANHXA, TAB.M08_KS, TAB.M08_KSXOA, TAB.M01_BAOCAO, TAB.M02_BAOCAO, TAB.LX, TAB.LX_THANG, TAB.LX_YC, TAB.LX_EM, TAB.C3D, TAB.PX_LUUTRU, TAB.PXI_LUUTRU, TAB.PXPC, TAB.PXPCI];
 function assertPcTab_(name) {
   if (PC_ALLOWED_TABS.indexOf(name) < 0) throw new Error('Không được phép thao tác tab "' + name + '".');
@@ -1605,193 +1595,4 @@ function ksSince_(since) {
     xd.forEach(function (r) { var u = String(r[1] || ''); if (u > since) { dels.push(String(r[0] || '')); if (u > maxU) maxU = u; } });
   }
   return { ok: true, full: !since, rows: rows, dels: dels, total: data.filter(function (r) { return String(r[0] || ''); }).length, u: maxU };
-}
-
-
-// ---------------------------------------------------------------------------------------------
-// LƯU TRỮ CÁ NHÂN (PC 1.03 / ĐT 1.02) — khung chat riêng từng tài khoản (tin nhắn · ảnh · file).
-//   - Tin nhắn + ngăn: tab "LT_<tên người dùng chữ thường>" (mỗi dòng 1 bản ghi, cột = LT_COLS). Mọi ô lưu dạng CHỮ (định dạng "@") để
-//     nội dung bắt đầu bằng "=" không bị hiểu là công thức.
-//   - File: thư mục Google Drive "KhoLanh_LuuTru" / "<tên>" (của người sở hữu Web App). Dòng tin giữ Drive fileId ở cột "fid".
-//   - Mỗi bản ghi có id duy nhất; "up" (giờ sửa) lớn hơn thắng; "dl": 0 bình thường · 1 thùng rác · 2 xóa hẳn (xóa file Drive).
-//   - "sq" = số thứ tự do Web App cấp mỗi lần ghi — thiết bị kéo "những dòng có sq > mốc đã nhận" (không phụ thuộc đồng hồ máy).
-//   - Điện thoại chỉ làm việc với tab / thư mục của CHÍNH tài khoản (tên lấy từ token, không từ yêu cầu); PC (PC_TOKEN) truyền tk.
-//   - CẦN QUYỀN DRIVE: sau khi dán Code.gs mới, chạy 1 lần hàm ltCapQuyen trong trình soạn Apps Script (Cho phép quyền Drive),
-//     rồi Triển khai → Quản lý triển khai → Phiên bản mới.
-// ---------------------------------------------------------------------------------------------
-var LT_COLS = ['id', 'k', 'ng', 't', 'tx', 'fn', 'fs', 'mt', 'th', 'fid', 'bg', 'ts', 'up', 'dl', 'pn', 'tg', 'src', 'sq'];
-var LT_FILE_MAX = 15 * 1024 * 1024;   // khớp MAX_DRIVE trong core/luu-tru.js
-var LT_ID_OK_ = /^[A-Za-z0-9_-]{1,64}$/;
-function ltCapQuyen() { DriveApp.createFolder('kholanh_tam').setTrashed(true); return 'OK'; } // tạo + xóa 1 thư mục tạm để BUỘC xin quyền Drive đầy đủ (getRootFolder chỉ cần quyền đọc) // chạy tay 1 lần để cấp quyền Drive
-function ltTk_(s) { var t = String(s || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '_').slice(0, 40); if (!t) throw new Error('Thiếu tên tài khoản.'); return t; }
-function ltTkOf_(user, req) { return ltTk_(user.admin ? (req.nguoiDung || 'admin') : user.ten); }
-function ltSheet_(tk) {
-  var name = 'LT_' + tk, ss = ss_(), sh = ss.getSheetByName(name);
-  if (!sh) {
-    sh = ss.insertSheet(name);
-    sh.getRange(1, 1, sh.getMaxRows(), LT_COLS.length).setNumberFormat('@');
-    sh.getRange(1, 1, 1, LT_COLS.length).setValues([LT_COLS]);
-    sh.setFrozenRows(1);
-  }
-  return sh;
-}
-function ltNum_(v) { var n = Number(v); return isFinite(n) ? n : 0; }
-function ltRowObj_(r) {
-  var o = {};
-  LT_COLS.forEach(function (c, i) { var v = r[i]; if (v === '' || v == null) return; o[c] = v; });
-  ['fs', 'bg', 'ts', 'up', 'dl', 'pn', 'sq'].forEach(function (c) { if (o[c] !== undefined) o[c] = ltNum_(o[c]); });
-  o.tg = o.tg ? String(o.tg).split('\u001f') : [];
-  if (o.dl === undefined) o.dl = 0;
-  return o;
-}
-function ltPull_(tk, since, limit) {
-  var sh = ltSheet_(tk), last = sh.getLastRow(), lim = Math.min(Math.max(ltNum_(limit) || 300, 20), 500), from = ltNum_(since);
-  var rows = [];
-  if (last > 1) {
-    var data = sh.getRange(2, 1, last - 1, LT_COLS.length).getValues(), iSq = LT_COLS.indexOf('sq');
-    data.forEach(function (r) { if (ltNum_(r[iSq]) > from) rows.push(r); });
-  }
-  rows.sort(function (a, b) { return ltNum_(a[LT_COLS.length - 1]) - ltNum_(b[LT_COLS.length - 1]); });
-  var part = rows.slice(0, lim), more = rows.length > part.length;
-  var seq = part.length ? ltNum_(part[part.length - 1][LT_COLS.length - 1]) : from;
-  return { ok: true, rows: part.map(ltRowObj_), seq: seq, more: more };
-}
-function ltPush_(tk, rows) {
-  if (!Array.isArray(rows) || !rows.length) return { ok: true, n: 0 };
-  rows = rows.slice(0, 100);
-  var lock = LockService.getScriptLock(); lock.waitLock(25000);
-  try {
-    var sh = ltSheet_(tk), last = sh.getLastRow(), n = LT_COLS.length;
-    var data = last > 1 ? sh.getRange(2, 1, last - 1, n).getValues() : [], idx = {}, maxSq = 0;
-    data.forEach(function (r, i) { idx[String(r[0])] = i; var q = ltNum_(r[n - 1]); if (q > maxSq) maxSq = q; });
-    var append = [], changed = {}, applied = 0, trash = [];
-    rows.forEach(function (w) {
-      if (!w || !LT_ID_OK_.test(String(w.id || ''))) return;
-      var up = ltNum_(w.up), dl = [1, 2].indexOf(ltNum_(w.dl)) >= 0 ? ltNum_(w.dl) : 0, i = idx[w.id];
-      if (i !== undefined && i >= data.length) return; // trùng id trong cùng 1 lượt đẩy
-      if (i !== undefined) { var cu = ltNum_(data[i][LT_COLS.indexOf('up')]), cd = ltNum_(data[i][LT_COLS.indexOf('dl')]); if (up < cu || (up === cu && dl <= cd)) return; }
-      var o = {};
-      LT_COLS.forEach(function (c) { var v = w[c]; if (c === 'tg') v = (Array.isArray(w.tg) ? w.tg : []).map(function (x) { return String(x).slice(0, 40); }).slice(0, 20).join('\u001f'); o[c] = v == null ? '' : String(v); });
-      o.k = o.k === 'n' ? 'n' : 'm'; o.dl = String(dl); o.tx = o.tx.slice(0, 20000); o.th = /^data:image\/jpeg;base64,/.test(o.th) && o.th.length <= 24000 ? o.th : '';
-      o.fn = o.fn.slice(0, 200); o.mt = o.mt.slice(0, 100); o.fid = o.fid.slice(0, 120); o.src = o.src === 'dt' ? 'dt' : 'pc';
-      if (dl === 2) { o.tx = ''; o.th = ''; if (o.fid) trash.push(o.fid); }
-      maxSq = Math.max(maxSq + 1, new Date().getTime()); o.sq = String(maxSq);
-      var arr = LT_COLS.map(function (c) { return o[c]; });
-      if (i !== undefined) { data[i] = arr; changed[i] = true; } else { idx[o.id] = data.length + append.length; append.push(arr); }
-      applied++;
-    });
-    Object.keys(changed).forEach(function (i) { sh.getRange(Number(i) + 2, 1, 1, n).setNumberFormat('@').setValues([data[i]]); });
-    if (append.length) {
-      var start = last < 1 ? 2 : last + 1, need = start + append.length - 1;
-      if (need > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), need - sh.getMaxRows() + 200);
-      sh.getRange(start, 1, append.length, n).setNumberFormat('@').setValues(append);
-    }
-    trash.forEach(function (fid) { try { DriveApp.getFileById(fid).setTrashed(true); } catch (e) { /* đã mất */ } });
-    return { ok: true, n: applied };
-  } finally { lock.releaseLock(); }
-}
-function ltFolder_(tk) {
-  var props = PropertiesService.getScriptProperties(), key = 'LT_F_' + tk, id = props.getProperty(key);
-  if (id) { try { return DriveApp.getFolderById(id); } catch (e) { /* tạo lại */ } }
-  var rid = props.getProperty('LT_ROOT'), root = null;
-  if (rid) { try { root = DriveApp.getFolderById(rid); } catch (e) { root = null; } }
-  if (!root) { var it = DriveApp.getFoldersByName('KhoLanh_LuuTru'); root = it.hasNext() ? it.next() : DriveApp.createFolder('KhoLanh_LuuTru'); props.setProperty('LT_ROOT', root.getId()); }
-  var sub = root.getFoldersByName(tk), f = sub.hasNext() ? sub.next() : root.createFolder(tk);
-  props.setProperty(key, f.getId()); return f;
-}
-function ltFilePut_(tk, id, name, mime, b64) {
-  if (!LT_ID_OK_.test(String(id || ''))) throw new Error('Mã mục không hợp lệ.');
-  var bytes = Utilities.base64Decode(String(b64 || ''));
-  if (!bytes.length) throw new Error('File rỗng.');
-  if (bytes.length > LT_FILE_MAX) throw new Error('File lớn hơn ' + Math.round(LT_FILE_MAX / 1048576) + ' MB — dùng mạng LAN.');
-  var fname = id + '__' + String(name || 'file').replace(/[\\/:*?"<>|]/g, '_').slice(0, 120), folder = ltFolder_(tk), ex = folder.getFilesByName(fname);
-  if (ex.hasNext()) return { ok: true, fid: ex.next().getId() }; // gửi lại cùng 1 mục → dùng bản đã có
-  var f = folder.createFile(Utilities.newBlob(bytes, String(mime || 'application/octet-stream'), fname));
-  return { ok: true, fid: f.getId() };
-}
-function ltFileGet_(tk, fid) {
-  var folder = ltFolder_(tk), f;
-  try { f = DriveApp.getFileById(String(fid || '')); } catch (e) { throw new Error('Không tìm thấy file trên Drive.'); }
-  var ok = false, ps = f.getParents(); while (ps.hasNext()) { if (ps.next().getId() === folder.getId()) ok = true; }
-  if (!ok) throw new Error('File không thuộc tài khoản này.');
-  if (f.getSize() > LT_FILE_MAX) throw new Error('File lớn hơn ' + Math.round(LT_FILE_MAX / 1048576) + ' MB — dùng mạng LAN.');
-  var b = f.getBlob();
-  return { ok: true, name: f.getName(), mime: b.getContentType(), b64: Utilities.base64Encode(b.getBytes()) };
-}
-
-// ============================================================================================================
-// ĐT 1.25 — LIÊN KẾT GMAIL / GOOGLE DRIVE CÁ NHÂN TRÊN ĐIỆN THOẠI (Lưu trữ cá nhân) — người dùng chỉ chọn email Google, không nhập gì.
-// Luồng: điện thoại mở trang đăng nhập Google (redirect_uri = địa chỉ /exec của Web App này) → Google chuyển về doGet (gdCallback_) kèm `code`
-// → mã được giữ 10 phút trong bộ nhớ đệm theo `state` ngẫu nhiên của điện thoại → điện thoại hỏi (ltGPoll) rồi nhờ Web App đổi mã lấy token (ltGExchange).
-// Client secret CHỈ nằm ở đây (Thuộc tính tập lệnh), không bao giờ xuống điện thoại. Quyền xin: drive.file + openid email (điện thoại chỉ ĐỌC Drive).
-// Cài đặt 1 lần (Thuộc tính tập lệnh): DRIVE_WEB_CLIENT_ID, DRIVE_WEB_CLIENT_SECRET — OAuth client loại "Web application" trong CÙNG dự án Google Cloud
-// với Drive cá nhân của PC, mục Authorized redirect URIs = địa chỉ Web App (…/exec). Sau khi dán Code.gs mới: Triển khai → Quản lý triển khai → Phiên bản mới.
-// ============================================================================================================
-function gdCfg_() {
-  var p = PropertiesService.getScriptProperties();
-  return { id: String(p.getProperty('DRIVE_WEB_CLIENT_ID') || '').trim(), secret: String(p.getProperty('DRIVE_WEB_CLIENT_SECRET') || '').trim() };
-}
-function gdState_(s) { s = String(s || ''); if (!/^[A-Za-z0-9_-]{16,80}$/.test(s)) throw new Error('Mã phiên đăng nhập không hợp lệ.'); return s; }
-function gdPost_(url, payload) {
-  var r = UrlFetchApp.fetch(url, { method: 'post', payload: payload, muteHttpExceptions: true });
-  var j = {}; try { j = JSON.parse(r.getContentText() || '{}'); } catch (e) { /* không phải JSON */ }
-  return { ok: r.getResponseCode() < 300, status: r.getResponseCode(), json: j };
-}
-// ĐT 1.27: lưu mã Google do trang tĩnh gửi về (cùng khóa bộ nhớ đệm với gdCallback_) để điện thoại hỏi (ltGPoll) rồi đổi mã (ltGExchange).
-function gdStore_(r) {
-  var state = String(r.state || '');
-  if (!/^[A-Za-z0-9_-]{16,80}$/.test(state)) throw new Error('Mã phiên đăng nhập không hợp lệ.');
-  var code = String(r.code || ''), err = String(r.error || '');
-  if (code.length > 2000 || err.length > 200) throw new Error('Dữ liệu quá dài.');
-  CacheService.getScriptCache().put('gd_' + state, JSON.stringify({ code: code, error: err }), 600);
-  return { ok: true };
-}
-function gdCallback_(q) {
-  var okState = /^[A-Za-z0-9_-]{16,80}$/.test(String(q.state || ''));
-  if (okState) CacheService.getScriptCache().put('gd_' + q.state, JSON.stringify({ code: String(q.code || ''), error: String(q.error || '') }), 600);
-  var good = okState && q.code && !q.error;
-  return HtmlService.createHtmlOutput('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="font-family:Arial,sans-serif;text-align:center;margin-top:16vh;padding:0 16px">' +
-    '<h2 style="color:' + (good ? '#0B6A3A' : '#B3261E') + '">' + (good ? 'Đã liên kết Google Drive' : 'Chưa liên kết được') + '</h2>' +
-    '<p>' + (good ? 'Quay lại ứng dụng Kho Lạnh An An để hoàn tất.' : 'Quay lại ứng dụng Kho Lạnh An An và thử lại.') + '</p></body>').setTitle('Kho Lạnh An An');
-}
-function gdInfo_() {
-  var c = gdCfg_();
-  if (!c.id || !c.secret) return { ok: true, ready: false, hint: 'Web App chưa có DRIVE_WEB_CLIENT_ID / DRIVE_WEB_CLIENT_SECRET (Thuộc tính tập lệnh). Nhờ người quản lý cài đặt rồi thử lại.' };
-  return { ok: true, ready: true, clientId: c.id };
-}
-function gdPoll_(state) {
-  var v = CacheService.getScriptCache().get('gd_' + gdState_(state));
-  if (!v) return { ok: true, status: 'wait' };
-  var o = {}; try { o = JSON.parse(v); } catch (e) { /* bỏ qua */ }
-  if (o.error || !o.code) return { ok: true, status: 'error', error: o.error || 'khong_co_ma' };
-  return { ok: true, status: 'done' };
-}
-function gdExchange_(state, redirect) {
-  state = gdState_(state);
-  if (!/^https:\/\/(script\.google\.com\/[A-Za-z0-9_\/.-]*\/exec|[A-Za-z0-9-]+\.github\.io\/[A-Za-z0-9_.\/-]*dang-nhap-xong\.html)$/.test(String(redirect || ''))) throw new Error('Địa chỉ chuyển hướng không hợp lệ.');
-  var cache = CacheService.getScriptCache(), v = cache.get('gd_' + state);
-  if (!v) throw new Error('Chưa nhận được phản hồi từ Google (hết hạn?). Bấm đăng nhập lại.');
-  cache.remove('gd_' + state);
-  var o = {}; try { o = JSON.parse(v); } catch (e) { /* bỏ qua */ }
-  if (!o.code) throw new Error('Google báo lỗi: ' + (o.error || 'khong_co_ma'));
-  var c = gdCfg_(); if (!c.id || !c.secret) throw new Error('Web App chưa có DRIVE_WEB_CLIENT_ID / DRIVE_WEB_CLIENT_SECRET.');
-  var r = gdPost_('https://oauth2.googleapis.com/token', { code: o.code, client_id: c.id, client_secret: c.secret, redirect_uri: String(redirect), grant_type: 'authorization_code' });
-  if (!r.ok || !r.json.access_token) throw new Error('Google từ chối đổi mã: ' + (r.json.error_description || r.json.error || r.status));
-  var email = '';
-  try { var seg = String(r.json.id_token).split('.')[1]; while (seg.length % 4) seg += '='; email = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(seg)).getDataAsString()).email || ''; } catch (e) { /* không có email */ }
-  return { ok: true, refresh: r.json.refresh_token || '', access: r.json.access_token, expiresIn: Number(r.json.expires_in) || 3000, scope: String(r.json.scope || ''), email: email };
-}
-function gdRefresh_(refresh) {
-  var c = gdCfg_(); if (!c.id || !c.secret) throw new Error('Web App chưa có DRIVE_WEB_CLIENT_ID / DRIVE_WEB_CLIENT_SECRET.');
-  if (!refresh) throw new Error('Thiếu khóa làm mới.');
-  var r = gdPost_('https://oauth2.googleapis.com/token', { client_id: c.id, client_secret: c.secret, refresh_token: String(refresh), grant_type: 'refresh_token' });
-  if (!r.ok || !r.json.access_token) {
-    if (r.json.error === 'invalid_grant') return { ok: false, code: 'RELINK', error: 'Phiên đăng nhập Google đã hết hạn hoặc bị thu hồi — hãy đăng xuất rồi đăng nhập lại.' };
-    throw new Error('Không làm mới được phiên Google: ' + (r.json.error_description || r.json.error || r.status));
-  }
-  return { ok: true, access: r.json.access_token, expiresIn: Number(r.json.expires_in) || 3000 };
-}
-function gdRevoke_(token) {
-  if (token) { try { gdPost_('https://oauth2.googleapis.com/revoke', { token: String(token) }); } catch (e) { /* bỏ qua */ } }
-  return { ok: true };
 }

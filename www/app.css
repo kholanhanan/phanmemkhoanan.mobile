@@ -53,39 +53,40 @@
 
 /* ===== CHẾ ĐỘ TỐI — mẫu "D · Chế độ tối" (đỡ chói trong kho) ===== */
 html[data-theme="dark"] {
-  --frost: #0F171E;
-  --paper: #18232D;
-  --ink: #E8EEF3;
-  --muted: #A3B5C4;
-  --line: #2A3947;
-  --cobalt: #5B9CFF;
-  --on-cobalt: #0B1622;
-  --cobalt-soft: #1C3350;
-  --amber: #FFB454;
-  --amber-soft: #3A2A12;
+  /* Mẫu 5 "Đen than chì" (đồng bộ bản PC 2.34): nền gần đen, xám trung tính, màu nhấn / trạng thái dịu. */
+  --frost: #0E0E0F;
+  --paper: #171718;
+  --ink: #E6E6E8;
+  --muted: #A2A2A7;
+  --line: #2E2E30;
+  --cobalt: #8EA3BC;
+  --on-cobalt: #0D1117;
+  --cobalt-soft: #1C222B;
+  --amber: #C4AE7F;
+  --amber-soft: #272317;
   --on-amber: #1A1206;
-  --green: #4CC38A;
-  --green-soft: #133226;
-  --red: #FF7A6E;
-  --red-soft: #3D1A17;
-  --top-bg: #0A1118; --top-text: #E8EEF3; --top-muted: #A3B5C4; --top-warn: #FFD591; --top-press: rgba(255,255,255,.10); --top-line: transparent;
-  --brand-a: #9CC9E8; --brand-b: #FFFFFF;
-  --inverse-bg: #E8EEF3; --inverse-text: #0F171E;
-  --seg-bg: #22303C;
-  --chip-bg: #22303C;
-  --field-bg: #0F171E;
-  --field-ph: #6F8496;
-  --picked-bg: #1C3350;
-  --muted-bg: #1F2B36;
-  --empty-text: #6F8496;
-  --totalbar-bg: #141E27;
-  --btn-disabled: #2A3F5C; --btn-disabled-text: #8FA6BE;
-  --check-border: #4A5E70;
+  --green: #93AE9A;
+  --green-soft: #1A241D;
+  --red: #C99690;
+  --red-soft: #2B1D1C;
+  --top-bg: #09090A; --top-text: #E6E6E8; --top-muted: #A2A2A7; --top-warn: #D9C79A; --top-press: rgba(255,255,255,.10); --top-line: transparent;
+  --brand-a: #A9BAD0; --brand-b: #FFFFFF;
+  --inverse-bg: #E6E6E8; --inverse-text: #0E0E0F;
+  --seg-bg: #212123;
+  --chip-bg: #212123;
+  --field-bg: #0E0E0F;
+  --field-ph: #77777C;
+  --picked-bg: #1C222B;
+  --muted-bg: #1C1C1E;
+  --empty-text: #77777C;
+  --totalbar-bg: #121213;
+  --btn-disabled: #2A3340; --btn-disabled-text: #8A94A0;
+  --check-border: #55555A;
   --shadow-rgb: 0,0,0;
-  --ks-pass-border: #2E7D55; --ks-pass-bg: #123024; --ks-fail-border: #8A3A33; --ks-fail-bg: #3A1B18;
-  --ks-none-bg: #1F2B36; --ks-pill-bg: #22303C; --ks-pill-nd-bg: #1B2630; --ks-pill-nd-text: #8A9BAA;
-  --ks-pill-bad-bg: #3D1A17; --ks-pill-bad-text: #FF8C82;
-  --ks-pass: #1A7A43; --ks-fail: #C2362B; --ks-none: #56636E;
+  --ks-pass-border: #4F7A5F; --ks-pass-bg: #17231B; --ks-fail-border: #7A4540; --ks-fail-bg: #2B1D1C;
+  --ks-none-bg: #1C1C1E; --ks-pill-bg: #212123; --ks-pill-nd-bg: #1A1A1B; --ks-pill-nd-text: #8A8A90;
+  --ks-pill-bad-bg: #2B1D1C; --ks-pill-bad-text: #D8A59F;
+  --ks-pass: #3F8A5C; --ks-fail: #B04A42; --ks-none: #56565B;
   color-scheme: dark;
 }
 

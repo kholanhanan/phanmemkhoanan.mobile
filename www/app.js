@@ -3393,7 +3393,7 @@
   // của điện thoại (prefers-color-scheme) và tự đổi khi máy đổi. index.html có đoạn script nhỏ trong <head>
   // đặt data-theme TRƯỚC khi trang hiện (tránh nháy trắng khi mở ở chế độ Tối) — giữ 2 nơi giống nhau.
   const LS_THEME = 'klanan.theme';
-  const THEME_BAR = { light: '#FFFFFF', dark: '#0A1118' }; // màu thanh trạng thái Android = màu thanh trên
+  const THEME_BAR = { light: '#FFFFFF', dark: '#09090A' }; // màu thanh trạng thái Android = màu thanh trên
   const darkMQ = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
   function themeChoice() { try { const t = localStorage.getItem(LS_THEME); return t === 'dark' || t === 'auto' ? t : 'light'; } catch (e) { return 'light'; } }
   function currentTheme() { return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'; }

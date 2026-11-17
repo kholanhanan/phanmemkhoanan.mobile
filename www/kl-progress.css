@@ -9,8 +9,8 @@
   background:var(--kp-dim); font-family:'Be Vietnam Pro','Segoe UI',system-ui,sans-serif; -webkit-tap-highlight-color:transparent;
 }
 html[data-theme="dark"] .kp-ov{
-  --kp-bg:#202020; --kp-sf2:#2B2B2B; --kp-line:#434343; --kp-tx:#F2F2F2; --kp-t2:#D2D2D2; --kp-t3:#B3B3B3; --kp-pr:#6FA3DE; --kp-trk:#3A3A3A;
-  --kp-ok:#7FD38C; --kp-okb:#12301A; --kp-okl:#2F6B3C; --kp-err:#F08D86; --kp-errb:#3B1A18; --kp-dim:rgba(0,0,0,.6); --kp-sh:0 20px 56px rgba(0,0,0,.6);
+  --kp-bg:#171718; --kp-sf2:#212123; --kp-line:#2E2E30; --kp-tx:#E6E6E8; --kp-t2:#BDBDC1; --kp-t3:#97979C; --kp-pr:#8EA3BC; --kp-trk:#2E2E30;
+  --kp-ok:#93AE9A; --kp-okb:#1A241D; --kp-okl:#3E5C46; --kp-err:#C99690; --kp-errb:#2B1D1C; --kp-dim:rgba(0,0,0,.6); --kp-sh:0 20px 56px rgba(0,0,0,.6);
 }
 .kp-ov[hidden]{ display:none; }
 .kp-box{ width:min(500px,100%); max-height:calc(100vh - 32px); overflow:auto; box-sizing:border-box; background:var(--kp-bg); color:var(--kp-tx); border:1px solid var(--kp-line); border-radius:16px;

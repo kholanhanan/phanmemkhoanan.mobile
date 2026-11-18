@@ -8,7 +8,7 @@
   --sc-text: var(--kl-text, var(--ink, #0F1B2D));
   --sc-muted: var(--kl-text-2, var(--muted, #4B5B70));
   --sc-line: var(--kl-line, var(--line, #E1E7EF));
-  --sc-pri: var(--kl-blue, var(--cobalt, #1257D6));
+  --sc-pri: var(--kl-blue, var(--cobalt, #0B57D0));
   --sc-pri-soft: var(--kl-blue-soft, var(--cobalt-soft, #EAF1FD));
   --sc-on-pri: var(--on-cobalt, #FFFFFF);
   --sc-red: var(--kl-red, var(--red, #C62828));

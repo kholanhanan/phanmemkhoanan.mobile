@@ -3,14 +3,14 @@
    Dùng bởi js/kl-progress.js (window.KLProgress). Màu riêng (--kp-*), KHÔNG phụ thuộc css của module; tối = html[data-theme="dark"].
    ===================================================================================================== */
 .kp-ov{
-  --kp-bg:#FFFFFF; --kp-sf2:#F1F5FA; --kp-line:#DCE5F0; --kp-tx:#0F2540; --kp-t2:#44566C; --kp-t3:#586A80; --kp-pr:#1F6FDB; --kp-trk:#E3EAF3;
-  --kp-ok:#0B6A3A; --kp-okb:#DDF3E6; --kp-okl:#9ED6B2; --kp-err:#B3261E; --kp-errb:#FBE3E1; --kp-dim:rgba(15,37,64,.42); --kp-sh:0 18px 48px rgba(15,37,64,.28);
+  --kp-bg:#FFFFFF; --kp-sf2:#F5F5F5; --kp-line:#E0E0E0; --kp-tx:#000000; --kp-t2:#2B2B2B; --kp-t3:#595959; --kp-pr:#0B57D0; --kp-trk:#E8E8E8;
+  --kp-ok:#0B6B3A; --kp-okb:#E6F4EA; --kp-okl:#B3DCC3; --kp-err:#B3261E; --kp-errb:#FDECEA; --kp-dim:rgba(15,37,64,.42); --kp-sh:0 18px 48px rgba(15,37,64,.28);
   position:fixed; inset:0; z-index:2147483000; display:flex; align-items:center; justify-content:center; padding:16px; box-sizing:border-box;
   background:var(--kp-dim); font-family:'Be Vietnam Pro','Segoe UI',system-ui,sans-serif; -webkit-tap-highlight-color:transparent;
 }
 html[data-theme="dark"] .kp-ov{
-  --kp-bg:#171718; --kp-sf2:#212123; --kp-line:#2E2E30; --kp-tx:#E6E6E8; --kp-t2:#BDBDC1; --kp-t3:#97979C; --kp-pr:#8EA3BC; --kp-trk:#2E2E30;
-  --kp-ok:#93AE9A; --kp-okb:#1A241D; --kp-okl:#3E5C46; --kp-err:#C99690; --kp-errb:#2B1D1C; --kp-dim:rgba(0,0,0,.6); --kp-sh:0 20px 56px rgba(0,0,0,.6);
+  --kp-bg:#0F0F0F; --kp-sf2:#1A1A1A; --kp-line:#2C2C2C; --kp-tx:#FFFFFF; --kp-t2:#D6D6D6; --kp-t3:#A6A6A6; --kp-pr:#6EA8FE; --kp-trk:#2C2C2C;
+  --kp-ok:#5BD08C; --kp-okb:#0C2418; --kp-okl:#2F7A4F; --kp-err:#FF8A80; --kp-errb:#2E1210; --kp-dim:rgba(0,0,0,.6); --kp-sh:0 20px 56px rgba(0,0,0,.6);
 }
 .kp-ov[hidden]{ display:none; }
 .kp-box{ width:min(500px,100%); max-height:calc(100vh - 32px); overflow:auto; box-sizing:border-box; background:var(--kp-bg); color:var(--kp-tx); border:1px solid var(--kp-line); border-radius:16px;

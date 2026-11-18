@@ -3,45 +3,45 @@
    Điểm nhấn duy nhất: con số "còn lại" của từng lô — to, đậm, căn phải. Mọi thứ khác giữ yên. */
 
 :root {
-  /* ===== CHẾ ĐỘ SÁNG (mặc định) — giao diện "Kho Lạnh" 5.0 (11/10/2026): nền xám-xanh nhạt, hành động chính xanh dương,
+  /* ===== CHẾ ĐỘ SÁNG (mặc định) — Mẫu B (ĐT 1.43, đồng bộ PC 2.68): trắng / đen chuẩn; trước đó là giao diện "Kho Lạnh" 5.0: nền xám-xanh nhạt, hành động chính xanh dương,
      màu trạng thái cố định (xanh lá = đủ / xong · vàng cam = chờ / sắp hết · đỏ = lỗi / xoá). Chữ / nền ≥ 4,5:1 (WCAG AA).
      Đổi chế độ: html[data-theme="dark"] (khối ngay dưới). Mọi màu trong file dùng các biến này —
      KHÔNG viết mã màu cứng mới, thêm biến ở cả 2 khối. Tên biến (--cobalt…) giữ nguyên cho đỡ phải sửa code. */
-  --frost: #F2F5F9;     /* nền trang */
+  --frost: #F5F5F5;     /* nền trang */
   --paper: #FFFFFF;     /* nền thẻ / ô */
-  --ink: #0F1B2D;       /* chữ chính */
-  --muted: #4B5B70;     /* chữ phụ (7,0:1) */
-  --line: #E1E7EF;      /* viền */
-  --cobalt: #1257D6;    /* hành động chính (6,4:1 trên trắng) */
+  --ink: #000000;       /* chữ chính */
+  --muted: #595959;     /* chữ phụ (7,0:1) */
+  --line: #E0E0E0;      /* viền */
+  --cobalt: #0B57D0;    /* hành động chính (6,4:1 trên trắng) */
   --on-cobalt: #FFFFFF;
-  --cobalt-soft: #EAF1FD;
-  --amber: #9A5B00;     /* chờ / sắp hết — vàng cam */
-  --amber-soft: #FFF1D6;
+  --cobalt-soft: #E8F0FE;
+  --amber: #7A4B00;     /* chờ / sắp hết — vàng cam */
+  --amber-soft: #FFF4D6;
   --on-amber: #FFFFFF;
-  --green: #14663F;
-  --green-soft: #E3F4EA;
-  --red: #B42318;
-  --red-soft: #FDE8E8;
+  --green: #0B6B3A;
+  --green-soft: #E6F4EA;
+  --red: #B3261E;
+  --red-soft: #FDECEA;
   /* thanh trên cùng — nền trắng, chữ đậm */
-  --top-bg: #FFFFFF; --top-text: #0F1B2D; --top-muted: #4B5B70; --top-warn: #8A4B00; --top-press: rgba(15,27,45,.08); --top-line: #E1E7EF;
-  --brand-a: #1257D6; --brand-b: #5FA0FF;
+  --top-bg: #FFFFFF; --top-text: #000000; --top-muted: #595959; --top-warn: #7A4B00; --top-press: rgba(0,0,0,.08); --top-line: #E0E0E0;
+  --brand-a: #0B57D0; --brand-b: #6EA8FE;
   /* khối "đảo màu" (thông báo nổi, chip đang chọn, thanh chọn nhiều) */
-  --inverse-bg: #0F1B2D; --inverse-text: #FFFFFF;
-  --seg-bg: #EAEFF5;        /* nền nhóm nút chuyển (segmented) */
-  --chip-bg: #EAEFF5;       /* nhãn nhỏ (size…) */
+  --inverse-bg: #1A1A1A; --inverse-text: #FFFFFF;
+  --seg-bg: #E8E8E8;        /* nền nhóm nút chuyển (segmented) */
+  --chip-bg: #E8E8E8;       /* nhãn nhỏ (size…) */
   --field-bg: #FFFFFF;      /* ô nhập */
-  --field-ph: #5B6B80;      /* chữ gợi ý ô nhập (5,6:1) */
-  --picked-bg: #EAF1FD;     /* dòng đang được chọn */
-  --muted-bg: #EEF2F7;      /* ô mờ / không chọn được */
-  --empty-text: #5B6B80;    /* số của dòng hết hàng */
+  --field-ph: #757575;      /* chữ gợi ý ô nhập (5,6:1) */
+  --picked-bg: #E8F0FE;     /* dòng đang được chọn */
+  --muted-bg: #F5F5F5;      /* ô mờ / không chọn được */
+  --empty-text: #757575;    /* số của dòng hết hàng */
   --totalbar-bg: #FFFFFF;   /* thanh tổng dưới cùng */
-  --btn-disabled: #D3DCE8; --btn-disabled-text: #4B5B70;
-  --check-border: #7C8CA0;
-  --shadow-rgb: 15,27,45;   /* bóng đổ */
-  --ks-pass-border: #9ED9B8; --ks-pass-bg: #EAF8F0; --ks-fail-border: #F2B1AA; --ks-fail-bg: #FDEDEB;
-  --ks-none-bg: #F2F5F9; --ks-pill-bg: #EAEFF5; --ks-pill-nd-bg: #F2F5F9; --ks-pill-nd-text: #4B5B70;
-  --ks-pill-bad-bg: #FBE3E0; --ks-pill-bad-text: #B42318;
-  --ks-pass: #1A7A43; --ks-fail: #C2362B; --ks-none: #4B5B70;
+  --btn-disabled: #E0E0E0; --btn-disabled-text: #595959;
+  --check-border: #757575;
+  --shadow-rgb: 0,0,0;   /* bóng đổ */
+  --ks-pass-border: #B3DCC3; --ks-pass-bg: #E6F4EA; --ks-fail-border: #F2B8B5; --ks-fail-bg: #FDECEA;
+  --ks-none-bg: #F5F5F5; --ks-pill-bg: #E8E8E8; --ks-pill-nd-bg: #F5F5F5; --ks-pill-nd-text: #595959;
+  --ks-pill-bad-bg: #FDECEA; --ks-pill-bad-text: #B3261E;
+  --ks-pass: #0B6B3A; --ks-fail: #B3261E; --ks-none: #595959;
   --radius-sm: 8px;
   --radius-lg: 18px;
   --font: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -54,39 +54,39 @@
 /* ===== CHẾ ĐỘ TỐI — mẫu "D · Chế độ tối" (đỡ chói trong kho) ===== */
 html[data-theme="dark"] {
   /* Mẫu 5 "Đen than chì" (đồng bộ bản PC 2.34): nền gần đen, xám trung tính, màu nhấn / trạng thái dịu. */
-  --frost: #0E0E0F;
-  --paper: #171718;
-  --ink: #E6E6E8;
-  --muted: #A2A2A7;
-  --line: #2E2E30;
-  --cobalt: #8EA3BC;
-  --on-cobalt: #0D1117;
-  --cobalt-soft: #1C222B;
-  --amber: #C4AE7F;
-  --amber-soft: #272317;
-  --on-amber: #1A1206;
-  --green: #93AE9A;
-  --green-soft: #1A241D;
-  --red: #C99690;
-  --red-soft: #2B1D1C;
-  --top-bg: #09090A; --top-text: #E6E6E8; --top-muted: #A2A2A7; --top-warn: #D9C79A; --top-press: rgba(255,255,255,.10); --top-line: transparent;
-  --brand-a: #A9BAD0; --brand-b: #FFFFFF;
-  --inverse-bg: #E6E6E8; --inverse-text: #0E0E0F;
-  --seg-bg: #212123;
-  --chip-bg: #212123;
-  --field-bg: #0E0E0F;
-  --field-ph: #77777C;
-  --picked-bg: #1C222B;
-  --muted-bg: #1C1C1E;
-  --empty-text: #77777C;
-  --totalbar-bg: #121213;
-  --btn-disabled: #2A3340; --btn-disabled-text: #8A94A0;
-  --check-border: #55555A;
+  --frost: #000000;
+  --paper: #0F0F0F;
+  --ink: #FFFFFF;
+  --muted: #A6A6A6;
+  --line: #2C2C2C;
+  --cobalt: #6EA8FE;
+  --on-cobalt: #000000;
+  --cobalt-soft: #0D2142;
+  --amber: #F0C05A;
+  --amber-soft: #2A2108;
+  --on-amber: #000000;
+  --green: #5BD08C;
+  --green-soft: #0C2418;
+  --red: #FF8A80;
+  --red-soft: #2E1210;
+  --top-bg: #000000; --top-text: #FFFFFF; --top-muted: #A6A6A6; --top-warn: #F0C05A; --top-press: rgba(255,255,255,.10); --top-line: #2C2C2C;
+  --brand-a: #6EA8FE; --brand-b: #FFFFFF;
+  --inverse-bg: #FFFFFF; --inverse-text: #000000;
+  --seg-bg: #1A1A1A;
+  --chip-bg: #1A1A1A;
+  --field-bg: #000000;
+  --field-ph: #8C8C8C;
+  --picked-bg: #0D2142;
+  --muted-bg: #1A1A1A;
+  --empty-text: #8C8C8C;
+  --totalbar-bg: #0F0F0F;
+  --btn-disabled: #2C2C2C; --btn-disabled-text: #8C8C8C;
+  --check-border: #8C8C8C;
   --shadow-rgb: 0,0,0;
-  --ks-pass-border: #4F7A5F; --ks-pass-bg: #17231B; --ks-fail-border: #7A4540; --ks-fail-bg: #2B1D1C;
-  --ks-none-bg: #1C1C1E; --ks-pill-bg: #212123; --ks-pill-nd-bg: #1A1A1B; --ks-pill-nd-text: #8A8A90;
-  --ks-pill-bad-bg: #2B1D1C; --ks-pill-bad-text: #D8A59F;
-  --ks-pass: #3F8A5C; --ks-fail: #B04A42; --ks-none: #56565B;
+  --ks-pass-border: #2F7A4F; --ks-pass-bg: #0C2418; --ks-fail-border: #7A3A35; --ks-fail-bg: #2E1210;
+  --ks-none-bg: #1A1A1A; --ks-pill-bg: #1A1A1A; --ks-pill-nd-bg: #0F0F0F; --ks-pill-nd-text: #8C8C8C;
+  --ks-pill-bad-bg: #2E1210; --ks-pill-bad-text: #FF8A80;
+  --ks-pass: #5BD08C; --ks-fail: #FF8A80; --ks-none: #8C8C8C;
   color-scheme: dark;
 }
 

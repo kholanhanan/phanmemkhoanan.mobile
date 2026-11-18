@@ -3,7 +3,7 @@
 .c3-root.is-full{ padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
 body.c3d-full .topbar, body.c3d-full .tabbar{ display:none !important; }
 .c3-stage{ position:relative; flex:0 0 42%; min-height:150px; background:linear-gradient(180deg,#dbeafb,#eaf3fd); border-bottom:1px solid var(--line); overflow:hidden; }
-html[data-theme="dark"] .c3-stage{ background:linear-gradient(180deg,#1c1c1e,#0e0e0f); }
+html[data-theme="dark"] .c3-stage{ background:linear-gradient(180deg,#1A1A1A,#000000); }
 .c3-vp{ position:absolute; inset:0; }
 .c3d-canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none; }
 .c3d-labels{ position:absolute; inset:0; pointer-events:none; overflow:hidden; }

@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '1.44 (19/11/2026)';
+  const APP_VERSION = '1.45 (19/11/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -1335,12 +1335,12 @@
     const placeFull = noTpc(KHO[src].placeOf(l.item || {}) || '');
     const place = shortPlace(placeFull);
     const code = noTpc((l.item && l.item.maHang) || l.title);
+    const done = l.daXuat > 0 && l.con <= 0 && !inCart;   // ĐT 1.45: khai báo TRƯỚC khi dùng (bản 1.44 khai báo sau → lỗi, danh sách tồn kho trống)
     const pills = (l.hsdDays != null && l.hsdDays < 10 ? `<span class="pill ${l.hsdDays < 0 ? 'hsd-het' : 'hsd-sap'}">${l.hsdDays < 0 ? 'hết hạn' : 'sắp hết hạn'}</span>` : '')
       + (l.item && l.item.vtMoi ? '<span class="pill chuyen">đang chuyển</span>' : '')
       + (done ? `<span class="pill wait">đã xuất ${fmt(l.daXuat)}</span>` : (l.daXuat > 0 ? `<span class="pill wait">đã xuất ${fmt(l.daXuat)}</span>` : '')) + (l.cho ? `<span class="pill wait">chờ PC ${fmt(l.cho)}</span>` : '') + (inCart ? `<span class="pill soan">soạn ${fmt(inCart)}</span>` : '');
     const kien = l.pack ? ` title="≈ ${fmt(Math.floor(con / l.pack + 1e-9))} kiện"` : '';
     const pickCls = state.multi.on ? (canPick(l) ? (state.multi.sel.has(l.key) ? ' picked' : '') : ' no-pick') : '';
-    const done = l.daXuat > 0 && l.con <= 0 && !inCart;   // ĐT 1.44: dòng đã làm phiếu xuất hết → hiện số vốn có, mờ, không chọn
     const conShow = done ? l.soKien + l.daXuat : con;
     return `<li class="row${l.con <= 0 ? ' is-empty' : ''}${done ? ' is-done' : ''}${inCart ? ' in-cart' : ''}${pickCls}">
       <button type="button" class="krow" data-lot="${esc(l.key)}" data-src="${src}"${done ? ' disabled' : ''}>

@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '1.43 (18/11/2026)';
+  const APP_VERSION = '1.44 (19/11/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -639,7 +639,8 @@
       const h = dv.headers;
       const iKey = h.indexOf('_key'), iSl = findHeader(h, 'SL Tồn'), iMa = findHeader(h, 'Mã hàng'),
             iTen = findHeader(h, 'Tên hàng'), iLo = findHeader(h, 'Lô (Batch)'), iVt = findHeader(h, 'Vị trí'),
-            iDvt = findHeader(h, 'ĐVT'), iTl = findHeader(h, 'T.Lượng');
+            iDvt = findHeader(h, 'ĐVT'), iTl = findHeader(h, 'T.Lượng'),
+            iDx = findHeader(h, 'Đã xuất'), iHn = findHeader(h, 'Xuất hôm nay'), iNd = findHeader(h, 'Nhóm đặc tính'); // ĐT 1.44: cột phụ PC 3.00
       state.lots.vitriReady = iKey >= 0 && iSl >= 0;
       if (state.lots.vitriReady) {
         const pending = dv.pending || {};
@@ -654,6 +655,7 @@
             raw: r, module: 'M01VT', key, title: v(r, iMa) || v(r, iTen), unit: String(v(r, iDvt) || 'SL'),
             subs: [['Vị trí', shortPlace(v(r, iVt))], ['Đặc tính', dt], ['Hợp đồng', hd]], // Lô chỉ xem trong bảng chi tiết / bảng xuất
             soKien, cho, con: soKien - cho,
+            daXuat: iDx >= 0 ? looseNum(r[iDx]) : 0, homNay: iHn >= 0 ? looseNum(r[iHn]) : 0, nhomDt: iNd >= 0 ? String(r[iNd] || '').trim() : dt,
             item: { itemKey, maHang: v(r, iMa), tenHang: v(r, iTen), soLo: v(r, iLo), viTri: v(r, iVt), dvt: v(r, iDvt), tl: looseNum(v(r, iTl)), soKien },
             s: norm([v(r, iMa), v(r, iTen), v(r, iLo), v(r, iVt)].join(' '))
           };
@@ -1079,7 +1081,7 @@
           const qs = xuatQueries();
           const onlyAvail = $('onlyAvail').checked;
           const lotHit = makeXuatMatch(qs, state.lots[src]);
-          return (state.lots[src] || []).filter((l) => (!onlyAvail || l.con > 0) && hsdQuickOk(src, l) && khoOk(src, l) && lotHit(l));
+          return (state.lots[src] || []).filter((l) => (!onlyAvail || l.con > 0 || l.daXuat > 0) && hsdQuickOk(src, l) && khoOk(src, l) && lotHit(l));
         }
         const qs = norm(state.q.ton).trim().split(/\s+/).filter(Boolean);
         return (state.tonRows[src] || []).filter((x) => wordsHit(x.s, qs, x));
@@ -1131,7 +1133,7 @@
     metaRow.classList.toggle('has-toggle', on);
     if (!on) return;
     const cnt = { '': 0 };
-    (lots || []).forEach((l) => { if (onlyAvail && !(l.con > 0)) return; cnt['']++; const k = khoNoOf(l); if (k) cnt[k] = (cnt[k] || 0) + 1; });
+    (lots || []).forEach((l) => { if (onlyAvail && !(l.con > 0 || l.daXuat > 0)) return; cnt['']++; const k = khoNoOf(l); if (k) cnt[k] = (cnt[k] || 0) + 1; });
     Array.from(sel.options).forEach((o) => { o.textContent = (o.value ? 'Kho: Kho ' + o.value : 'Kho: Tổng') + ' (' + fmt(cnt[o.value] || 0) + ')'; });
     if (sel.value !== (state.xuatKho || '')) sel.value = state.xuatKho || '';
     pick.classList.toggle('on', !!state.xuatKho); // cùng kiểu "đang lọc" với nút Sắp xếp
@@ -1218,7 +1220,7 @@
     const onlyAvail = $('onlyAvail').checked;
     const cf = cfCompile(state.colf.xuat[src]);
     const lotHit = makeXuatMatch(q, lots);
-    const rows = sortLots(src, lots.filter((l) => (!onlyAvail || l.con > 0) && hsdQuickOk(src, l) && khoOk(src, l) && lotHit(l)
+    const rows = sortLots(src, lots.filter((l) => (!onlyAvail || l.con > 0 || l.daXuat > 0) && hsdQuickOk(src, l) && khoOk(src, l) && lotHit(l)
       && cf.every(([k, set]) => set.has(norm(xuatFieldValue(l, k))))));
     renderHsdQuick(src, lots, onlyAvail);
     placeKhoPick(src, lots, onlyAvail);
@@ -1263,7 +1265,7 @@
     box.hidden = src !== 'vitribot' || !lots.length;
     if (box.hidden) return;
     const cnt = { sap: 0, het: 0 };
-    lots.forEach((l) => { if (!onlyAvail || l.con > 0) { const g = hsdGroup(l); if (g) cnt[g]++; } });
+    lots.forEach((l) => { if (!onlyAvail || l.con > 0 || l.daXuat > 0) { const g = hsdGroup(l); if (g) cnt[g]++; } });
     $('hsdQSap').textContent = cnt.sap ? '(' + fmt(cnt.sap) + ')' : '';
     $('hsdQHet').textContent = cnt.het ? '(' + fmt(cnt.het) + ')' : '';
     box.querySelectorAll('[data-hsdq]').forEach((b) => b.classList.toggle('is-on', b.dataset.hsdq === (state.hsdQ || '')));
@@ -1335,13 +1337,15 @@
     const code = noTpc((l.item && l.item.maHang) || l.title);
     const pills = (l.hsdDays != null && l.hsdDays < 10 ? `<span class="pill ${l.hsdDays < 0 ? 'hsd-het' : 'hsd-sap'}">${l.hsdDays < 0 ? 'hết hạn' : 'sắp hết hạn'}</span>` : '')
       + (l.item && l.item.vtMoi ? '<span class="pill chuyen">đang chuyển</span>' : '')
-      + (l.cho ? `<span class="pill wait">chờ PC ${fmt(l.cho)}</span>` : '') + (inCart ? `<span class="pill soan">soạn ${fmt(inCart)}</span>` : '');
+      + (done ? `<span class="pill wait">đã xuất ${fmt(l.daXuat)}</span>` : (l.daXuat > 0 ? `<span class="pill wait">đã xuất ${fmt(l.daXuat)}</span>` : '')) + (l.cho ? `<span class="pill wait">chờ PC ${fmt(l.cho)}</span>` : '') + (inCart ? `<span class="pill soan">soạn ${fmt(inCart)}</span>` : '');
     const kien = l.pack ? ` title="≈ ${fmt(Math.floor(con / l.pack + 1e-9))} kiện"` : '';
     const pickCls = state.multi.on ? (canPick(l) ? (state.multi.sel.has(l.key) ? ' picked' : '') : ' no-pick') : '';
-    return `<li class="row${l.con <= 0 ? ' is-empty' : ''}${inCart ? ' in-cart' : ''}${pickCls}">
-      <button type="button" class="krow" data-lot="${esc(l.key)}" data-src="${src}">
+    const done = l.daXuat > 0 && l.con <= 0 && !inCart;   // ĐT 1.44: dòng đã làm phiếu xuất hết → hiện số vốn có, mờ, không chọn
+    const conShow = done ? l.soKien + l.daXuat : con;
+    return `<li class="row${l.con <= 0 ? ' is-empty' : ''}${done ? ' is-done' : ''}${inCart ? ' in-cart' : ''}${pickCls}">
+      <button type="button" class="krow" data-lot="${esc(l.key)}" data-src="${src}"${done ? ' disabled' : ''}>
         <span class="k1"><span class="k-code">${esc(code)}</span><span class="k-place${place ? '' : ' none'}" title="${esc(placeFull)}">${esc(place || '—')}</span>
-          <span class="k-qty"${kien}><b>${fmt(con)}</b>${!khoLabel && state.listUnit && state.listUnit === l.unit ? '' : ` <small>${esc(l.unit)}</small>`}</span></span>
+          <span class="k-qty"${kien}><b>${fmt(conShow)}</b>${!khoLabel && state.listUnit && state.listUnit === l.unit ? '' : ` <small>${esc(l.unit)}</small>`}</span></span>
         <span class="k2">${khoLabel ? `<span class="pill soan">${esc(khoLabel)}</span>` : ''}${l.sizeTag ? `<span class="k-size">${esc(l.sizeTag)}</span>` : ''}<span class="k-name">${esc(lotLine2(src, l))}</span>${pills}</span>
       </button>
     </li>`;
@@ -2045,7 +2049,33 @@
     }) });
   }
   let phieuBase = [];
+  // ĐT 1.44 — THỐNG KÊ SIZE đã làm phiếu (kho Tồn vị trí An An): mỗi Size bao nhiêu kiện đã xuất hôm nay (PC đẩy "Xuất hôm nay"), chờ PC, đang soạn; kèm đặc tính đã gộp.
+  function renderVtStat() {
+    const host = $('phieuStat');
+    if (!host) return;
+    const lots = (state.lots && state.lots.vitri) || [];
+    const by = new Map();
+    const get = (l) => {
+      const k = l.sizeTag || noTpc((l.item && l.item.maHang) || l.title) || '?';
+      let o = by.get(k); if (!o) { o = { k, dts: new Set(), done: 0, cho: 0, soan: 0 }; by.set(k, o); }
+      if (l.nhomDt) o.dts.add(l.nhomDt);
+      return o;
+    };
+    lots.forEach((l) => { if (l.homNay > 0 || l.cho > 0) { const o = get(l); o.done += l.homNay > 0 ? l.homNay : 0; o.cho += l.cho > 0 ? l.cho : 0; } });
+    if (state.cart && state.cart.items.length && state.cart.module === 'M01VT') {
+      const byKey = new Map(lots.map((l) => [l.key, l]));
+      state.cart.items.forEach((it) => { const l = byKey.get(it.key); if (l) get(l).soan += num(it.qty); });
+    }
+    const L = Array.from(by.values()).filter((o) => o.done || o.cho || o.soan).sort((a, b) => natCmp(a.k, b.k));
+    if (!L.length) { host.innerHTML = ''; return; }
+    let td = 0, tc = 0, ts = 0;
+    const rows = L.map((o) => { td += o.done; tc += o.cho; ts += o.soan; return `<tr><td><b>${esc(o.k)}</b></td><td>${esc(Array.from(o.dts).sort().join(', ') || '—')}</td><td class="n">${fmt(o.done)}</td><td class="n">${o.cho ? fmt(o.cho) : ''}</td><td class="n">${o.soan ? fmt(o.soan) : ''}</td></tr>`; }).join('');
+    host.innerHTML = `<details class="vt-stat" open><summary><b>📊 Size đã làm phiếu hôm nay</b> <small>(Tồn vị trí An An)</small></summary>
+      <table><thead><tr><th>Size</th><th>Đặc tính</th><th class="n">Đã xuất</th><th class="n">Chờ PC</th><th class="n">Soạn</th></tr></thead><tbody>${rows}</tbody>
+      <tfoot><tr><td colspan="2"><b>Tổng</b></td><td class="n"><b>${fmt(td)}</b></td><td class="n"><b>${tc ? fmt(tc) : ''}</b></td><td class="n"><b>${ts ? fmt(ts) : ''}</b></td></tr></tfoot></table></details>`;
+  }
   function renderPhieu() {
+    try { renderVtStat(); } catch (e) { /* thống kê lỗi không được làm hỏng trang Phiếu */ }
     const pfBar = $('phieuFBar');
     if (pfBar) pfBar.hidden = state.phieuSeg === 'soan';
     if ($('phieuFBtn') && !$('phieuFBtn').onclick) $('phieuFBtn').onclick = () => openFilterSheet({ fields: PHIEU_FIELDS, store: state.pcf, valueOf: phieuVal, baseRows: () => phieuBase, rerender: renderPhieu });

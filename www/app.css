@@ -1028,3 +1028,12 @@ body.has-totalbar .multibar { bottom: calc(var(--tabbar-h) + var(--safe-bottom) 
 .vtf-chip { border: 1px solid var(--line); background: var(--paper); color: inherit; border-radius: 16px; padding: 6px 12px; min-height: 36px; font-size: calc(13.5px * var(--fs, 1)); line-height: 1.2; }
 .vtf-chip b { margin-left: 4px; }
 .vtf-chip.is-on { background: var(--primary, #1d6fd0); border-color: transparent; color: #fff; }
+
+/* ĐT 1.44 — dòng đã làm phiếu xuất hết: hiện số vốn có nhưng mờ, không chọn */
+.row.is-done .krow { opacity: .5; pointer-events: none; }
+.row.is-done .krow .k-qty b, .row.is-done .krow .k-code { color: var(--muted); }
+.vt-stat { margin: 12px 0; }
+.vt-stat h4 { margin: 0 0 6px; font-size: calc(14px * var(--fs, 1)); }
+.vt-stat table { width: 100%; border-collapse: collapse; font-size: calc(13px * var(--fs, 1)); }
+.vt-stat th, .vt-stat td { padding: 5px 6px; border-bottom: 1px solid var(--line, #8883); text-align: left; vertical-align: top; }
+.vt-stat .n { text-align: right; white-space: nowrap; }

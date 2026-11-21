@@ -25,7 +25,7 @@
   // Tăng mỗi lần sửa app.js — hiện ở cuối Cài đặt để kiểm tra điện thoại đang chạy đúng bản chưa.
   // ĐÁNH SỐ LẠI TỪ 1.1 (30/09/2026, trước đó 3.x) — tăng mỗi lần phát hành; nhớ đổi cả ?v= trong index.html
   // và "version" trong package.json (GitHub Actions lấy số đó làm versionName của APK).
-  const APP_VERSION = '1.45 (19/11/2026)';
+  const APP_VERSION = '1.46 (21/11/2026)';
   const PAGE = 50;
 
   // Tên cột — PHẢI khớp tab TonKho_M02 (M2_PUSH_COLUMNS trong main.js của app PC).
@@ -163,8 +163,13 @@
   const load = (k, dflt) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : dflt; } catch (e) { return dflt; } };
   const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* đầy bộ nhớ: bỏ qua bản lưu tạm */ } };
   const newId = () => 'dt_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
-  const stamp = () => {
+  const stamp = (mod) => {
     const d = new Date(); const p = (x) => String(x).padStart(2, '0');
+    if (mod === 'M01VT') {   // ĐT 1.46: phiếu Tồn theo vị trí = DTVT-ddmmyyNN (NN = số phiếu trong ngày), PC dùng làm mã phiếu
+      const pre = 'DTVT-' + p(d.getDate()) + p(d.getMonth() + 1) + p(d.getFullYear() % 100); let mx = 0;
+      ((state.phieu && state.phieu.data && state.phieu.data.list) || []).forEach((x) => { const c = String(x.maPhieu || ''); if (c.indexOf(pre) === 0) { const n = parseInt(c.slice(pre.length), 10); if (isFinite(n) && n > mx) mx = n; } });
+      return pre + p(mx + 1);
+    }
     return 'DT' + String(d.getFullYear()).slice(2) + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes());
   };
   // Ngày hôm nay dạng yyyy-mm-dd (giá trị mặc định cho <input type="date">).
@@ -2623,7 +2628,7 @@
     const ngayXuat = state.cart.module === 'M02' ? String(state.cart.ngayXuat || '').trim() : '';
     const phieu = {
       id: state.cart.id,                       // giữ nguyên qua các lần bấm gửi lại -> không trùng
-      maPhieu: state.cart.maPhieu || (state.cart.maPhieu = (tenPhieu || stamp())),
+      maPhieu: state.cart.maPhieu || (state.cart.maPhieu = (tenPhieu || stamp(state.cart.module))),
       ngayXuat,                                 // ngày xuất do người dùng chọn (PC/Sheet hiện chưa lưu cột này)
       nguoiTao: state.cfg.name,
       ghiChu: state.cart.ghiChu,

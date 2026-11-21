@@ -36,7 +36,9 @@ jobs:
         run: |
           OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           REPO="${{ github.event.repository.name }}"
-          if [ "$(echo "$REPO" | tr '[:upper:]' '[:lower:]')" = "$OWNER.github.io" ]; then BASE="https://$OWNER.github.io/"; else BASE="https://$OWNER.github.io/$REPO/"; fi
+          # CHUYỂN KHO (21/11/2026): kho CŨ cố định địa chỉ cập nhật sang kho MỚI — điện thoại đang cài APK cũ tải bản này,
+          # đọc live-update-config.json mới rồi từ đó về sau tự cập nhật từ kho mới (không cần cài lại APK).
+          BASE="https://truongnhatdangkhoa-ai.github.io/kholanh-anan-mobile/"
           VER=$(echo "${{ github.sha }}" | cut -c1-7)
           # Chịu được khi thiếu file native-level.txt (quên tải lên) → mặc định 1; không để lệnh con làm dừng build.
           NATIVE=$( (cat native-level.txt 2>/dev/null || echo 1) | tr -dc '0-9' ); NATIVE=${NATIVE:-1}
